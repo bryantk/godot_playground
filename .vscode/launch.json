@@ -1,0 +1,37 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Godot: Launch main scene",
+      "type": "godot",
+      "request": "launch",
+      "project": "${workspaceFolder}",
+      "scene": "main",
+      "debug_collisions": false,
+      "debug_paths": false,
+      "debug_navigation": false,
+      "additional_options": ""
+    },
+    {
+      "name": "Godot: Launch current scene",
+      "type": "godot",
+      "request": "launch",
+      "project": "${workspaceFolder}",
+      "scene": "current"
+    },
+    {
+      "name": "Godot: Pick a scene",
+      "type": "godot",
+      "request": "launch",
+      "project": "${workspaceFolder}",
+      "scene": "ask"
+    },
+    {
+      "name": "Godot: Attach to running game",
+      "type": "godot",
+      "request": "attach",
+      "address": "127.0.0.1",
+      "port": 6007
+    }
+  ]
+}

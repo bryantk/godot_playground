@@ -1,0 +1,34 @@
+[gd_scene format=3 uid="uid://co0ldsukxd5i3"]
+
+[ext_resource type="PackedScene" uid="uid://ct51ydliwmoql" path="res://TextBox/rich_text_block.tscn" id="1_1adbf"]
+
+[node name="MainUI" type="SubViewportContainer" unique_id=1842982352]
+offset_right = 640.0
+offset_bottom = 320.0
+
+[node name="SubViewport" type="SubViewport" parent="." unique_id=1770312101]
+transparent_bg = true
+handle_input_locally = false
+size = Vector2i(640, 320)
+render_target_update_mode = 4
+
+[node name="MenuRoot" type="Control" parent="SubViewport" unique_id=1507219056]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TextBox" parent="SubViewport/MenuRoot" unique_id=232854368 instance=ExtResource("1_1adbf")]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = -108.0
+offset_right = -8.0
+offset_bottom = -8.0
+grow_horizontal = 2
+grow_vertical = 0

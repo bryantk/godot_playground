@@ -1,0 +1,38 @@
+{
+  "godotTools.editorPath.godot4": "c:\\Users\\kyle\\Desktop\\Godot_v4.7-stable_win64.exe",
+  "explorer.sortOrder": "type",
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    "*.gd": "${capture}.gd.uid",
+    "*.png": "${capture}.png.import",
+    "*.jpg": "${capture}.jpg.import",
+    "*.jpeg": "${capture}.jpeg.import",
+    "*.webp": "${capture}.webp.import",
+    "*.svg": "${capture}.svg.import",
+    "*.bmp": "${capture}.bmp.import",
+    "*.tga": "${capture}.tga.import",
+    "*.exr": "${capture}.exr.import",
+    "*.hdr": "${capture}.hdr.import",
+    "*.wav": "${capture}.wav.import",
+    "*.ogg": "${capture}.ogg.import",
+    "*.mp3": "${capture}.mp3.import",
+    "*.ttf": "${capture}.ttf.import",
+    "*.otf": "${capture}.otf.import",
+    "*.woff": "${capture}.woff.import",
+    "*.woff2": "${capture}.woff2.import",
+    "*.glb": "${capture}.glb.import",
+    "*.gltf": "${capture}.gltf.import",
+    "*.obj": "${capture}.obj.import",
+    "*.fbx": "${capture}.fbx.import",
+    "*.dae": "${capture}.dae.import"
+  },
+  "search.exclude": {
+    "**/.godot": true
+  },
+  "[gdscript]": {
+    "editor.insertSpaces": false,
+    "editor.tabSize": 2,
+    "editor.detectIndentation": false
+  }
+}
