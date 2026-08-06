@@ -1,3 +1,5 @@
+@tool
+
 class_name RichTextBlock
 extends RichTextLabel
 
@@ -29,17 +31,22 @@ const PUNCTUATION := [
 
 ## Characters revealed per second. Higher is faster.
 @export var characters_per_second: float = 30.0
-## When false, the whole text is shown immediately with no animation.
-@export var animate: bool = true
+## Rate that text will exit at
+@export_range(1.0, 2000.0) var scroll_speed:= 256.0
 ## Rate to accelerate the wait time for 
 @export var text_rate: float = 1
 @export var speedup_rate:= 2.0
 ## Max number of lines of text
-@export var _max_lines:= 4
-@export var auto_scroll_block:= false
-
-@export_range(1.0, 2000.0) var scroll_speed:= 256.0
+@export var _max_lines:= 4:
+	set(value):
+		_max_lines = value
+		update_configuration_warnings()
 @export var post_scroll_delay:= 0.2
+@export_group("Animation Behavior")
+## Do not wait for input at end of the block.
+@export var auto_scroll_block:= false
+## When false, the whole text is shown immediately with no animation.
+@export var animate: bool = true
 
 var request_speed_up:= false
 
@@ -59,10 +66,17 @@ var _snapshot:= []
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		return
+
 	# Custom BBCode requires bbcode parsing and the effect to be registered
 	# before the text is parsed.
 	bbcode_enabled = true
 	_attach_data_effect()
+
+	var line_height = self.get_line_height(0)
+	if line_height * _max_lines != self.size.y:
+		print("Text window requested %s lines at %s pixels. %s provided." % [_max_lines, line_height * _max_lines, self.size.y])
 
 	# If text was authored in the editor, reveal it automatically.
 	if text != "":
@@ -143,14 +157,32 @@ func _animate_transition(delta: float) -> void:
 		scroll.value = goal
 		_state = States.REVEALING
 
+## Build the newlines that fill the current text out to whole pages, plus one
+## blank page for the last page to scroll up into on the way out.
+##
+## Must be called while the label already holds the text being measured, since
+## the fill depends on the wrapped line count.
+func _block_padding() -> String:
+	var partial_lines := self.get_line_count() % _max_lines
+	var fill_lines := (_max_lines - partial_lines) % _max_lines
+
+	var padding := ""
+	for x in range(fill_lines + _max_lines):
+		# The space keeps the padded line from being collapsed away.
+		padding += "\n "
+	return padding
+
+func pause() -> void:
+	_state = States.PAUASED
+
 ## Set the block's text and begin revealing it one character at a time.
 func display(new_text: String) -> void:
+	# Measure the wrapped line count, then re-assign with the padding baked in.
+	# add_text() would not write back to `text`, so a repeat call with the same
+	# string would no-op the setter and stack another block of padding.
 	self.text = new_text
+	self.text = new_text + _block_padding()
 	self.get_v_scroll_bar().value = 0
-	# Pad newlines to end blocks
-	var needed_lines = (_max_lines - (self.get_line_count() % _max_lines)) % _max_lines
-	for x in range(needed_lines + _max_lines):
-		self.add_text("\n ")
 	_top_line = 0
 	_displayed_line = 0
 	_char_accumulator = 0.0
@@ -167,6 +199,28 @@ func display(new_text: String) -> void:
 	_push_snapshot()
 	self.visible_characters = 0
 	_state = States.REVEALING
+
+## Stop revealing and drop the block back to empty, ready for the next [method display].
+## Nothing is emitted - this abandons the text rather than finishing it.
+func reset() -> void:
+	_state = States.PAUASED
+	self.text = ""
+	self.visible_characters = 0
+	self.get_v_scroll_bar().value = 0
+	_plain = ""
+	_top_line = 0
+	_displayed_line = 0
+	_char_accumulator = 0.0
+	_scroll_accumulator = 0.0
+	_current_word = ""
+	_wait_remaining = 0.0
+	# A [dc speed=..] block may have been left open, so restore the authored rate
+	# from the base snapshot instead of keeping whatever it was overridden to.
+	if not _snapshot.is_empty():
+		characters_per_second = _snapshot[0][SPEED_TAG]
+		_snapshot.clear()
+	if _data_effect != null:
+		_data_effect.reset()
 
 ## Instantly reveal all remaining text, emitting any pending signals.
 func skip() -> void:
@@ -284,3 +338,25 @@ func advance() -> bool:
 		_:
 			print("error state: %s" % _state)
 	return false
+
+
+# Debug
+func _enter_tree() -> void:
+	# NOTIFICATION_TRANSFORM_CHANGED is opt-in; without this, changing `scale`
+	# never notifies us (only `size` fires NOTIFICATION_RESIZED).
+	set_notify_transform(true)
+	update_configuration_warnings()
+
+func _notification(what: int) -> void:
+	match what:
+		# size changed / scale changed / font (line height) changed
+		NOTIFICATION_RESIZED, NOTIFICATION_TRANSFORM_CHANGED, NOTIFICATION_THEME_CHANGED:
+			update_configuration_warnings()
+
+func _get_configuration_warnings() -> PackedStringArray:
+	var line_height := get_line_height(0)
+	var required_height := line_height * _max_lines
+	if required_height != int(size.y):
+		return ["Text window requested %s lines at %s pixels. %s provided." % [_max_lines, required_height, size.y]]
+
+	return []

@@ -1,22 +1,58 @@
 extends Control
 
+signal finished
+
 @export var max_lines:= 4
+@export_group("References")
 @export var text_block: RichTextBlock = null
 @export var cursor: Control
+@export var window: Control
+@export var locations: Control
+
+enum Location { TOP, MIDDLE, BOTTOM }
 
 func _ready() -> void:
 	text_block.on_finished.connect(_finished)
 	text_block.on_page_displayed.connect(_on_page_displayed)
-
+	#TODO: temp
 	InputManager.attach(self)
+	set_window_location(1)
+
+func set_window_location(index: int) -> void:
+	if index < 0 or index >= locations.get_child_count():
+		push_error("set_window_location: no location at index %d" % index)
+		return
+
+	var location: Control = locations.get_child(index)
+	window.global_position = location.global_position
 
 func display(text: String) -> void:
 	cursor.visible = false
+	text_block.reset()
+
+	await _animate_window(&"intro", true)
+
 	text_block.display(text)
 
 func _finished() -> void:
-	#TODO: close box
-	print("end")
+	cursor.visible = false
+
+	await _animate_window(&"outro", false)
+
+	text_block.reset()
+	finished.emit()
+
+## Runs the window's [param method] animation if it has one, otherwise falls back to
+## toggling visibility to [param shown]. Always awaitable.
+func _animate_window(method: StringName, shown: bool) -> void:
+	if not window.has_method(method):
+		window.visible = shown
+		return
+
+	var tween: Tween = window.call(method)
+	if tween != null:
+		text_block.pause()
+		await tween.finished
 
 func _on_page_displayed(_page: int, _ratio: float) -> void:
 	cursor.visible = true
@@ -35,6 +71,12 @@ func cancel(_pressed: bool) -> void:
 func _speed_up() -> void:
 	var input = InputManager.is_down(&"action") or InputManager.is_down(&"cancel")
 	text_block.request_speed_up = input
+
+func debug2(pressed: bool) -> void:
+	if not pressed:
+		return
+
+	_finished()
 
 func debug(pressed: bool) -> void:
 	if not pressed:

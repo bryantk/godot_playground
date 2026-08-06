@@ -28,6 +28,8 @@ func _input(event: InputEvent) -> void:
 		_send(&"cancel", event.is_pressed())
 	elif event.keycode == KEY_R:
 		_send(&"debug", event.is_pressed())
+	elif event.keycode == KEY_T:
+		_send(&"debug2", event.is_pressed())
 
 
 func _send(method: StringName, pressed: bool) -> void:
