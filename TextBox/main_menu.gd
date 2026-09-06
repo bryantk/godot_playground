@@ -15,6 +15,9 @@ func _resume() -> void:
 		pause_menu.hide()
 		InputManager.attach(self)
 
+func _message() -> void:
+	EventBus.append_say("hello there mate.")
+
 func action(pressed: bool) -> void:
 	dialogue.action(pressed)
 
@@ -38,6 +41,10 @@ func debug2(pressed: bool) -> void:
 func debug(pressed: bool) -> void:
 	if not pressed:
 		return
+
+	print("go")
+	_message()
+	return
 
 	print("pressed")
 	dialogue.display(

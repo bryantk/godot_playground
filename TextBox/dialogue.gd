@@ -12,9 +12,21 @@ signal finished
 
 enum Location { TOP, MIDDLE, BOTTOM }
 
+## Messages waiting their turn, oldest first. Each entry is
+## [code]{"text": String, "options": Dictionary, "key": String}[/code].
+var _queue: Array[Dictionary] = []
+## The message on screen right now, or an empty dictionary between messages.
+var _current: Dictionary = {}
+## Set by [method _finished] when it hands a still-open window straight to an
+## appended follow-up, and cleared by the [method display] that takes it. Only a
+## message that finished on screen can pass this on, so the first message of a run
+## always gets its intro no matter how it was queued.
+var _handed_open_window: bool = false
+
 func _ready() -> void:
 	text_block.on_finished.connect(_finished)
 	text_block.on_page_displayed.connect(_on_page_displayed)
+	EventBus.dialogue_enqueue.connect(_on_dialogue_enqueue)
 
 func set_window_location(index: int) -> void:
 	if index < 0 or index >= locations.get_child_count():
@@ -32,21 +44,85 @@ func set_window_location(index: int) -> void:
 	window.global_position = location.global_position
 	window.pivot_offset = pivot
 
-func display(text: String) -> void:
+## Queues [param text] behind whatever is already on screen. See [method display]
+## for the keys [param options] understands.
+func _on_dialogue_enqueue(text: String, options: Dictionary, key: String = "") -> void:
+	_queue.push_back({"text": text, "options": options, "key": key})
+	_next()
+
+## Starts the oldest queued message, if the window is free to take one.
+func _next() -> void:
+	if not _current.is_empty() or _queue.is_empty():
+		return
+
+	var message: Dictionary = _queue.pop_front()
+	display(message.text, message.options, message.key)
+
+## Puts [param text] on screen now, replacing whatever the window was showing.
+##
+## [param options] is a free-form bag; unrecognised keys are ignored. Recognised:
+## [codeblock]
+## location: int  # where the window sits, index into locations - see Location
+## append: bool   # follow the message before this one, no outro/intro between
+## [/codeblock]
+## Any [code]append[/code] value other than [code]false[/code] counts, so the key
+## simply being present is enough. An appended message is an ordinary message that
+## takes over a window already open: the block still clears and the text still
+## reveals from the start, but the window neither closes behind the message ahead
+## of it nor animates back in, and it stays where it is ([code]location[/code] is
+## ignored). With no message on screen to follow it opens the window and plays the
+## intro like any other, so appending only chains off a message that finished while
+## this one was already queued behind it.
+##
+## [param key] is echoed back on [signal EventBus.dialogue_finished] when the
+## message is done, so a sender can await its own message. Empty means nobody is
+## waiting on this one. Each appended message keeps its own key and reports
+## finished separately.
+func display(text: String, options: Dictionary = {}, key: String = "") -> void:
+	_current = {"text": text, "options": options, "key": key}
+
+	var continues: bool = _handed_open_window
+	_handed_open_window = false
+
 	cursor.visible = false
 	text_block.reset()
 
-	await _animate_window(&"intro", true)
+	if not continues:
+		var location: int = options.get("location", -1)
+		if location >= 0:
+			set_window_location(location)
+
+		await _animate_window(&"intro", true)
 
 	text_block.display(text)
+
+## True when [param options] asks for the message to continue the one before it.
+## The key being present is enough; only an explicit [code]false[/code] opts out.
+func _appends(options: Dictionary) -> bool:
+	return options.has("append") and options["append"] != false
 
 func _finished() -> void:
 	cursor.visible = false
 
-	await _animate_window(&"outro", false)
+	# The message waiting behind this one decides whether the window closes: an
+	# appended follow-up takes the window over as it stands, so the outro is skipped
+	# and the block is left alone for display() to clear as it starts.
+	var continued: bool = not _queue.is_empty() and _appends(_queue[0].options)
+	if not continued:
+		await _animate_window(&"outro", false)
+		text_block.reset()
 
-	text_block.reset()
+	var message: Dictionary = _current
+	_current = {}
+
 	finished.emit()
+	if not message.is_empty():
+		EventBus.dialogue_finished.emit(message.key)
+
+	# Set last: a listener above may have queued and started a message of its own,
+	# and that one is opening the window from scratch rather than taking ours.
+	_handed_open_window = continued
+	_next()
 
 ## Runs the window's [param method] animation if it has one, otherwise falls back to
 ## toggling visibility to [param shown]. Always awaitable.

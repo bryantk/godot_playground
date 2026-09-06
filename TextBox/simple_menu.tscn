@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://bbqey8pq5iss6"]
 
-[ext_resource type="Script" uid="uid://bingygypsxml7" path="res://simple_menu.gd" id="1_menu"]
+[ext_resource type="Script" uid="uid://bingygypsxml7" path="res://TextBox/simple_menu.gd" id="1_menu"]
 
 [node name="SimpleMenu" type="VBoxContainer" unique_id=976521984]
 custom_minimum_size = Vector2(128, 0)
