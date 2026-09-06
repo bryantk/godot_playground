@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://bbqey8pq5iss6"]
+
+[ext_resource type="Script" uid="uid://bingygypsxml7" path="res://simple_menu.gd" id="1_menu"]
+
+[node name="SimpleMenu" type="VBoxContainer" unique_id=976521984]
+custom_minimum_size = Vector2(128, 0)
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("1_menu")
+
+[node name="Button" type="Button" parent="." unique_id=2039463382]
+layout_mode = 2
+text = "Return"
+
+[node name="Button2" type="Button" parent="." unique_id=1544015312]
+layout_mode = 2
+text = "Exit"

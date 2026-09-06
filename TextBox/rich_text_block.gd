@@ -74,16 +74,10 @@ func _ready() -> void:
 	bbcode_enabled = true
 	_attach_data_effect()
 
-	var line_height = self.get_line_height(0)
-	if line_height * _max_lines != self.size.y:
-		print("Text window requested %s lines at %s pixels. %s provided." % [_max_lines, line_height * _max_lines, self.size.y])
-
-	# If text was authored in the editor, reveal it automatically.
-	if text != "":
-		display(text)
-	else:
-		# Otherwise reveal is driven manually; hide everything until display().
-		self.visible_characters = 0
+	var error_msg = _get_configuration_warnings()
+	if error_msg.size() > 0:
+		print(error_msg[0])
+	self.visible_characters = 0
 
 const SPEED_TAG = "speed"
 func _push_snapshot() -> void:
@@ -354,9 +348,9 @@ func _notification(what: int) -> void:
 			update_configuration_warnings()
 
 func _get_configuration_warnings() -> PackedStringArray:
-	var line_height := get_line_height(0)
+	var line_height := self.get_line_height(0)
 	var required_height := line_height * _max_lines
-	if required_height != int(size.y):
+	if required_height != int(self.size.y):
 		return ["Text window requested %s lines at %s pixels. %s provided." % [_max_lines, required_height, size.y]]
 
 	return []

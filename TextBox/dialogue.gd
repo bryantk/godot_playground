@@ -1,3 +1,4 @@
+class_name Dialogue
 extends Control
 
 signal finished
@@ -14,9 +15,6 @@ enum Location { TOP, MIDDLE, BOTTOM }
 func _ready() -> void:
 	text_block.on_finished.connect(_finished)
 	text_block.on_page_displayed.connect(_on_page_displayed)
-	#TODO: temp
-	InputManager.attach(self)
-	set_window_location(1)
 
 func set_window_location(index: int) -> void:
 	if index < 0 or index >= locations.get_child_count():
@@ -24,7 +22,15 @@ func set_window_location(index: int) -> void:
 		return
 
 	var location: Control = locations.get_child(index)
+	# Control.global_position folds in the window's own pivot-scale offset, so writing
+	# it while the window sits collapsed (a zoom animation parked closed) shoves
+	# position pivot_offset * (1 - scale) the other way to compensate - hundreds of
+	# pixels offscreen once the intro scales back up. Zeroing the pivot makes this a
+	# plain parent-space move; the animation rebuilds its own pivot in _layout().
+	var pivot: Vector2 = window.pivot_offset
+	window.pivot_offset = Vector2.ZERO
 	window.global_position = location.global_position
+	window.pivot_offset = pivot
 
 func display(text: String) -> void:
 	cursor.visible = false
@@ -75,7 +81,6 @@ func _speed_up() -> void:
 func debug2(pressed: bool) -> void:
 	if not pressed:
 		return
-
 	_finished()
 
 func debug(pressed: bool) -> void:

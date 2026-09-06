@@ -10,6 +10,9 @@ func attach(node: Node) -> void:
 func is_down(action: String) -> bool:
 	return _is_down.get(action, false)
 
+func _ready() -> void:
+	self.process_mode = Node.PROCESS_MODE_ALWAYS
+
 func _input(event: InputEvent) -> void:
 	# Ignore mouse movement
 	if event is InputEventMouseMotion:
@@ -19,6 +22,9 @@ func _input(event: InputEvent) -> void:
 		return
 
 	print("  ->%s %s" % [event.as_text(), "down" if event.is_pressed() else "up"])
+
+	if event is InputEventMouseButton:
+		return
 
 	if event.is_action_pressed(&"quit"):
 		get_tree().quit()
@@ -30,11 +36,13 @@ func _input(event: InputEvent) -> void:
 		_send(&"debug", event.is_pressed())
 	elif event.keycode == KEY_T:
 		_send(&"debug2", event.is_pressed())
+	elif event.keycode == KEY_P:
+		_send(&"pause", event.is_pressed())
 
-
-func _send(method: StringName, pressed: bool) -> void:
+func _send(method: StringName, pressed: bool) -> bool:
 	if target == null or not target.has_method(method):
-		return
+		return false
 
 	_is_down[method] = pressed
 	target.call(method, pressed)
+	return true

@@ -11,8 +11,10 @@ config_version=5
 [application]
 
 config/name="2026_dev"
+config/version="0.1"
 run/main_scene="res://TextBox/rich_text_block.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
+boot_splash/use_filter=false
 config/icon="res://icon.svg"
 
 [autoload]
@@ -25,6 +27,10 @@ window/size/viewport_width=640
 window/size/viewport_height=320
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+
+[editor]
+
+naming/node_name_num_separator=2
 
 [input]
 
@@ -52,6 +58,7 @@ quit={
 
 [rendering]
 
+textures/canvas_textures/default_texture_filter=0
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"

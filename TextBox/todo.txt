@@ -1,0 +1,9 @@
+Dialogue:
+  Name boxes
+    reposition if top vs bottom
+  face locations
+  more commands
+UI
+  simple menu
+    close, exit game
+pausing contexts
