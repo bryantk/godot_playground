@@ -33,6 +33,10 @@ window/stretch/aspect="expand"
 
 naming/node_name_num_separator=2
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/event_editor/plugin.cfg", "res://addons/graph_editor/plugin.cfg")
+
 [input]
 
 action={
