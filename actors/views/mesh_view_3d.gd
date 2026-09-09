@@ -13,10 +13,11 @@ var _target_yaw: float = 0.0
 var _has_target: bool = false
 
 
-func _ready() -> void:
+func _after_bind() -> void:
 	super()
-	_tree = _find_node_of_type(self, "AnimationTree") as AnimationTree
-	_player = _find_node_of_type(self, "AnimationPlayer") as AnimationPlayer
+	if _visual != null:
+		_tree = _find_node_of_type(_visual, "AnimationTree") as AnimationTree
+		_player = _find_node_of_type(_visual, "AnimationPlayer") as AnimationPlayer
 
 
 func set_facing(dir: Vector3i) -> void:

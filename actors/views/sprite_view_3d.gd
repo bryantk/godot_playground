@@ -31,7 +31,7 @@ var _camera_yaw: float = 0.0
 var _base_position: Vector3 = Vector3.ZERO
 
 
-func _ready() -> void:
+func _after_bind() -> void:
 	super()
 	_sprite = _visual as AnimatedSprite3D
 	if _visual is Node3D:

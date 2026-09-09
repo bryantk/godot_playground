@@ -13,11 +13,9 @@ var _anim: StringName = &"idle"
 var _dir_index: int = 2
 
 
-func _ready() -> void:
+func _after_bind() -> void:
 	super()
 	_sprite = _visual as AnimatedSprite2D
-	if _sprite == null and _visual != null:
-		_sprite = _visual.find_child("*", true, false) as AnimatedSprite2D
 	_refresh()
 
 

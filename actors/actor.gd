@@ -34,17 +34,34 @@ var _facing: Vector3i = Vector3i(0, 0, 1)
 
 func _ready() -> void:
 	_ctx = MapContext.of(self)
-	_adapter = _find_child_of_type("SpaceAdapter") as SpaceAdapter
-	_motion = _find_child_of_type("MotionController") as MotionController
-	_view = _find_child_of_type("ActorView") as ActorView
+	_resolve_parts()
 
-	if _ctx != null:
-		if _ctx.register(self):
-			# A solid grid actor claims the cell it spawned in, so two NPCs authored
-			# onto the same tile fail loudly at load rather than at first step.
-			if solid and effective_motion() == MotionMode.GRID:
-				if not _ctx.occupancy.reserve(actor_id, cell()):
-					push_error("Actor '%s' spawned on an occupied cell %s." % [actor_id, cell()])
+	if _ctx != null and _ctx.register(self):
+		# Deferred, because the parts may not exist yet. A scene-authored actor has
+		# its children before _ready, but one built in code - by hand or by
+		# [ActorFactory] - gets them added after it is already in the tree, and
+		# reserving a cell before the adapter exists would claim the origin.
+		_claim_spawn_cell.call_deferred()
+
+
+## Cache the axis children. Safe to call repeatedly; the getters call it when
+## something is still missing, so the order children are added in does not matter.
+func _resolve_parts() -> void:
+	if _adapter == null:
+		_adapter = _find_child_of_type("SpaceAdapter") as SpaceAdapter
+	if _motion == null:
+		_motion = _find_child_of_type("MotionController") as MotionController
+	if _view == null:
+		_view = _find_child_of_type("ActorView") as ActorView
+
+
+## A solid grid actor claims the cell it spawned in, so two NPCs authored onto the
+## same tile fail loudly at load rather than at first step.
+func _claim_spawn_cell() -> void:
+	if _ctx == null or not solid or effective_motion() != MotionMode.GRID:
+		return
+	if not _ctx.occupancy.reserve(actor_id, cell()):
+		push_error("Actor '%s' spawned on an occupied cell %s." % [actor_id, cell()])
 
 
 func _exit_tree() -> void:
@@ -59,14 +76,20 @@ func context() -> MapContext:
 
 
 func adapter() -> SpaceAdapter:
+	if _adapter == null:
+		_resolve_parts()
 	return _adapter
 
 
 func motion() -> MotionController:
+	if _motion == null:
+		_resolve_parts()
 	return _motion
 
 
 func view() -> ActorView:
+	if _view == null:
+		_resolve_parts()
 	return _view
 
 
@@ -82,7 +105,8 @@ func effective_motion() -> MotionMode:
 # -- Position -----------------------------------------------------------------
 
 func world_position() -> Vector3:
-	return _adapter.world_position() if _adapter != null else Vector3.ZERO
+	var adapt := adapter()
+	return adapt.world_position() if adapt != null else Vector3.ZERO
 
 
 ## The cell this actor is in. A grid actor's body is always exactly on a cell - the
@@ -101,13 +125,15 @@ func set_facing(dir: Vector3i) -> void:
 	if dir == Vector3i.ZERO or dir == _facing:
 		return
 	_facing = Space.quantise(Vector3(dir), facing_count)
-	if _view != null:
-		_view.set_facing(_facing)
+	var v := view()
+	if v != null:
+		v.set_facing(_facing)
 	facing_changed.emit(_facing)
 
 
 func is_moving() -> bool:
-	return _motion != null and _motion.is_busy()
+	var m := motion()
+	return m != null and m.is_busy()
 
 
 # -- Internals ----------------------------------------------------------------

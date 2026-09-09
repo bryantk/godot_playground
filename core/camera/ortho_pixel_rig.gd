@@ -34,15 +34,32 @@ const STOPS := 4
 ## spin - which also reads better.
 @export var snap_seconds: float = 0.22
 
+## Texels per world unit. Sets both the orthographic size (so one texel is one screen
+## pixel) and the grid the camera snaps to.
+@export var texels_per_unit: int = TEXELS_PER_TILE
+
+## Snap the camera to whole texels each frame. Without this everything shimmers as it
+## moves, because the world-to-pixel mapping drifts continuously.
+@export var quantise_camera: bool = true
+
+## How far back along the view axis to sit. Orthographic, so this changes nothing but
+## clipping - it just has to clear the geometry.
+@export var distance: float = 40.0
+
+## Raised so the camera frames a standing character rather than its feet.
+@export var target_height: float = 0.5
+
 var _camera: Camera3D = null
 var _yaw: float = 0.0
 var _tween: Tween = null
+var _subtexel := Vector2.ZERO
 
 
 func _ready() -> void:
 	super()
 	_camera = _find_camera()
 	_apply_pitch()
+	fit_viewport()
 
 
 func _find_camera() -> Camera3D:
@@ -56,6 +73,62 @@ func _find_camera() -> Camera3D:
 
 func yaw() -> float:
 	return _yaw
+
+
+## Size the orthographic frustum so one texel is exactly one viewport pixel. Godot's
+## orthographic [member Camera3D.size] is the vertical extent in world units, so that
+## is simply the viewport height divided by the texel density.
+func fit_viewport() -> void:
+	if _camera == null or not is_inside_tree():
+		return
+	var vp := get_viewport()
+	if vp == null:
+		return
+	var height := vp.get_visible_rect().size.y
+	if height <= 0.0 or texels_per_unit <= 0:
+		return
+	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	_camera.size = height / float(texels_per_unit)
+
+
+## The part of the camera's position that quantisation threw away, in screen pixels.
+##
+## This is the other half of sub-pixel movement: the logical position stays
+## continuous, the camera snaps to whole texels, and the remainder is handed to the
+## viewport to offset by - which is what makes the followed actor look perfectly
+## smooth. There is only one offset to spend, so everything else snaps texel to texel.
+func subtexel_offset() -> Vector2:
+	return _subtexel
+
+
+func _process(_delta: float) -> void:
+	if _camera == null or _target_id == &"" or _ctx == null:
+		return
+	var who := _ctx.actor(_target_id)
+	if who == null:
+		return
+
+	var basis := Basis.from_euler(Vector3(-deg_to_rad(pitch_degrees), _yaw, 0.0))
+	var focus := who.world_position() + Vector3.UP * target_height
+	var desired := focus + basis.z * distance
+
+	if quantise_camera and texels_per_unit > 0:
+		# Decompose along the camera's own axes and snap the two that map to screen.
+		# The basis is orthonormal, so the dot products are an exact change of basis.
+		var t := float(texels_per_unit)
+		var r := desired.dot(basis.x)
+		var u := desired.dot(basis.y)
+		var f := desired.dot(basis.z)
+		var rq: float = round(r * t) / t
+		var uq: float = round(u * t) / t
+		# Screen-space remainder: one world unit along a screen axis is t pixels.
+		_subtexel = Vector2((r - rq) * t, (u - uq) * t)
+		desired = basis.x * rq + basis.y * uq + basis.z * f
+	else:
+		_subtexel = Vector2.ZERO
+
+	_camera.global_position = desired
+	_camera.global_basis = basis
 
 
 ## Ground tile depth on screen, in px. Whole number by construction at a valid pitch.

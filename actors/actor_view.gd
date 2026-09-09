@@ -20,11 +20,55 @@ var _keys := 0
 
 
 func _ready() -> void:
-	_visual = get_node_or_null(visual_path) if not visual_path.is_empty() else _first_child()
+	if _visual == null:
+		_visual = get_node_or_null(visual_path) if not visual_path.is_empty() else _first_child()
+	_after_bind()
+
+
+## Point this view at its visual explicitly. Needed when the actor is built in code,
+## because [method Node._ready] has already run by the time the visual is added.
+func bind_visual(node: Node) -> void:
+	_visual = node
+	_after_bind()
+
+
+func visual() -> Node:
+	return _visual
+
+
+## Called whenever [member _visual] changes, so subclasses can cache typed references
+## once rather than casting on every call.
+func _after_bind() -> void:
+	_warn_if_detached()
 
 
 func _first_child() -> Node:
 	return get_child(0) if get_child_count() > 0 else null
+
+
+## [Actor], [ActorView] and [MotionController] are plain [Node]s on purpose - that is
+## what lets one script serve both spaces. The consequence, which is invisible until
+## something renders in the wrong place, is that a [Node3D] or [Node2D] whose parent
+## chain passes through a plain [Node] becomes its own transform root: it ignores the
+## body entirely and sits at the world origin.
+##
+## So the visual belongs under the body, as a sibling of [Actor], with this view
+## pointed at it by [member visual_path] or [method bind_visual] - never nested under
+## the view itself. Catching it here turns a baffling "my sprite is at 0,0" into a
+## message that says what to do.
+func _warn_if_detached() -> void:
+	if _visual == null:
+		return
+	if not (_visual is Node2D or _visual is Node3D):
+		return
+	var parent := _visual.get_parent()
+	if parent is Node2D or parent is Node3D:
+		return
+	push_warning(
+		"ActorView: visual '%s' is parented to '%s', which has no transform, so it " % [
+			_visual.name, parent.name if parent != null else "<none>"]
+		+ "will render at the world origin instead of following the actor. Parent it "
+		+ "to the body and point visual_path (or bind_visual) at it.")
 
 
 # -- To implement -------------------------------------------------------------

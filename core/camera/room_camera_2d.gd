@@ -55,9 +55,20 @@ func _follow(target: Vector2, delta: float) -> Vector2:
 	return _camera.position + pull * minf(1.0, follow_speed * delta)
 
 
+## How much world the camera actually shows. Divided by zoom, because a zoomed-in
+## camera sees less world, not more - clamping and room-snapping against the raw
+## viewport size would both be wrong by exactly the zoom factor.
+func _visible_world_size() -> Vector2:
+	var size := Vector2(get_viewport().get_visible_rect().size)
+	var zoom := _camera.zoom
+	if zoom.x <= 0.0 or zoom.y <= 0.0:
+		return size
+	return size / zoom
+
+
 ## Which screenful [param target] is in, snapped to that screen's origin.
 func _room_origin(target: Vector2) -> Vector2:
-	var size := Vector2(get_viewport().get_visible_rect().size)
+	var size := _visible_world_size()
 	if size.x <= 0.0 or size.y <= 0.0:
 		return _camera.position
 	return (target / size).floor() * size + size * 0.5
@@ -66,7 +77,7 @@ func _room_origin(target: Vector2) -> Vector2:
 func _clamp_to_bounds(p: Vector2) -> Vector2:
 	if bounds.size == Vector2.ZERO:
 		return p
-	var half := Vector2(get_viewport().get_visible_rect().size) * 0.5
+	var half := _visible_world_size() * 0.5
 	# A map smaller than the screen on an axis centres on that axis rather than
 	# clamping to a range that runs backwards.
 	var lo := bounds.position + half
