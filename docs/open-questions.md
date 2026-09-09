@@ -103,30 +103,22 @@ a format change. Now tracked as architecture.md §12.5.
 
 ---
 
-## Cluster 2 — Who owns control? 🔴
+## Cluster 2 — Who owns control? 🟡
 
-*Blocks: stage A's `InputIntent`, `CameraRig` and now `ModeStack`; stage C's scheduler.*
+*Stage A is built, and 27 and 28 are answered in code. What remains is 🟡 again.*
 
-**Upgraded from 🟡 to 🔴**, because the review found a live defect rather than a tidiness
-concern, and because question 24's answer pulls `ModeStack` into stage A.
+27. ~~Who owns "input is locked"?~~ ✅ **`ModeStack`**, built in stage A rather than F. Each
+    mode declares whether it pulses, pauses physics, keeps the map loaded and **has rounds**;
+    the watchdog only runs where `rounds_active()`, so a cutscene entered mid-round can no
+    longer have its input force-unlocked two seconds later. `InputManager` gained the
+    `push_target` / `pop_target` stack underneath it. See [core/mode_stack.gd](../core/mode_stack.gd).
+28. ~~`ActorRegistry` scope.~~ ✅ **On `MapContext`**, beside `Occupancy` — no autoload. Ids
+    stay map-unique with no collision, two maps can be resident while battle keeps the field
+    map loaded, and teardown disposes both tables for free. Actors already reach their context
+    by walking up the tree, so nothing above needed a new parameter.
+    See [core/map_context.gd](../core/map_context.gd).
 
-27. **Who owns "input is locked"?** 🔴 Three independent mechanisms exist on paper: the round
-    gate and its watchdog (three-games.md §3.1), the input target stack
-    (architecture.md §7.8) and the exclusive slot (architecture.md §7.5). The failure:
-    the player steps onto a cell, the round opens, an `EnterCell` trigger takes the
-    exclusive slot and puts up dialogue, and two seconds later the round watchdog
-    force-closes the round, unlocks `InputIntent.step`, and logs an error naming a command
-    that is legitimately waiting on the player. **Recommend `ModeStack` as the single
-    arbiter** — it is in stage A now regardless — with the watchdog suspended for any mode
-    that is not `Field`.
-28. **`ActorRegistry` scope.** 🔴 It is an autoload keyed by map-unique ids
-    (architecture.md §8), but game 1's battle keeps the field map resident
-    (three-games.md §3.8), so two maps' worth of ids can be live at once. **Recommend moving
-    it onto `MapContext`** beside `Occupancy`: ids stay map-unique with no collision, two
-    maps can be resident, and map teardown disposes it for free. Events already carry
-    `context.map`, so nothing above needs a new parameter.
-
-Both are architecture.md §12.7. The remaining questions in this cluster are unchanged:
+The remaining questions in this cluster are unchanged:
 
 5. **Camera ownership** (architecture.md §12.6) — does the camera follow the player by
    default with events borrowing it, or is it always driven by whoever holds the exclusive
@@ -214,9 +206,22 @@ applied to whole pages, which is the argument that settled it.
 
 ---
 
-## Cluster 5 — Structural, decide before writing files 🔴
+## Cluster 5 — Structural ✅
 
-*Blocks: literally the first commit of stage A. Recommendations stand; execution deferred.*
+*Executed 2026-09-08, in the commit that built stage A.*
+
+20 and 21 are done: one repository, with `core/`, `actors/`, `events/`, `ui/`, `tests/`,
+`tools/`, one `addons/`, and `games/{jrpg,isoish,action}/`. `TextBox/` became
+`ui/text_box/`, `constants.gd` became `ui/anchor_constants.gd`, and `event_bus.gd` and
+`input_manager.gd` moved into `core/`. Every `ext_resource` already carried a `uid://`, so
+the scenes resolved by UID and only the `path=` strings and the two autoload entries needed
+rewriting. 29 is specified in three-games.md §2.1.
+
+**One verification still outstanding**, and the one-repo case leans on it: confirm
+`renderer/rendering_method.action` actually takes as a custom feature-tag override. Ten
+minutes, worth doing before game 3's art starts.
+
+The original entries, for the reasoning:
 
 20. **One repository or three?** (three-games.md §5.6) **Recommend one**, with
     `core/`, `events/`, `ui/`, one `addons/`, and `games/{jrpg,isoish,action}/`. Three
@@ -298,17 +303,16 @@ here is a file. Worth timeboxing when it comes up.
 
 ## If there is only time for a few
 
-In order:
+Nothing 🔴 is left. Stage A is built and green, so the order is now the order the stages
+need:
 
-1. **Cluster 5** (20, 21) — one repo, and move the shared files. Blocks the first commit.
-   29 is answered, so nothing else in stage A is waiting on a specification.
-2. **Questions 27 and 28** — who arbitrates control, and what scope the registry has. These
-   are 🔴 now: 27 is a soft-lock-shaped defect and 28 is a collision that only appears once
-   battle exists, which is to say once it is expensive to change.
-3. **Question 11** — is monster AI authored as graphs? Sets how much of stage C must be
+1. **Question 11** — is monster AI authored as graphs? Sets how much of stage C must be
    right before game 1 is playable, though routes make it a smaller bet than it looked.
-4. **Question 8** — the watchdog timeout. One number, and it is the difference between a
-   logged error and a game that appears to freeze. Answer 27 first.
+   Needed before stage B's monster.
+2. **Questions 6, 7, 8, 9** — what opens and closes a round, and the watchdog number. All of
+   stage B's step pulse. 27's answer means the watchdog is now safe to add.
+3. **Question 5** — camera ownership, for the rigs already stubbed in stage A.
+4. **Cluster 4** (15, 16, 18, 19) — the authoring format, before stage C's parser.
 
 Clusters 1 and 7 have left this list, and 29 with them. **No art decision is outstanding** —
 directions, yaw stops, pitch and texel density are all settled, so tile and character art can
