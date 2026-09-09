@@ -1,0 +1,56 @@
+[
+	{
+		"id": "n1",
+		"title": "Has the brass key?",
+		"position": {"x": 0, "y": 0},
+		"command": "if",
+		"args": {"condition": "flags.has_brass_key"},
+		"flows": ["true", "false"],
+		"outputs": [
+			{"type": "flow", "target": "n2"},
+			{"type": "flow", "target": "n5"}
+		]
+	},
+	{
+		"id": "n2",
+		"title": "Unlock?",
+		"position": {"x": 280, "y": -120},
+		"command": "ask",
+		"args": {
+			"text": "The brass key fits the lock.",
+			"choices": ["Unlock it", "Leave it"],
+			"location": 1
+		},
+		"flows": ["Unlock it", "Leave it"],
+		"outputs": [
+			{"type": "flow", "target": "n3"},
+			{"type": "flow", "target": ""}
+		]
+	},
+	{
+		"id": "n3",
+		"title": "Open the door",
+		"position": {"x": 560, "y": -120},
+		"command": "play_anim",
+		"args": {"actor": "door_north", "anim": "open"},
+		"blocking": true,
+		"outputs": [{"type": "flow", "target": "n4"}]
+	},
+	{
+		"id": "n4",
+		"title": "Mark it open",
+		"position": {"x": 800, "y": -120},
+		"command": "set_flag",
+		"args": {"flag": "north_door_open", "value": true},
+		"outputs": [{"type": "flow", "target": ""}]
+	},
+	{
+		"id": "n5",
+		"title": "Locked",
+		"position": {"x": 280, "y": 120},
+		"command": "say",
+		"args": {"text": "The door is locked. A brass keyhole, cold to the touch."},
+		"blocking": true,
+		"outputs": [{"type": "flow", "target": ""}]
+	}
+]

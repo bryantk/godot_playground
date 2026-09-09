@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://co0ldsukxd5i3"]
 
-[ext_resource type="PackedScene" uid="uid://b0mkver04uynj" path="res://TextBox/dialogue.tscn" id="1_1adbf"]
-[ext_resource type="Script" uid="uid://dfdcch4xyfmuy" path="res://TextBox/main_menu.gd" id="1_rehp6"]
-[ext_resource type="PackedScene" uid="uid://bbqey8pq5iss6" path="res://TextBox/simple_menu.tscn" id="2_vbyqb"]
+[ext_resource type="PackedScene" uid="uid://b0mkver04uynj" path="res://ui/text_box/dialogue.tscn" id="1_1adbf"]
+[ext_resource type="Script" uid="uid://dfdcch4xyfmuy" path="res://ui/text_box/main_menu.gd" id="1_rehp6"]
+[ext_resource type="PackedScene" uid="uid://bbqey8pq5iss6" path="res://ui/text_box/simple_menu.tscn" id="2_vbyqb"]
 
 [node name="MainUI" type="SubViewportContainer" unique_id=1842982352 node_paths=PackedStringArray("dialogue", "pause_menu")]
 process_mode = 3

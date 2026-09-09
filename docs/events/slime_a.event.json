@@ -1,0 +1,118 @@
+{
+	"format": 1,
+	"id": "slime_a",
+
+	"//": "Pages are checked LAST to FIRST; the first page whose conditions all pass wins. Page 1 has no conditions and is the fallback.",
+
+	"pages": [
+		{
+			"//": "Page 1 - idle. Patrols a fixed loop, bumping into it starts a fight.",
+			"conditions": [],
+			"settings": {
+				"trigger": "touch",
+				"solid": true,
+				"speed": 100
+			},
+			"art": {
+				"view": "sprite",
+				"sheet": "res://games/jrpg/art/slime.png",
+				"directions": 4,
+				"idle": "idle"
+			},
+			"route": {
+				"mode": "waypoints",
+				"loop": "pingpong",
+				"on_blocked": "wait",
+				"waypoints": [
+					{"cell": [6, 0, 4]},
+					{"cell": [10, 0, 4], "wait": 2},
+					{"cell": [10, 0, 8], "face": [0, 0, 1], "wait": 2}
+				]
+			},
+			"graph": [
+				{
+					"id": "n1",
+					"title": "Start the fight",
+					"position": {"x": 0, "y": 0},
+					"command": "start_battle",
+					"args": {"troop": "slime_pair"},
+					"blocking": true,
+					"outputs": [{"type": "flow", "target": ""}]
+				}
+			]
+		},
+		{
+			"//": "Page 2 - aggressive. Same slime, no graph change needed: a different route mode is the whole behaviour change.",
+			"conditions": [
+				{"flag": "stole_the_idol"},
+				{"self_flag": "defeated", "is": false}
+			],
+			"settings": {
+				"trigger": "touch",
+				"solid": true,
+				"speed": 200
+			},
+			"art": {
+				"view": "sprite",
+				"sheet": "res://games/jrpg/art/slime_angry.png",
+				"directions": 4,
+				"idle": "idle"
+			},
+			"route": {
+				"mode": "toward",
+				"target": "player",
+				"on_blocked": "repath",
+				"loop": "cycle"
+			},
+			"graph": [
+				{
+					"id": "n1",
+					"title": "Angry line",
+					"position": {"x": 0, "y": 0},
+					"command": "say",
+					"args": {"text": "The slime quivers with the idol's light.", "location": 2},
+					"blocking": true,
+					"outputs": [{"type": "flow", "target": "n2"}]
+				},
+				{
+					"id": "n2",
+					"title": "Fight",
+					"position": {"x": 260, "y": 0},
+					"command": "start_battle",
+					"args": {"troop": "slime_awakened"},
+					"blocking": true,
+					"outputs": [{"type": "flow", "target": ""}]
+				}
+			]
+		},
+		{
+			"//": "Page 3 - defeated. No route, no art: an inert leftover. Highest priority, so it wins once the self flag is set.",
+			"conditions": [
+				{"self_flag": "defeated"}
+			],
+			"settings": {
+				"trigger": "interact",
+				"solid": false,
+				"speed": 0
+			},
+			"art": {
+				"view": "sprite",
+				"sheet": "res://games/jrpg/art/slime_residue.png",
+				"directions": 1,
+				"idle": "puddle"
+			},
+			"route": {"mode": "fixed"},
+			"graph": [
+				{
+					"id": "n1",
+					"title": "Flavour",
+					"position": {"x": 0, "y": 0},
+					"command": "say",
+					"args": {"text": "A drying smear on the flagstones."},
+					"blocking": true,
+					"outputs": [{"type": "flow", "target": ""}]
+				}
+			]
+		}
+	]
+}

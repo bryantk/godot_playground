@@ -1,11 +1,11 @@
 [gd_scene format=3 uid="uid://b0mkver04uynj"]
 
-[ext_resource type="Script" uid="uid://5802gicfx2qm" path="res://TextBox/dialogue.gd" id="1_avunv"]
-[ext_resource type="PackedScene" uid="uid://ct51ydliwmoql" path="res://TextBox/rich_text_block.tscn" id="2_hgtjj"]
-[ext_resource type="Script" uid="uid://bp7ty1pn0j0be" path="res://TextBox/tweens/control_window_animation_group.gd" id="2_um10f"]
-[ext_resource type="Script" uid="uid://dycytn88qd3so" path="res://TextBox/tweens/slide_window_animation.gd" id="4_w3fx8"]
-[ext_resource type="Script" uid="uid://ckcxfvkgskyew" path="res://TextBox/tweens/control_window_animation.gd" id="5_um10f"]
-[ext_resource type="Script" uid="uid://bjoq4g1wyf8rw" path="res://TextBox/tweens/zoom_window_animation.gd" id="6_gocnh"]
+[ext_resource type="Script" uid="uid://5802gicfx2qm" path="res://ui/text_box/dialogue.gd" id="1_avunv"]
+[ext_resource type="PackedScene" uid="uid://ct51ydliwmoql" path="res://ui/text_box/rich_text_block.tscn" id="2_hgtjj"]
+[ext_resource type="Script" uid="uid://bp7ty1pn0j0be" path="res://ui/text_box/tweens/control_window_animation_group.gd" id="2_um10f"]
+[ext_resource type="Script" uid="uid://dycytn88qd3so" path="res://ui/text_box/tweens/slide_window_animation.gd" id="4_w3fx8"]
+[ext_resource type="Script" uid="uid://ckcxfvkgskyew" path="res://ui/text_box/tweens/control_window_animation.gd" id="5_um10f"]
+[ext_resource type="Script" uid="uid://bjoq4g1wyf8rw" path="res://ui/text_box/tweens/zoom_window_animation.gd" id="6_gocnh"]
 
 [sub_resource type="Animation" id="Animation_avunv"]
 length = 0.001

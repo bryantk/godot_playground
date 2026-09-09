@@ -1,11 +1,38 @@
 extends Node
 
+## Forwards named actions to whoever currently owns input. Autoloaded as
+## [code]InputManager[/code].
+##
+## Ownership is a stack rather than a single target, so an exclusive event runner
+## pushes itself (or a skip-cutscene handler) and pops on finish, and the dialogue
+## window pushes itself while open - and no system has to know what the previous owner
+## was. [ModeStack] is the arbiter of which mode owns input; this is the mechanism it
+## drives.
+
 @export var target: Node = null
 
-var _is_down:= {}
+var _is_down := {}
+var _stack: Array[Node] = []
 
 func attach(node: Node) -> void:
 	target = node
+
+## Take input until [method pop_target]. Pushing null is deliberate and useful: it is
+## how a cutscene swallows input without needing a handler for it.
+func push_target(node: Node) -> void:
+	_stack.append(target)
+	target = node
+	EventBus.input_lock_changed.emit(true)
+
+func pop_target() -> void:
+	if _stack.is_empty():
+		return
+	target = _stack.pop_back()
+	_is_down.clear()
+	EventBus.input_lock_changed.emit(not _stack.is_empty())
+
+func is_locked() -> bool:
+	return not _stack.is_empty()
 
 func is_down(action: String) -> bool:
 	return _is_down.get(action, false)

@@ -3,12 +3,12 @@
 importer="wav"
 type="AudioStreamWAV"
 uid="uid://b77ccihc1whun"
-path="res://.godot/imported/dbz_yesBeep.wav-ef435baa17a4ae8667e5eab5b11bd125.sample"
+path="res://.godot/imported/dbz_yesBeep.wav-fc0a8151db9ea7ef55b97af3359d85a8.sample"
 
 [deps]
 
-source_file="res://TextBox/dbz_yesBeep.wav"
-dest_files=["res://.godot/imported/dbz_yesBeep.wav-ef435baa17a4ae8667e5eab5b11bd125.sample"]
+source_file="res://ui/text_box/dbz_yesBeep.wav"
+dest_files=["res://.godot/imported/dbz_yesBeep.wav-fc0a8151db9ea7ef55b97af3359d85a8.sample"]
 
 [params]
 

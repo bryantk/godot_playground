@@ -12,7 +12,7 @@ config_version=5
 
 config/name="2026_dev"
 config/version="0.1"
-run/main_scene="res://TextBox/rich_text_block.tscn"
+run/main_scene="res://ui/text_box/rich_text_block.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 boot_splash/use_filter=false
 config/icon="res://icon.svg"
@@ -20,7 +20,9 @@ config/icon="res://icon.svg"
 [autoload]
 
 InputManager="*uid://b70pwjasam6hi"
-EventBus="*res://event_bus.gd"
+EventBus="*res://core/event_bus.gd"
+GameState="*res://core/game_state.gd"
+ModeStack="*res://core/mode_stack.gd"
 
 [display]
 

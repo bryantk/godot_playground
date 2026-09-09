@@ -1,10 +1,10 @@
 [gd_scene format=3 uid="uid://ct51ydliwmoql"]
 
-[ext_resource type="Script" uid="uid://u2t1v0x2a0ka" path="res://TextBox/bbc_data.gd" id="1_766ow"]
-[ext_resource type="Script" uid="uid://dpu2bmmnmj8mg" path="res://TextBox/rich_text_block.gd" id="2_4sobq"]
-[ext_resource type="Script" uid="uid://bjd6ag5f4c353" path="res://TextBox/rich_text_sound.gd" id="3_r0brw"]
-[ext_resource type="AudioStream" uid="uid://b77ccihc1whun" path="res://TextBox/dbz_yesBeep.wav" id="4_d61ow"]
-[ext_resource type="Script" uid="uid://bp7177p7sfqs0" path="res://TextBox/text_voice.gd" id="5_b5n0r"]
+[ext_resource type="Script" uid="uid://u2t1v0x2a0ka" path="res://ui/text_box/bbc_data.gd" id="1_766ow"]
+[ext_resource type="Script" uid="uid://dpu2bmmnmj8mg" path="res://ui/text_box/rich_text_block.gd" id="2_4sobq"]
+[ext_resource type="Script" uid="uid://bjd6ag5f4c353" path="res://ui/text_box/rich_text_sound.gd" id="3_r0brw"]
+[ext_resource type="AudioStream" uid="uid://b77ccihc1whun" path="res://ui/text_box/dbz_yesBeep.wav" id="4_d61ow"]
+[ext_resource type="Script" uid="uid://bp7177p7sfqs0" path="res://ui/text_box/text_voice.gd" id="5_b5n0r"]
 
 [sub_resource type="RichTextEffect" id="RichTextEffect_8y8sn"]
 script = ExtResource("1_766ow")

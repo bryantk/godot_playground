@@ -1,0 +1,76 @@
+class_name CameraRig extends Node
+
+## One vocabulary for three genuinely different cameras. The point is that
+## [code]camera_to[/code] in an event graph means the same thing in all three and the
+## rig decides what it can honour.
+##
+## Ownership, per the camera question: the camera follows the player by default and
+## events [i]borrow[/i] it, returning it when they finish. That is what [method lock]
+## is - not a permanent handover to whoever holds the exclusive slot.
+
+signal yaw_changed(yaw_radians: float)
+
+@export var follow_speed: float = 8.0
+
+var _target_id: StringName = &""
+var _locked: bool = false
+var _keys := 0
+var _ctx: MapContext = null
+
+
+func _ready() -> void:
+	_ctx = MapContext.of(self)
+
+
+func context() -> MapContext:
+	return _ctx
+
+
+func _next_key(kind: String) -> String:
+	_keys += 1
+	return "cam:%s:%d" % [kind, _keys]
+
+
+## Player control on or off. An event borrowing the camera locks it, does its work,
+## and unlocks - so no system has to know what the previous owner was.
+func lock(locked: bool) -> void:
+	_locked = locked
+
+
+func is_locked() -> bool:
+	return _locked
+
+
+func follow(actor_id: StringName, _seconds: float = 0.0) -> String:
+	_target_id = actor_id
+	return ""
+
+
+func target() -> StringName:
+	return _target_id
+
+
+# -- To implement -------------------------------------------------------------
+
+func move_to(_cell: Vector3i, _seconds: float = 0.0) -> String:
+	return ""
+
+
+## Games 2 and 3 only. [RoomCamera2D] warns rather than silently doing nothing.
+func rotate_to(_yaw: float, _seconds: float = 0.0) -> String:
+	push_warning("CameraRig: this rig does not rotate.")
+	return ""
+
+
+func zoom_to(_z: float, _seconds: float = 0.0) -> String:
+	return ""
+
+
+func shake(_amount: float, _seconds: float = 0.0) -> String:
+	return ""
+
+
+## Current yaw. Zero for a fixed rig, which is what makes
+## [method Space.view_frame] safe to call unconditionally.
+func yaw() -> float:
+	return 0.0

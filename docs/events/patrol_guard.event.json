@@ -1,0 +1,52 @@
+[
+	{
+		"id": "n1",
+		"title": "Patrol start",
+		"position": {"x": 0, "y": 0},
+		"command": "label",
+		"args": {"name": "loop"},
+		"outputs": [{"type": "flow", "target": "n2"}]
+	},
+	{
+		"id": "n2",
+		"title": "Walk east",
+		"position": {"x": 240, "y": 0},
+		"command": "move_to",
+		"args": {"actor": "@self", "cell": [12, 0, 4], "path": "line", "speed": 0.22},
+		"blocking": true,
+		"outputs": [{"type": "flow", "target": "n3"}]
+	},
+	{
+		"id": "n3",
+		"title": "Look around",
+		"position": {"x": 480, "y": 0},
+		"command": "wait",
+		"args": {"seconds": 1.5},
+		"outputs": [{"type": "flow", "target": "n4"}]
+	},
+	{
+		"id": "n4",
+		"title": "Walk back",
+		"position": {"x": 720, "y": 0},
+		"command": "move_to",
+		"args": {"actor": "@self", "cell": [6, 0, 4], "path": "line", "speed": 0.22},
+		"blocking": true,
+		"outputs": [{"type": "flow", "target": "n5"}]
+	},
+	{
+		"id": "n5",
+		"title": "Face south",
+		"position": {"x": 960, "y": 0},
+		"command": "face",
+		"args": {"actor": "@self", "direction": [0, 0, 1]},
+		"outputs": [{"type": "flow", "target": "n6"}]
+	},
+	{
+		"id": "n6",
+		"title": "Again",
+		"position": {"x": 1180, "y": 0},
+		"command": "goto",
+		"args": {"target": "n1"},
+		"outputs": [{"type": "flow", "target": "n1"}]
+	}
+]

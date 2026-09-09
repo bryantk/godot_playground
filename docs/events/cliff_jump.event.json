@@ -1,0 +1,56 @@
+[
+	{
+		"id": "n1",
+		"title": "Pan to the ledge (non-blocking)",
+		"position": {"x": 0, "y": 0},
+		"command": "camera_to",
+		"args": {"cell": [20, 3, 8], "seconds": 1.2},
+		"blocking": false,
+		"key": "cam",
+		"outputs": [{"type": "flow", "target": "n2"}]
+	},
+	{
+		"id": "n2",
+		"title": "Scout runs up",
+		"position": {"x": 300, "y": 0},
+		"command": "move_to",
+		"args": {"actor": "npc_scout", "cell": [18, 1, 8], "path": "astar", "speed": 3.5},
+		"blocking": true,
+		"outputs": [{"type": "flow", "target": "n3"}]
+	},
+	{
+		"id": "n3",
+		"title": "Jump the gap",
+		"position": {"x": 560, "y": 0},
+		"command": "jump",
+		"args": {"actor": "npc_scout", "strength": 6.0, "toward": [20, 3, 8]},
+		"blocking": true,
+		"outputs": [{"type": "flow", "target": "n4"}]
+	},
+	{
+		"id": "n4",
+		"title": "Wait for the camera to settle",
+		"position": {"x": 820, "y": 0},
+		"command": "wait_for",
+		"args": {"key": "cam"},
+		"outputs": [{"type": "flow", "target": "n5"}]
+	},
+	{
+		"id": "n5",
+		"title": "Made it",
+		"position": {"x": 1080, "y": 0},
+		"command": "say",
+		"args": {"text": "It's further than it looks. Get a run-up.", "location": 0},
+		"blocking": true,
+		"outputs": [{"type": "flow", "target": "n6"}]
+	},
+	{
+		"id": "n6",
+		"title": "Camera back to the player",
+		"position": {"x": 1340, "y": 0},
+		"command": "camera_follow",
+		"args": {"actor": "player", "seconds": 0.8},
+		"blocking": true,
+		"outputs": [{"type": "flow", "target": ""}]
+	}
+]

@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="GameProfile" format=3]
+
+[ext_resource type="Script" path="res://core/camera/room_camera_2d.gd" id="1_8gua1"]
+[ext_resource type="Script" path="res://core/input_profile.gd" id="2_hr6id"]
+[ext_resource type="Script" path="res://actors/motion/grid_motion.gd" id="3_yrq86"]
+[ext_resource type="Script" path="res://core/game_profile.gd" id="4_i1a0b"]
+[ext_resource type="Script" path="res://core/space_2d.gd" id="5_od3if"]
+[ext_resource type="Script" path="res://actors/views/sprite_view_2d.gd" id="6_ryqaw"]
+
+[sub_resource type="Resource" id="Resource_yxs5n"]
+script = ExtResource("2_hr6id")
+view_relative = false
+
+[resource]
+script = ExtResource("4_i1a0b")
+id = &"jrpg"
+display_name = "JRPG"
+capabilities = Array[int]([0, 4, 3, 7])
+input_profile = SubResource("Resource_yxs5n")
+modes = Array[StringName]([&"field", &"cutscene", &"battle", &"menu"])
+default_cell_size = Vector3(16, 0, 16)
+texels_per_unit_vertical = 16
+space_script = ExtResource("5_od3if")
+motion_script = ExtResource("3_yrq86")
+view_script = ExtResource("6_ryqaw")
+camera_script = ExtResource("1_8gua1")
