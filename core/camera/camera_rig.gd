@@ -1,8 +1,8 @@
 class_name CameraRig extends Node
 
-## One vocabulary for three genuinely different cameras. The point is that
-## [code]camera_to[/code] in an event graph means the same thing in all three and the
-## rig decides what it can honour.
+## One vocabulary for two genuinely different cameras. The point is that
+## [code]camera_to[/code] in an event graph means the same thing in both and the rig
+## decides what it can honour.
 ##
 ## Ownership, per the camera question: the camera follows the player by default and
 ## events [i]borrow[/i] it, returning it when they finish. That is what [method lock]
@@ -56,7 +56,7 @@ func move_to(_cell: Vector3i, _seconds: float = 0.0) -> String:
 	return ""
 
 
-## Games 2 and 3 only. [RoomCamera2D] warns rather than silently doing nothing.
+## Game 2 only. [RoomCamera2D] warns rather than silently doing nothing.
 func rotate_to(_yaw: float, _seconds: float = 0.0) -> String:
 	push_warning("CameraRig: this rig does not rotate.")
 	return ""

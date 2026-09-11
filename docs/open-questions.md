@@ -1,10 +1,10 @@
 # Open questions — one list
 
 Every unresolved decision from [architecture.md](architecture.md),
-[three-games.md](three-games.md) and [event-pages.md](event-pages.md), gathered here.
+[two-games.md](two-games.md) and [event-pages.md](event-pages.md), gathered here.
 Assembled 2026-09-07. **Revised 2026-09-08** after a review pass: Clusters 1 and 7 closed,
 `GameProfile` specified, two new 🔴 items found (27, 28), and one arithmetic error corrected
-in three-games.md §3.6. The decision table below is the summary.
+in two-games.md §3.6. The decision table below is the summary.
 
 Grouped by **when the answer is needed**, not by which document raised it. Several
 questions filed separately turn out to be the same decision seen from different angles —
@@ -24,8 +24,8 @@ answer; the reasoning is in the linked section.
 | ⚪ | Can be decided when it comes up. Listed so it is not forgotten. |
 | ✅ | Decided. Kept here with its answer so the decision is not re-argued. |
 
-Build stages referenced below are three-games.md §4.3: **A** shared spine, **B** game 1
-slice, **C** event system, **D** game 3 slice, **E** game 2, **F** saves/battle/modes.
+Build stages referenced below are two-games.md §4.3: **A** shared spine, **B** game 1
+slice, **C** event system, **D** game 2, **E** saves/battle/modes.
 
 ---
 
@@ -33,12 +33,12 @@ slice, **C** event system, **D** game 3 slice, **E** game 2, **F** saves/battle/
 
 | # | Decision |
 | --- | --- |
-| 1–4 | Game 1 steps 4-way with 4 sprite directions. Game 2 moves freely with 8. Game 3's mesh rotates to its true heading. Game 2's camera snaps to **4 yaw stops at 90°** at **pitch 30°** — a 16 × 8 px ground tile. Texel density is **16 px per tile** (14 on vertical faces), and game 2's player moves sub-pixel. |
+| 1–4 | Game 1 steps 4-way with 4 sprite directions. Game 2 moves freely with 8. Game 2's camera snaps to **4 yaw stops at 90°** at **pitch 30°** — a 16 × 8 px ground tile. Texel density is **16 px per tile** (14 on vertical faces), and game 2's player moves sub-pixel. |
 | 10 | The step pulse **and** cell triggers both fire at step commit. `fire_on` is deleted; `wait_settle` replaces it. |
 | 17 | Pages inherit nothing. Absent means default. |
 | 24 | Game 1 has a **separate battle scene**. `ModeStack` therefore moves into stage A. |
-| 26 | Games 2 and 3 do **not** share maps. A map belongs to exactly one profile. |
-| 29 | `GameProfile` specified (three-games.md §2.1): a Resource with a closed capability enum **and** the three axis scripts. Each game is its own executable; no runtime selection. |
+| 26 | The two games do **not** share maps. A map belongs to exactly one profile. |
+| 29 | `GameProfile` specified (two-games.md §2.1): a Resource with a closed capability enum **and** the three axis scripts. Each game is its own executable; no runtime selection. |
 | — | Within one pulse, responders resolve **actor-at-a-time** (each drains its credit before the next acts). |
 | — | Occupancy is only ever written through `Occupancy.commit(changes)`, including for a single step. |
 
@@ -48,9 +48,8 @@ slice, **C** event system, **D** game 3 slice, **E** game 2, **F** saves/battle/
 
 *Blocked: all art production, and stage B's movement feel. Resolved.*
 
-1. **Grid movement: 4-way or 8-way?** → **4-way in game 1.** Games 2 and 3 use `FreeMotion`.
-2. **Sprite directions: 4 or 8?** → **4 for game 1, 8 for game 2.** Game 3 uses `MeshView3D`
-   and rotates to its true continuous heading, so the count never applied to it.
+1. **Grid movement: 4-way or 8-way?** → **4-way in game 1.** Game 2 uses `FreeMotion`.
+2. **Sprite directions: 4 or 8?** → **4 for game 1, 8 for game 2.**
 3. **Camera yaw stops in game 2: 4 or 8?** → **4, at 90°.**
 4. **Ortho pitch for game 2** → **30°**, giving a 16 × 8 px ground tile, exactly 2:1. The
    shallowest of the pixel-clean angles, and so the one that shows height best — which suits
@@ -90,7 +89,7 @@ work: frames are 45° apart, each stop is 90°, so
 `frame = (facing_index - 2 * yaw_index) mod 8`. Integer arithmetic, no rounding, no yaw at
 which some frame has no art.
 
-**Correction on record.** The original text of this cluster and of three-games.md §3.6 gave
+**Correction on record.** The original text of this cluster and of two-games.md §3.6 gave
 "2:1 dimetric at ≈26.57°". 26.57° is the *screen* angle of a tile edge, not a camera pitch.
 A unit ground square at 45° yaw projects to a diamond of width √2 and height √2·sin θ, so a
 2:1 diamond needs sin θ = 0.5 → **pitch 30°**. Using 26.57° as a pitch yields a ~2.24:1
@@ -123,16 +122,16 @@ The remaining questions in this cluster are unchanged:
 5. **Camera ownership** (architecture.md §12.6) — does the camera follow the player by
    default with events borrowing it, or is it always driven by whoever holds the exclusive
    slot? **Recommend:** follow by default; events borrow and return, via `CameraRig.lock()`.
-6. **Does turning in place open a round?** (three-games.md §5.1) **Recommend no** — turning
+6. **Does turning in place open a round?** (two-games.md §5.1) **Recommend no** — turning
    changes no cell. Also a difficulty lever: "no" lets the player re-aim for free before a
    fight.
-7. **Does bumping a wall open a round?** (three-games.md §5.1) **Recommend no**, plus an
+7. **Does bumping a wall open a round?** (two-games.md §5.1) **Recommend no**, plus an
    explicit "wait one step" input, so passing time is a choice rather than a wall-bumping
    trick.
-8. **Round watchdog timeout** (three-games.md §3.1) — what maximum round duration
+8. **Round watchdog timeout** (two-games.md §3.1) — what maximum round duration
    force-closes the gate and logs? **Recommend 2s**, generously above any legitimate action.
    Note this is only safe once 27 is answered.
-9. **Does scripted player movement pulse?** (three-games.md §5.1) **Recommend no** — pulses
+9. **Does scripted player movement pulse?** (two-games.md §5.1) **Recommend no** — pulses
    suppressed outside `Field` mode, with an opt-in `pulse: true` on move commands. Another
    consumer of `ModeStack`.
 10. ~~Pulse fires on step commit or visual settle?~~ ✅ **Commit — and cell triggers fire
@@ -153,7 +152,7 @@ answers all eight.
 
 *Blocks: stage C. This is the project's central bet, and worth deciding as one thing.*
 
-11. **Is monster AI authored as event graphs?** (three-games.md §5.3) **Recommend yes**, with
+11. **Is monster AI authored as event graphs?** (two-games.md §5.3) **Recommend yes**, with
     routes (event-pages.md §3) carrying the common cases so graphs are only needed for
     genuinely scripted monsters. Note this is a **smaller bet than first filed**:
     event-pages.md §3's `toward`/`away`/`random` route modes already handle most monsters
@@ -193,7 +192,7 @@ because they should be consistent with each other.*
     page is always exactly the page in the file — no resolution pass between parse and
     `ActorView.apply_art`, which is the same rule as the boundary-normalisation note below.
 18. **Route `wait` units** (event-pages.md §6.5) — steps or seconds? Steps are natural in
-    game 1 and meaningless in games 2 and 3. **Recommend unit-tagged**, matching how
+    game 1 and meaningless in game 2. **Recommend unit-tagged**, matching how
     conditions are structured.
 19. **One document per event, or a map-level bundle?** (event-pages.md §6.6) Per-event files
     diff and move cleanly; a bundle avoids dozens of tiny files. **Recommend per-event**,
@@ -211,37 +210,34 @@ applied to whole pages, which is the argument that settled it.
 *Executed 2026-09-08, in the commit that built stage A.*
 
 20 and 21 are done: one repository, with `core/`, `actors/`, `events/`, `ui/`, `tests/`,
-`tools/`, one `addons/`, and `games/{jrpg,isoish,action}/`. `TextBox/` became
+`tools/`, one `addons/`, and `games/{jrpg,isoish}/`. `TextBox/` became
 `ui/text_box/`, `constants.gd` became `ui/anchor_constants.gd`, and `event_bus.gd` and
 `input_manager.gd` moved into `core/`. Every `ext_resource` already carried a `uid://`, so
 the scenes resolved by UID and only the `path=` strings and the two autoload entries needed
-rewriting. 29 is specified in three-games.md §2.1.
+rewriting. 29 is specified in two-games.md §2.1.
 
-**One verification still outstanding**, and the one-repo case leans on it: confirm
-`renderer/rendering_method.action` actually takes as a custom feature-tag override. Ten
-minutes, worth doing before game 3's art starts.
+**Nothing outstanding.** Both games are pixel-art games wanting `gl_compatibility` and
+nearest-neighbour filtering, so the project-global renderer and `default_texture_filter`
+never disagree and no custom feature-tag override has to be verified for them.
 
 The original entries, for the reasoning:
 
-20. **One repository or three?** (three-games.md §5.6) **Recommend one**, with
-    `core/`, `events/`, `ui/`, one `addons/`, and `games/{jrpg,isoish,action}/`. Three
-    projects means duplicated editor plugins, three drifting sets of project settings, and a
-    submodule bump per core change. Question 29's answer — three separate executables — does
-    **not** decide this: three export presets from one project produce three exes.
+20. **One repository or two?** (two-games.md §3.9) **Recommend one**, with
+    `core/`, `events/`, `ui/`, one `addons/`, and `games/{jrpg,isoish}/`. Two separate
+    projects means duplicated editor plugins, two drifting sets of project settings, and a
+    submodule bump per core change. Question 29's answer — separate executables — does
+    **not** decide this: two export presets from one project produce two exes.
 
-    **One verification this now leans on**, since it was previously filed as the sharp cost of
-    one repo: the renderer and `default_texture_filter` are project-global, and game 3 wants
-    different values from games 1 and 2. Project settings take per-feature-tag overrides and
-    the renderer is already overridden that way for platforms today, so a custom `action` tag
-    should work — but three-games.md §3.9 flags it as a ten-minute test to run before the
-    layout is committed rather than an assumption to build on.
-21. **Move the root-level files** (three-games.md §3.9) — `TextBox/`, `constants.gd`,
+    The project-global settings that would have argued for splitting — the renderer and
+    `default_texture_filter` — are the same for both games, so there is no conflict to
+    resolve and no tag override the layout depends on.
+21. **Move the root-level files** (two-games.md §3.9) — `TextBox/`, `constants.gd`,
     `event_bus.gd`, `input_manager.gd` are all shared infrastructure sitting at the repo
     root. **Recommend moving them into `core/` and `ui/` as the first task of stage A**,
     while it is four files and not forty. `run/main_scene` currently points at
     `TextBox/rich_text_block.tscn` and both autoload paths need updating with them.
 29. ~~What is `GameProfile`, and how is one selected?~~ ✅ **Specified in
-    three-games.md §2.1–2.2.** A `Resource` carrying id, capabilities (a **closed enum**, not
+    two-games.md §2.1–2.2.** A `Resource` carrying id, capabilities (a **closed enum**, not
     free strings), input profile, mode list, tuning constants, **and** the three axis scripts
     — so §2's table is executable and an `ActorFactory` builds an actor's children from it.
     `MapContext.default_motion` overrides `GameProfile.motion_script`; that precedence is
@@ -278,26 +274,26 @@ here is a file. Worth timeboxing when it comes up.
 
 ## Cluster 7 — Deferred by design ⚪
 
-*Not needed until stage F. Recorded so they are not discovered instead of decided.*
+*Not needed until stage E. Recorded so they are not discovered instead of decided.*
 
 23. **Mid-execution page switch** (event-pages.md §6.2) — defer to graph completion, defer
     to round close, or swap immediately? **Recommend defer to graph completion.** Prevents
     "the chest changed art halfway through its own cutscene".
 24. ~~Does game 1 have a separate battle scene?~~ ✅ **Yes**, as Lufia 2 does, and as
     [slime_a.event.json](events/slime_a.event.json) already assumed with its `start_battle`
-    command. **Consequence: `ModeStack` moves from stage F into stage A**, since a Battle
+    command. **Consequence: `ModeStack` moves from the last stage into stage A**, since a Battle
     mode that keeps the field map resident is now a prerequisite for game 1 being playable
     end to end. It is also the arbiter question 27 needs.
 25. **Save format: in-flight ambient runners** (architecture.md §12.4) — captured, or are
     ambient events always restartable from the top? **Recommend restartable** — much simpler
-    and almost always enough. Saved regardless, per three-games.md §3.10: self flags,
+    and almost always enough. Saved regardless, per two-games.md §3.10: self flags,
     variables, monster `credit`, **and route progress** (waypoint index plus `pingpong`
     direction) — the last of which the original envelope omitted.
-26. ~~Do games 2 and 3 share maps?~~ ✅ **No.** Separate map sets; the art styles do not mix.
-    Technically they could have — the two differ only in camera rig and `ActorView` — so this
-    is an art-direction call, and it earns a simplification: **a map belongs to exactly one
-    profile**, so no map declares which presentations it supports, `MapContext` needs no
-    profile-compatibility field, and no "view two ways" mode has to exist.
+26. ~~Do the two games share maps?~~ ✅ **No.** Separate map sets — game 1 is `Space2D` and
+    game 2 is `Space3D`, and the art styles do not mix in any case. The simplification this
+    earns: **a map belongs to exactly one profile**, so no map declares which presentations
+    it supports, `MapContext` needs no profile-compatibility field, and no "view two ways"
+    mode has to exist.
 
 ---
 

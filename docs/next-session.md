@@ -8,13 +8,13 @@ Written 2026-09-08 at the end of the stage A session. This is the work queue;
 ## Where things stand
 
 **Stage A is built, tested and committed** (`9f3c118`), along with Cluster 5's file moves.
-165 headless assertions, exit 0:
+160 headless assertions, exit 0:
 
 ```
 godot --headless --path . res://tests/stage_a_test.tscn
 ```
 
-Regenerate the three game profiles after changing `GameProfile` or `InputProfile`:
+Regenerate the two game profiles after changing `GameProfile` or `InputProfile`:
 
 ```
 godot --headless --path . res://tools/make_profiles.tscn
@@ -90,13 +90,10 @@ decided:
 
 ## 4. Loose ends outside the stages
 
-- [ ] **Verify the feature-tag override.** Confirm `renderer/rendering_method.action` actually
-      takes as a custom tag. Ten minutes, and the one-repo decision leans on it
-      (three-games.md §3.9).
-- [ ] **`run/main_scene` still points at `res://ui/text_box/rich_text_block.tscn`** — the old
-      dialogue test scene. Should become game 1's main scene when one exists.
+- [ ] **`run/main_scene` points at `res://demos/demo_launcher.tscn`** — the development
+      launcher. Should become game 1's main scene when one exists.
 - [ ] **Vertical-face art at 14 texels per world unit**, not 16 — needed before wall art, not
-      after (three-games.md §3.6).
+      after (two-games.md §3.6).
 
 ---
 
@@ -104,9 +101,9 @@ decided:
 
 - **C** — `EventCommand` registry with capability tags, `EventRunner`, `EventScheduler`,
   `EventDocument`/`GameEvent`. Wants Cluster 4 (15, 16, 18, 19) settled first.
-- **D** — game 3 slice. Should be nearly free if A and C are right, which is what makes it the
-  cheapest test of whether they are.
-- **E** — game 2. Mostly art pipeline now that the pitch, yaw stops and texel densities are
-  decided.
-- **F** — saves and the battle scene. The save envelope must carry self flags, monster
+- **D** — game 2, in two passes (two-games.md §4.3). First `FreeMotion`, jumping and height
+  against untextured boxes and a plain ortho camera, so a spine bug is diagnosable on its
+  own; then the pixel rig, yaw stops and sprites, which is art pipeline rather than
+  architecture.
+- **E** — saves and the battle scene. The save envelope must carry self flags, monster
   `credit` and **route progress** (waypoint index plus pingpong direction).

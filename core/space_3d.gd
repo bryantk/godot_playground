@@ -28,8 +28,8 @@ func set_world_position(p: Vector3) -> void:
 
 
 func set_facing(dir: Vector3) -> void:
-	# Meshes rotate to face; sprites do not. MeshView3D overrides this by asking the
-	# adapter, so a SpriteView3D actor simply never calls it.
+	# The body does not turn. Facing is a presentation concern: SpriteView3D picks a
+	# frame from the facing and the camera yaw, and never asks the adapter.
 	pass
 
 

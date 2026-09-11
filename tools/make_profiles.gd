@@ -1,17 +1,16 @@
 extends Node
 
-## Writes the three [GameProfile] resources. Run rather than hand-authored, so the
+## Writes the two [GameProfile] resources. Run rather than hand-authored, so the
 ## typed enum arrays and script references serialise exactly as Godot expects:
 ##
 ##     godot --headless --path . res://tools/make_profiles.tscn
 ##
 ## Each game ships as its own executable with one profile compiled in, so these are
-## three separate declarations rather than three branches of one.
+## two separate declarations rather than two branches of one.
 
 const OUT := {
 	"jrpg": "res://games/jrpg/jrpg.tres",
 	"isoish": "res://games/isoish/isoish.tres",
-	"action": "res://games/action/action.tres",
 }
 
 
@@ -19,7 +18,6 @@ func _ready() -> void:
 	var failed := 0
 	failed += _write(_jrpg(), OUT["jrpg"])
 	failed += _write(_isoish(), OUT["isoish"])
-	failed += _write(_action(), OUT["action"])
 	get_tree().quit(failed)
 
 
@@ -69,31 +67,6 @@ func _isoish() -> GameProfile:
 	# 8 facings, and view-relative because the camera rotates - the moment it does,
 	# "up" on the stick is no longer -Z.
 	p.input_profile = _make_input(8, true, false)
-	return p
-
-
-func _action() -> GameProfile:
-	var p := GameProfile.new()
-	p.id = &"action"
-	p.display_name = "Action"
-	p.capabilities = [
-		GameProfile.Capability.FREE_MOTION,
-		GameProfile.Capability.HEIGHT,
-		GameProfile.Capability.PLAYER_CAMERA,
-	]
-	p.modes = [&"field", &"cutscene", &"menu"]
-	p.default_cell_size = Vector3.ONE
-	# A mesh game has no texel density to keep; left at the default so nothing reads
-	# a zero, but nothing consults it either.
-	p.texels_per_unit = 16
-	p.texels_per_unit_vertical = 16
-	p.space_script = Space3D
-	p.motion_script = FreeMotion
-	p.view_script = MeshView3D
-	p.camera_script = OrbitRig
-	# direction_count 0: fully analog. A mesh rotates to its true heading, so there is
-	# no frame count to quantise for.
-	p.input_profile = _make_input(0, true, false)
 	return p
 
 

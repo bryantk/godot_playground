@@ -222,13 +222,12 @@ func _test_pixel_pitch() -> void:
 
 
 func _test_profiles() -> void:
-	_section("GameProfile -- three games, one spine")
+	_section("GameProfile -- two games, one spine")
 
 	var jrpg: GameProfile = load("res://games/jrpg/jrpg.tres")
 	var isoish: GameProfile = load("res://games/isoish/isoish.tres")
-	var action: GameProfile = load("res://games/action/action.tres")
 
-	for p: GameProfile in [jrpg, isoish, action]:
+	for p: GameProfile in [jrpg, isoish]:
 		_ok(p != null, "profile loads")
 		if p == null:
 			continue
@@ -252,9 +251,9 @@ func _test_profiles() -> void:
 	_eq(GameProfile.capability_name(GameProfile.Capability.HEIGHT), "height", "capabilities have readable names")
 
 	_ok(isoish.has(GameProfile.Capability.ROTATABLE_VIEW), "isoish rotates")
-	_ok(not isoish.has(GameProfile.Capability.PLAYER_CAMERA), "but the player does not drive its camera")
-	_ok(action.has(GameProfile.Capability.PLAYER_CAMERA), "action's player does")
-	_ok(not action.has(GameProfile.Capability.ROTATABLE_VIEW), "and it has no yaw stops to rotate between")
+	_ok(not jrpg.has(GameProfile.Capability.ROTATABLE_VIEW), "jrpg has no yaw stops to rotate between")
+	_ok(isoish.has(GameProfile.Capability.FREE_MOTION), "isoish moves freely")
+	_ok(not isoish.has(GameProfile.Capability.BATTLE_SCENE), "and has no separate battle scene")
 
 	_section("GameProfile -- texel densities")
 	_eq(isoish.texels_per_unit, 16, "isoish is 16 texels per unit horizontally")
@@ -265,7 +264,6 @@ func _test_profiles() -> void:
 	_ok(ip.view_relative, "isoish resolves input through the camera")
 	_eq(jrpg.input_profile.direction_count, 4, "jrpg quantises to 4")
 	_eq(ip.direction_count, 8, "isoish to 8")
-	_eq(action.input_profile.direction_count, 0, "action stays analog")
 
 	# Screen-up at yaw 0 is world north. Rotate the camera one stop and the same
 	# stick input must resolve to a different world direction, or rotation feels

@@ -9,7 +9,7 @@ JSON node graphs that the graph editor already understands.
 > **Read the companions first.** This document covers the engine seams for one game;
 > two others revise it, and a fourth collects what is still undecided.
 >
-> - [three-games.md](three-games.md) — the seams against three planned games. Adds a
+> - [two-games.md](two-games.md) — the seams against both planned games. Adds a
 >   presentation axis, camera rigs, input intent and the step pulse. Reopens two decisions
 >   in §1 below and revises the build order in §9.
 > - [event-pages.md](event-pages.md) — multi-page events, conditions, and routes.
@@ -37,7 +37,7 @@ These are settled; the rest of the document follows from them.
 | Grid feel | The physics body snaps to the destination cell immediately; the visual tweens to catch up. |
 | Occupancy writes | Always through `Occupancy.commit(changes)`, never by mutating the dictionary in place — even for a single actor's step. |
 | Step timing | Occupancy commit, the step pulse and cell triggers all fire at **step commit**. `wait_settle` covers the land-on-it case. §5 |
-| Grid directions | Game 1 steps 4-way. Games 2 and 3 use `FreeMotion`. |
+| Grid directions | Game 1 steps 4-way. Game 2 uses `FreeMotion`. |
 | Script shape | Graph node = one command. Flow ports are the successor links. Renders as JSON. |
 
 ---
@@ -136,7 +136,7 @@ func supports_height() -> bool                # false for Space2D
 ```
 
 The grid-step tween's `visual_offset` is deliberately **not** here — it lives on `ActorView`
-(three-games.md §3.3), which is the layer that owns what an actor looks like. Keeping it off
+(two-games.md §3.3), which is the layer that owns what an actor looks like. Keeping it off
 the adapter is §11's "stay thin" rule being applied rather than stated.
 
 `Space2D` truncates on the way out and lifts on the way in, using `Space`. Its
@@ -219,7 +219,7 @@ already uses — the caller awaits it or ignores it.
 
 Step 3 goes through `commit` even though a single step is only two cell changes and could be
 written as two dictionary writes. That is the point: `push` needs an all-or-nothing multi-cell
-commit (three-games.md §3.2), and if the ordinary step does not already use that path, push
+commit (two-games.md §3.2), and if the ordinary step does not already use that path, push
 arrives as a rewrite rather than a caller.
 
 The body is authoritative and always exactly on a cell; the sprite is a lie that catches
@@ -228,7 +228,7 @@ and a cutscene that teleports an actor mid-step just cancels the tween.
 
 **Decided: everything fires at commit.** The body snapping to the destination cell is the
 one moment a step happens, and the occupancy commit, the step pulse
-(three-games.md §3.1) and any `EnterCell` trigger on the destination all fire there, in
+(two-games.md §3.1) and any `EnterCell` trigger on the destination all fire there, in
 that order. Monsters and traps therefore observe identical world state, and there is exactly
 one ordering to specify and test.
 
@@ -453,13 +453,13 @@ core/
   map_context.gd           MapContext, occupancy, cell/world conversion
   passability.gd           Passability (static)
   game_state.gd            autoload: flags, variables, party
-  game_profile.gd          GameProfile Resource — spec in three-games.md §2.1
+  game_profile.gd          GameProfile Resource — spec in two-games.md §2.1
   mode_stack.gd            autoload: Field | Cutscene | Battle | Menu  (stage A, §12.7)
 actors/
   actor.gd                 Actor
   actor_registry.gd        autoload — scope unresolved, see §11 and §12.7
   actor_factory.gd         builds motion/view/camera children from GameProfile
-  actor_view.gd            ActorView base (+ sprite_view_2d, sprite_view_3d, mesh_view_3d)
+  actor_view.gd            ActorView base (+ sprite_view_2d, sprite_view_3d)
   motion/
     motion_controller.gd   base
     grid_motion.gd
@@ -537,7 +537,7 @@ See [docs/events/](events/):
 - **Y on a flat map.** `Space2D.supports_height()` exists so this is a warning, not a
   mystery. Keep it wired into the validator too, per-map, once maps declare their space.
 - **`ActorRegistry` as an autoload has a collision problem.** Game 1's battle is a separate
-  scene with the field map still resident (three-games.md §3.8), so two maps' worth of
+  scene with the field map still resident (two-games.md §3.8), so two maps' worth of
   map-unique ids can be live at once. Unresolved — see §12.7.
 
 ---
@@ -564,8 +564,8 @@ directions** (game 1 is 4-way — §1), and `visual_offset`'s home (`ActorView` 
 6. **Camera ownership.** Does the camera follow the player by default with events
    borrowing it, or is it always driven by whatever holds the exclusive slot?
 7. **Who owns "input is locked", and what scope does `ActorRegistry` have?** These are one
-   question now that game 1 has a separate battle scene (three-games.md §3.8). The round
-   watchdog (three-games.md §3.1) and the exclusive runner's input lock are independent
+   question now that game 1 has a separate battle scene (two-games.md §3.8). The round
+   watchdog (two-games.md §3.1) and the exclusive runner's input lock are independent
    mechanisms today, so a 2s cutscene triggered mid-round gets its input force-unlocked and
    a spurious error logged. `ModeStack` is the natural arbiter and moves into stage A;
    `MapContext` is the natural home for the registry. Both deferred pending a decision.

@@ -1,6 +1,6 @@
 class_name FreeMotion extends MotionController
 
-## Continuous movement with gravity and jumping, for games 2 and 3. 3D only.
+## Continuous movement with gravity and jumping, for game 2. 3D only.
 ##
 ## Free actors do not own cells, so there is no occupancy reservation and no
 ## commit - [method Actor.cell] is computed on demand purely so events can address
@@ -13,8 +13,8 @@ class_name FreeMotion extends MotionController
 ## How close counts as arrived, in world units.
 @export var arrive_radius: float = 0.15
 
-## Directions an intent snaps to before it becomes velocity. 8 for game 2, 0 for the
-## fully analog game 3.
+## Directions an intent snaps to before it becomes velocity. 8 for game 2; 0 leaves
+## the intent analog, which nothing ships today.
 @export_range(0, 8, 4) var direction_count: int = 0
 
 var _velocity: Vector3 = Vector3.ZERO
@@ -114,8 +114,5 @@ func _physics_process(delta: float) -> void:
 			EventBus.command_finished.emit(key)
 	_was_on_floor = on_floor
 
-	var view := _actor.view() if _actor != null else null
-	if view is MeshView3D:
-		(view as MeshView3D).face_toward(Space.flatten(_velocity))
-	elif _actor != null and desired.length_squared() > 0.0001:
+	if _actor != null and desired.length_squared() > 0.0001:
 		_actor.set_facing(Space.quantise(desired, _actor.facing_count))

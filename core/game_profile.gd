@@ -7,13 +7,15 @@ class_name GameProfile extends Resource
 ## is no runtime selection, no launcher and no swap. That is what makes capability
 ## tags a purely authoring-time concern: nothing at runtime ever asks whether a
 ## command is available to it, because a build only ever contains one game.
+##
+## Two profiles exist: [code]jrpg[/code] and [code]isoish[/code].
 
 ## What a profile provides and a command may require.
 ##
-## A closed enum, not the free strings this started as. With three games and a growing
-## command set, free strings drift into near-duplicates that silently never match a
-## requirement - and a capability that never matches fails [i]open[/i], so the
-## validator simply stops warning. Eight values is the cheapest moment to close it.
+## A closed enum, not the free strings this started as. With a growing command set,
+## free strings drift into near-duplicates that silently never match a requirement -
+## and a capability that never matches fails [i]open[/i], so the validator simply
+## stops warning. Seven values is the cheapest moment to close it.
 enum Capability {
 	GRID_MOTION,
 	FREE_MOTION,
@@ -21,7 +23,6 @@ enum Capability {
 	PATHFINDER,
 	STEP_PULSE,
 	ROTATABLE_VIEW,
-	PLAYER_CAMERA,
 	BATTLE_SCENE,
 }
 
@@ -37,13 +38,13 @@ enum Capability {
 
 @export var input_profile: InputProfile = null
 
-## Which modes this game has at all. Game 1 is the only one with a battle scene.
+## Which modes this game has at all. Game 1 has a battle scene; game 2 does not.
 @export var modes: Array[StringName] = [&"field", &"cutscene", &"menu"]
 
 ## Default for a map that does not override it.
 @export var default_cell_size: Vector3 = Vector3.ONE
 
-## Pixels per world unit horizontally. 16 for games 1 and 2.
+## Pixels per world unit horizontally. 16 for both games.
 @export var texels_per_unit: int = 16
 
 ## Vertical faces get their own density: at pitch 30 a face is 13.856 px per world

@@ -7,8 +7,8 @@ class_name InputProfile extends Resource
 ## through the camera basis and then re-quantised. Get it wrong and rotation feels
 ## broken in a way that is hard to diagnose later.
 
-## Directions a movement intent snaps to. 4 for game 1's grid, 8 for game 2, 0 for
-## game 3's fully analog stick.
+## Directions a movement intent snaps to. 4 for game 1's grid, 8 for game 2. 0 means
+## a fully analog stick, which no shipping profile uses.
 @export_range(0, 8, 4) var direction_count: int = 4
 
 ## Resolve the stick through the camera's yaw. False only for a fixed-camera game

@@ -1,23 +1,23 @@
-# Three games, one toolchain — gap analysis
+# Two games, one toolchain — gap analysis
 
 Companion to [architecture.md](architecture.md). That document describes the engine seams
-and its §1 decisions are settled. This one is proposals: what the three-game plan needs
+and its §1 decisions are settled. This one is proposals: what the two-game plan needs
 that the seams do not yet cover, and which of those settled decisions the game list puts
 back in play.
 
 > See also [event-pages.md](event-pages.md) for the multi-page event format and routes, and
 > [open-questions.md](open-questions.md) for every unresolved decision in one place.
 
-Written 2026-09-07, revised the same day (see §6). The three targets:
+Written 2026-09-07, revised the same day (see §6). The two targets:
 
 1. **JRPG** — pure 2D grid movement. On some maps, monsters and certain map events take a
    step or an action in response to the player stepping. Speed classes: most act once per
    player step, rare fast ones act twice, slow ones every other step. Lufia 2.
-2. **Iso-ish** — looks like 2D pixel art, 3D underneath. Orthographic, pixel perfect, free
-   movement, jumping, height. Levels authored in 3D and rotatable live.
-3. **Action** — full 3D, free movement, jumping, player-controlled camera.
+2. **Iso-ish** — the same SNES-era pixel art, 3D underneath. Orthographic, pixel perfect,
+   free movement, jumping, height. Levels authored in 3D and rotatable live between four
+   yaw stops.
 
-All three are real-time. Game 1 is not turn-based; its monsters are ordinary real-time
+Both are real-time. Game 1 is not turn-based; its monsters are ordinary real-time
 actors that happen to be driven by a new trigger source rather than by a clock.
 
 ---
@@ -25,10 +25,10 @@ actors that happen to be driven by a new trigger source rather than by a clock.
 ## 1. Verdict
 
 The seam holds, and it holds better than the first pass of this document assumed. Nothing
-in the three games requires tearing up the space/motion split, the `Vector3i` cell
+in either game requires tearing up the space/motion split, the `Vector3i` cell
 vocabulary, the registry-addressed actors, or the graph-as-JSON event format.
 
-With a single time base across all three games, the three games are **one runtime** that
+With a single time base across both games, the two games are **one runtime** that
 differs along four configuration axes. There is no second execution model to build, no
 duration units to disambiguate, and no bimodal event runner.
 
@@ -42,18 +42,18 @@ What is genuinely missing:
   monsters that all respond to the same pulse in the same frame. §3.2
 - **Presentation as its own axis.** Game 2 is sprites in a 3D world. The plan has no place
   to put "what an actor looks like" independent of what space it lives in. §3.3
-- **Camera as a swappable rig.** Three genuinely different cameras, addressed identically
+- **Camera as a swappable rig.** Two genuinely different cameras, addressed identically
   by events. §3.4
-- **Input as intent.** Three control schemes, and game 2's live rotation makes input
+- **Input as intent.** Two control schemes, and game 2's live rotation makes input
   direction *view-relative* for the first time. §3.5
 - **The pixel-perfect 3D rig** and the art-pipeline decisions it forces. §3.6
-- **Per-game command subsets**, so one editor can serve three games. §3.7
+- **Per-game command subsets**, so one editor can serve both games. §3.7
 - **A mode stack** for battle, menus and cutscenes. §3.8
 - **Repo structure**, which the plan does not address at all. §3.9
 
 ---
 
-## 2. Four axes, three profiles
+## 2. Four axes, two profiles
 
 The two axes in architecture.md §2 become four. Each game is a point in that space, and a
 `GameProfile` resource is the thing that names it. **Specified 2026-09-08** — see §2.1.
@@ -62,29 +62,29 @@ The two axes in architecture.md §2 become four. Each game is a point in that sp
 | --- | --- | --- | --- | --- |
 | 1. JRPG | `Space2D` | `GridMotion`, 4-way | `SpriteView2D`, 4 facings | `RoomCamera2D` |
 | 2. Iso-ish | `Space3D` | `FreeMotion`, sub-pixel | `SpriteView3D`, 8 facings | `OrthoPixelRig`, 4 yaw stops, pitch 30° |
-| 3. Action | `Space3D` | `FreeMotion` | `MeshView3D`, true heading | `OrbitRig` |
 
 Time is uniform: real-time, `delta`, seconds. It is not an axis.
 
 **Facing counts, decided 2026-09-08.** Game 1 is 4-way and draws 4 directions. Game 2 moves
-freely and draws 8. Game 3 rotates a skeletal mesh to its actual continuous heading, so a
-direction count never applied to it — the old "how many sprite directions?" question was
-really only ever about games 1 and 2.
+freely and draws 8. Both games are sprite games, so the presentation axis is entirely a
+choice of how many frames and at what pitch they are drawn.
 
 **8 facings against 90° yaw stops is exact**, which is the reason this combination is worth
 having. Frames sit 45° apart and each yaw stop is 90°, so
 `frame = (facing_index - 2 * yaw_index) mod 8` — integer arithmetic, no rounding, and no yaw
 at which some frame has no art. `SpriteView3D.set_facing(dir, camera_yaw)` is that one line.
 
-Two things fall out of the table.
+One thing falls out of the table.
 
-**Games 2 and 3 share everything but the camera rig and the view.** Same space, same
-motion, same time base. They are two configurations of one runtime rather than two games
-that happen to share a library. Game 2's pixel rig and directional sprites are the only
-real work between them.
+**The two games differ on every axis, and on nothing else.** Same event system, same
+actor identity, same cell vocabulary, same time base. They are two configurations of one
+runtime rather than two games that happen to share a library, and game 1's monsters are
+the only novel *behaviour* between them — behaviour that is one trigger source away from
+being ordinary.
 
-**Game 1 is game 3 with a different space, motion and camera.** Its monsters are the only
-novel *behaviour*, and that behaviour is one trigger source away from being ordinary.
+The cost of that is now concentrated: with only two profiles, every axis is exercised by
+exactly one game, so nothing in the spine is validated by a second caller. That is what
+makes the headless harness (§3.10) load-bearing rather than a nicety.
 
 ### 2.1 `GameProfile`
 
@@ -97,7 +97,7 @@ class_name GameProfile extends Resource
 
 enum Capability {
     GRID_MOTION, FREE_MOTION, HEIGHT, PATHFINDER,
-    STEP_PULSE, ROTATABLE_VIEW, PLAYER_CAMERA, BATTLE_SCENE,
+    STEP_PULSE, ROTATABLE_VIEW, BATTLE_SCENE,
 }
 
 @export var id: StringName                      # "jrpg" — save envelope, §3.10
@@ -110,20 +110,19 @@ enum Capability {
 
 # The four axes of §2, named rather than merely documented — decided 2026-09-08.
 @export var motion_script: Script               # GridMotion | FreeMotion
-@export var view_script: Script                 # SpriteView2D | SpriteView3D | MeshView3D
-@export var camera_script: Script               # RoomCamera2D | OrthoPixelRig | OrbitRig
+@export var view_script: Script                 # SpriteView2D | SpriteView3D
+@export var camera_script: Script               # RoomCamera2D | OrthoPixelRig
 ```
 
 | Profile | Capabilities |
 | --- | --- |
 | `jrpg` | `GRID_MOTION, STEP_PULSE, PATHFINDER, BATTLE_SCENE` |
 | `isoish` | `FREE_MOTION, HEIGHT, ROTATABLE_VIEW` |
-| `action` | `FREE_MOTION, HEIGHT, PLAYER_CAMERA` |
 
-**Capabilities are a closed enum, not the free strings §3.7 sketched.** With three games and
-a growing command set, free strings drift into near-duplicates that silently never match a
+**Capabilities are a closed enum, not the free strings §3.7 sketched.** With a growing
+command set, free strings drift into near-duplicates that silently never match a
 `requires` entry, and a capability that never matches fails open — the validator simply stops
-warning. Eight values is the cheapest possible moment to close it.
+warning. Seven values is the cheapest possible moment to close it.
 
 `STEP_PULSE` is a capability *only*, with no parallel boolean field, so "does this game
 pulse?" has exactly one answer. `HEIGHT` does legitimately coexist with
@@ -145,7 +144,7 @@ and an actor's children are built from data. Two consequences to hold onto:
 **Decided 2026-09-08: each game ships as its own executable, and only one profile exists in
 any given build.** There is no runtime profile selection, no launcher scene and no
 `--profile` argument; the active profile is fixed when the build is made. The shared code in
-`core/`, `events/` and `ui/` is what the three have in common — a library, not a runtime
+`core/`, `events/` and `ui/` is what the two have in common — a library, not a runtime
 switch.
 
 What this simplifies, which is more than it looks:
@@ -243,7 +242,7 @@ pause?" decision falls out for free.
 has finished. Call that span a **round**.
 
 This is not a return to lockstep. The world still runs on `delta` — animations, particles,
-dialogue, ambient events all tween in seconds exactly as in games 2 and 3. What is gated is
+dialogue, ambient events all tween in seconds exactly as in game 2. What is gated is
 one field of one struct: `InputIntent.step`. The round is an input policy, not a clock.
 
 **A round is a join over completion keys.** Every long-running call in this architecture
@@ -356,9 +355,6 @@ func apply_step_offset(offset: Vector3) -> void   # the grid tween lands here
   `camera_yaw` to pick its frame, which is what makes game 2's live rotation work; with 90°
   yaw stops that reduces to integer frame arithmetic (§2). Also the layer that rounds the
   transform to whole texels (§3.6).
-- `MeshView3D` — skeleton, `AnimationTree`, root motion; `set_facing` rotates the model to
-  its true continuous heading, no quantisation.
-
 `visual_offset` from `SpaceAdapter` belongs here rather than on the adapter, as
 `apply_step_offset`. **Decided** — architecture.md §4 records the adapter no longer carrying
 it, which makes the adapter thinner, the goal architecture.md §11 already names.
@@ -372,7 +368,7 @@ class_name CameraRig extends Node
 
 func follow(actor_id: StringName, seconds: float) -> String
 func move_to(cell: Vector3i, seconds: float) -> String
-func rotate_to(yaw: float, seconds: float) -> String   # games 2/3
+func rotate_to(yaw: float, seconds: float) -> String   # game 2
 func zoom_to(z: float, seconds: float) -> String
 func shake(amount: float, seconds: float) -> String
 func lock(locked: bool) -> void                        # player control on/off
@@ -381,19 +377,18 @@ func lock(locked: bool) -> void                        # player control on/off
 - `RoomCamera2D` (game 1) — follows with a deadzone, clamps to map bounds, or snaps per
   screen for the classic room-scroll. `rotate_to` warns.
 - `OrthoPixelRig` (game 2) — fixed pitch, yaw snapped to stops, pixel-quantised. §3.6.
-- `OrbitRig` (game 3) — player-driven yaw/pitch, spring arm, collision.
 
-The point is that `camera_to` in an event graph means the same thing in all three, and the
-rig decides what it can honour.
+The point is that `camera_to` in an event graph means the same thing in both, and the
+rig decides what it can honour. `rotate_to` is the one verb only game 2 honours, which is
+what the `ROTATABLE_VIEW` capability is for.
 
 ### 3.5 Input as intent
 
-`input_manager.gd` forwards raw named actions to one target. Three schemes need more:
+`input_manager.gd` forwards raw named actions to one target. Two schemes need more:
 
 ```gdscript
 class_name InputIntent    # produced per frame, consumed by MotionController
     move: Vector3         # WORLD space, already basis-corrected
-    look: Vector2         # camera stick, game 3
     jump: bool
     run: bool
     interact: bool
@@ -404,9 +399,9 @@ Two things this must handle that nothing currently does:
 
 **View-relative input.** The moment game 2's camera rotates, "up" on the stick is no longer
 `-Z`. Input direction has to be resolved through the camera basis and then re-quantised —
-to 4 or 8 world directions for a grid or sprite game, left analog for game 3. One
-`InputProfile` per game, one basis resolver shared. Get this wrong and rotation feels broken
-in a way that is hard to diagnose later.
+to 4 world directions for game 1's grid, 8 for game 2's sprites. One `InputProfile` per
+game, one basis resolver shared. Get this wrong and rotation feels broken in a way that is
+hard to diagnose later.
 
 **Held-direction repeat.** The round gate (§3.1) simplifies this: the cadence is set by
 round completion, not by a repeat timer, so holding a direction means "step again the moment
@@ -420,7 +415,7 @@ folds it in.
 
 ### 3.6 Pixel-perfect 3D and live rotation (game 2)
 
-Not covered at all, and it is the hardest *rendering* problem of the three.
+Not covered at all, and it is the hardest *rendering* problem in the project.
 
 **The rig.** Render the 3D scene into a low-resolution `SubViewport` at the pixel-art
 resolution, then scale it up with nearest-neighbour filtering. This is the standard approach
@@ -512,7 +507,7 @@ care about yaw.
 
 ### 3.7 Per-game command subsets
 
-`EventCommand` is one global registry, but each game supports a different subset. The
+`EventCommand` is one global registry, but the two games support different subsets. The
 `space: "any" | "grid" | "free"` field in architecture.md §7.2 is too narrow.
 
 **Proposal: capability tags.** Commands declare what they need; profiles and maps declare
@@ -521,24 +516,24 @@ what they provide.
 ```
 "jump":         {"requires": ["height", "free_motion"]}
 "push":         {"requires": ["grid_motion"]}
-"camera_orbit": {"requires": ["player_camera"]}
 "camera_rotate":{"requires": ["rotatable_view"]}
+"start_battle": {"requires": ["battle_scene"]}
 "say":          {"requires": []}
 ```
 
 The event dock's validate pass then reports "`jump` is not available in profile `jrpg`"
 instead of the command failing silently at runtime, and the graph editor's command dropdown
 offers only what the current profile supports. This is the single change that makes one
-editor genuinely serve three games.
+editor genuinely serve both games.
 
 ### 3.8 A mode stack
 
 **Decided 2026-09-08: game 1 has a separate battle scene**, as Lufia 2 does, and as
 [slime_a.event.json](events/slime_a.event.json) already assumes with its `start_battle`
-command. Games 2 and 3 may still want in-world combat. All three need menus and cutscenes.
+command. Game 2 may still want in-world combat. Both need menus and cutscenes.
 The plan handles cutscenes via the exclusive runner and nothing else.
 
-**Consequence: `ModeStack` moves from stage F into stage A.** A Battle mode that keeps the
+**Consequence: `ModeStack` moves from the last stage into stage A.** A Battle mode that keeps the
 field map resident is now a prerequisite for game 1 being playable end to end, so it can no
 longer be the last thing built. §4.3's order is revised accordingly.
 
@@ -571,52 +566,39 @@ Godot constraints that matter: `class_name` globals are project-wide, so a share
 library works cleanly — but editor plugins must live in each project's own `res://addons/`,
 and `.godot/` caches, project settings, input maps and import settings are per project.
 
-**Recommend one repository, three game folders:**
+**Recommend one repository, two game folders:**
 
 ```
 core/            space, actors, motion, occupancy, passability, step pulse
 events/          registry, runner, scheduler, commands
 ui/              TextBox/dialogue, menus, windows
-addons/          graph_editor, event_editor  (one copy, all three games)
+addons/          graph_editor, event_editor  (one copy, both games)
 games/
   jrpg/          profile, maps, art, monsters, push/puzzle commands
   isoish/        profile, maps, art, ortho pixel rig
-  action/        profile, maps, art, orbit rig
 ```
 
-One `project.godot` with three main scenes selected by profile.
+One `project.godot`, two export presets, two executables — one per profile (§2.2). Each
+preset carries a custom feature tag (`jrpg`, `isoish`) and overrides `run/main_scene` for
+it, so each build boots straight into its own game with no selection code anywhere.
 
-One `project.godot`, three export presets, three executables — one per profile (§2.2). Each
-preset carries a custom feature tag (`jrpg`, `isoish`, `action`) and overrides
-`run/main_scene` for it, so each build boots straight into its own game with no selection
-code anywhere.
-
-The alternative — three separate projects sharing `core/` as a git submodule — keeps
-shipping clean but duplicates or symlinks the two editor plugins, drifts three sets of
-project settings, and needs three submodule bumps per core change. For a solo project where
+The alternative — two separate projects sharing `core/` as a git submodule — keeps
+shipping clean but duplicates or symlinks the two editor plugins, drifts two sets of
+project settings, and needs a submodule bump per core change. For a solo project where
 the shared tooling *is* the point, one repository is the better trade. Shipping as separate
 executables does **not** require splitting the repo; that is what the feature tags are for.
 
-**On project-global settings, correcting an earlier draft of this section.** The renderer and
-`textures/canvas_textures/default_texture_filter` looked like the sharp cost of one repo —
-the project is currently `gl_compatibility` with nearest-neighbour filtering, right for games
-1 and 2 and wrong for game 3, which wants filtered mipmapped textures and probably Forward+.
-But project settings take per-feature overrides using the same `setting.tag` suffix, and the
-renderer setting is *already* overridden that way for platforms
-(`renderer/rendering_method.mobile` is in `project.godot` today), so a custom tag should work
-identically:
+**On project-global settings — no longer a cost at all.** The renderer and
+`textures/canvas_textures/default_texture_filter` are project-global, and they looked like
+the sharp cost of one repo when a third game wanted filtered mipmapped textures and
+Forward+. Both remaining games are pixel-art games: `gl_compatibility` with
+nearest-neighbour filtering is correct for each of them, and the two never disagree. The
+one-repo case no longer leans on a feature-tag override for the renderer.
 
-```
-renderer/rendering_method                     = "gl_compatibility"
-renderer/rendering_method.action              = "forward_plus"
-textures/canvas_textures/default_texture_filter        = 0
-textures/canvas_textures/default_texture_filter.action = 1
-```
-
-That reduces this from a structural objection to a ten-minute verification — worth actually
-running before stage A commits to the layout, since the whole one-repo case leans on it.
-Per-texture import overrides remain the fallback for the filter if the tag override does not
-take.
+Feature tags are still doing real work for `run/main_scene`, which is a per-preset string
+rather than a rendering mode — the mechanism is the same
+(`renderer/rendering_method.mobile` is in `project.godot` today), but nothing now depends
+on it behaving for a *custom* tag, so there is no verification blocking the layout.
 
 **Corollary:** `TextBox/`, `constants.gd`, `event_bus.gd` and `input_manager.gd` are
 currently at the repository root. They are all shared infrastructure and should move into
@@ -624,7 +606,7 @@ currently at the repository root. They are all shared infrastructure and should 
 
 ### 3.10 Two smaller ones
 
-**Save framework.** Three games, one format: a shared envelope (profile id, map id, spawn
+**Save framework.** Two games, one format: a shared envelope (profile id, map id, spawn
 cell, flags, variables, party) plus a per-game payload blob. Worth defining early, because
 retrofitting serialisation onto actors and occupancy is miserable.
 
@@ -638,11 +620,12 @@ in the "small, easy to forget, visible if lost" category:
 - **Self flags** (event-pages.md §2.2). Active page is derivable from conditions; self flags
   are not derivable from anything.
 
-**Headless tests.** The shared core is about to be depended on by three games, which is
-exactly when silent regressions get expensive. A headless scene that loads a map, fires a
-sequence of step pulses, runs an event graph, and asserts on final actor cells and flags
-would cover the pulse batch, the occupancy commit and the event runner — the three places
-where bugs will actually live.
+**Headless tests.** The shared core is about to be depended on by both games, which is
+exactly when silent regressions get expensive — and with only two profiles, each axis has
+exactly one caller, so nothing is validated by a second game merely existing. A headless
+scene that loads a map, fires a sequence of step pulses, runs an event graph, and asserts
+on final actor cells and flags would cover the pulse batch, the occupancy commit and the
+event runner — the three places where bugs will actually live.
 
 The round gate makes game 1 unusually cheap to test this way: a round is a discrete,
 awaitable unit with a defined end, so a test can drive "step north, step north, step east"
@@ -680,20 +663,21 @@ would otherwise only show up as a puzzle that quietly stopped being solvable.
    - **C. Event system** — registry with capability tags, runner, scheduler, `EventDocument`
      and `GameEvent` including the `ActorStepped` trigger. Author a monster's AI as a graph; that is the test that the
      format is expressive enough.
-   - **D. Game 3 vertical slice** — `FreeMotion`, `MeshView3D`, `OrbitRig`. Should be
-     nearly free if A and C are right, which makes it the cheapest possible test of whether
-     they are.
-   - **E. Game 2** — `OrthoPixelRig`, `SpriteView3D`, yaw stops, view-relative input. Most
-     of the remaining risk here is art pipeline, not architecture.
-   - **F. Saves, battle scene, remaining modes.** (The mode stack itself is now in A.)
+   - **D. Game 2** — `FreeMotion`, `OrthoPixelRig`, `SpriteView3D`, yaw stops,
+     view-relative input. Most of the remaining risk here is art pipeline, not
+     architecture.
+   - **E. Saves, battle scene, remaining modes.** (The mode stack itself is now in A.)
 
    The headless harness of §3.10 should land at the end of **B**, not be left as a good idea:
    the round is the awaitable unit that makes it cheap, and B is where the pulse batch and the
    occupancy commit first come under load.
 
-   Game 3 before game 2 is deliberate: game 3 is the same runtime with the simpler
-   presentation, so it validates the shared spine without the pixel-art rig's problems
-   confusing the diagnosis.
+   **Build stage D in two passes**, because it carries two unrelated risks at once and a
+   bug in either presents the same way. First `FreeMotion`, jumping and height against
+   untextured boxes and a plain ortho camera — that is the shared spine under load in 3D,
+   diagnosable on its own. Only then the pixel rig, the yaw stops and the sprites, which is
+   an art-pipeline problem rather than an architectural one. Doing both in one pass means a
+   spine bug and a texel bug are indistinguishable.
 
 ---
 
@@ -714,18 +698,17 @@ would otherwise only show up as a puzzle that quietly stopped being solvable.
 4. ~~Yaw stops and pitch for game 2~~ — **decided:** 4 stops at 90° and **pitch 30°**, giving
    a 16 × 8 px ground tile. Texel density is 16 px per tile horizontally, and §3.6 recommends
    14 texels per world unit on vertical faces so wall art is not resampled 14%. §3.6.
-5. ~~How many sprite directions?~~ — **decided:** 4 for game 1, 8 for game 2, and game 3's
-   mesh rotates to its true heading. §2.
-6. **One repo or three?** (§3.9) Recommend one — with the global-renderer cost named there.
+5. ~~How many sprite directions?~~ — **decided:** 4 for game 1, 8 for game 2. §2.
+6. **One repo or two?** (§3.9) Recommend one. Both games want the same renderer and the same
+   texture filter, so the project-global settings that would have argued for splitting do
+   not conflict.
 7. ~~Does game 1 have a separate battle scene?~~ — **decided:** yes, as Lufia 2 does. This
    moves `ModeStack` into stage A. §3.8.
-8. ~~Do games 2 and 3 share maps?~~ — **decided 2026-09-08: no.** Separate map sets, and the
-   art styles do not mix. Technically they could have: games 2 and 3 differ only in camera
-   rig and `ActorView`, and 90° yaw stops mean a game-2 level is a plain axis-aligned 3D
-   scene with nothing iso-specific in its geometry. Declining it anyway is an art-direction
-   call, and it buys a real simplification — no map needs to declare which presentations it
+8. ~~Do the games share maps?~~ — **decided 2026-09-08: no.** Game 1 is `Space2D` and game 2
+   is `Space3D`, so there is no shared map format to argue about, and the art styles do not
+   mix in any case. The simplification this buys — no map declares which presentations it
    supports, `MapContext` needs no profile-compatibility field, and no "view two ways" mode
-   has to exist. A map belongs to exactly one profile.
+   has to exist. **A map belongs to exactly one profile.**
 9. **Who owns "input is locked"?** The round gate and watchdog (§3.1), the input target stack
    (§3.5) and the exclusive slot (architecture.md §7.5) are three independent control
    mechanisms, and the watchdog currently force-unlocks input during an exclusive event.
@@ -742,7 +725,7 @@ The first version of this document read game 1 as turn-based and proposed a glob
 durations on every duration-taking command, a bimodal `EventRunner` for ambient events, and
 full two-phase propose/resolve on every move.
 
-All of that is deleted. Game 1 is real-time like the other two; its monsters respond to a
+All of that is deleted. Game 1 is real-time like game 2; its monsters respond to a
 step-pulse trigger. What survived, in much smaller form, is the energy idea — now per-actor
 local `credit` for speed classes with no global ordering — and the transactional part of
 occupancy, which push chains need regardless of how time works.

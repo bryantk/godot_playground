@@ -1,7 +1,7 @@
 # Event pages, routes, and the editor surfaces
 
 Third document, alongside [architecture.md](architecture.md) (engine seams) and
-[three-games.md](three-games.md) (three-game gap analysis). Written 2026-09-07.
+[two-games.md](two-games.md) (two-game gap analysis). Written 2026-09-07.
 
 This covers the event document format once an event has multiple pages, where autonomous
 movement lives, how a page is chosen, and what has to exist in the Godot editor for routes
@@ -31,7 +31,7 @@ The consequences worth naming up front:
   that a chest is untouchable on page 1, talks on page 2, and blocks the path on page 3 —
   those are different triggers.
 - **Art becomes page-driven**, which is the first concrete reason `ActorView`
-  (three-games.md §3.3) needs to exist independent of the space axis. Page switches
+  (two-games.md §3.3) needs to exist independent of the space axis. Page switches
   re-apply art.
 - **Autonomous movement is a page field, not a graph.** A patrol should not require opening
   a node graph, and it must be drawable in the viewport.
@@ -99,7 +99,7 @@ expression strings, because these are the things an editor needs to offer dropdo
 
 **Self flags** are the classic "talk once, then change permanently" mechanism without
 polluting global flag space: per-event, per-map storage keyed `map_id:event_id:flag`, set by
-a `set_self_flag` command. They belong in the save envelope (three-games.md §3.10) and are
+a `set_self_flag` command. They belong in the save envelope (two-games.md §3.10) and are
 easy to forget there.
 
 Note the deliberate inconsistency with architecture.md §7.2, where the `if` *command* takes
@@ -132,7 +132,7 @@ Polling every event every frame is wasteful with a few dozen events on a map. Re
 exactly the keys its conditions reference — a subscription list derivable automatically from
 the condition entries, so nothing is wired by hand and nothing can be forgotten. Re-evaluate
 only the events that reference a changed key, plus a full pass on map load and at round close
-(three-games.md §3.1), since a round can change state.
+(two-games.md §3.1), since a round can change state.
 
 **Page switching mid-execution** must be deferred. If a page's graph is running and a flag
 change makes a different page active, swapping art and logic underneath the running graph is
@@ -164,7 +164,7 @@ distinct from the graph, which is what it does when triggered.
 | `mode` | `fixed` (never moves), `waypoints`, `toward` / `away` (an actor id, default player), `random` |
 | `loop` | `none`, `cycle` (return to the first waypoint), `pingpong` |
 | `on_blocked` | `wait`, `skip` (drop that waypoint), `reverse`, `repath` (A\*) |
-| `speed` | The speed class from three-games.md §3.1 — credit gained per pulse. `200` acts twice, `50` every other pulse. |
+| `speed` | The speed class from two-games.md §3.1 — credit gained per pulse. `200` acts twice, `50` every other pulse. |
 | `waypoints` | `waypoints` mode only. `cell` is required; `face` and `wait` (in steps or seconds by profile) are optional per point. |
 
 **Absolute cells, not relative steps.** A `{"step": [1,0,0], "repeat": 3}` notation is more
@@ -186,7 +186,7 @@ stream `EventRunner` already executes** — a waypoint becomes `move_to`, a `wai
 Three things follow for free rather than needing design:
 
 - Route steps are `blocking`, so they join the round and hold the input gate exactly like a
-  graph's `move_to` (three-games.md §3.1). No separate gate integration.
+  graph's `move_to` (two-games.md §3.1). No separate gate integration.
 - `on_blocked` maps onto the `blocked` signal `MotionController` already emits.
 - A complex patrol that outgrows the route form can be rewritten as a graph with `goto`
   (as [patrol_guard.event.json](events/patrol_guard.event.json) does today) with no change
@@ -267,11 +267,11 @@ which keeps the "what is at this cell?" lookup uniform.
   its node format; the wrapper is new and additive.
 - **architecture.md §7.6** — `EventSource` becomes `GameEvent`; `trigger`, `condition` and
   `once` move into page `settings`, and `pulse_filter` likewise. `fire_on` is deleted.
-- **three-games.md §3.3** — `ActorView` gains `apply_art(art: Dictionary)`, called on page
+- **two-games.md §3.3** — `ActorView` gains `apply_art(art: Dictionary)`, called on page
   activation.
-- **three-games.md §3.7** — capability tags now apply to route fields too: `mode: "toward"`
+- **two-games.md §3.7** — capability tags now apply to route fields too: `mode: "toward"`
   needs `grid_motion` or a pathfinder; `speed` classes need the step pulse.
-- **three-games.md §3.10** — self flags join the save envelope, and so does **route
+- **two-games.md §3.10** — self flags join the save envelope, and so does **route
   progress**: the current waypoint index and the `pingpong` direction. Active page is
   derivable from conditions, so it need not be saved. Self flags and route progress are the
   two easiest things in this document to omit and only notice much later.
@@ -293,7 +293,7 @@ which keeps the "what is at this cell?" lookup uniform.
 4. ~~Do pages inherit?~~ — **decided 2026-09-08: no.** Pages are fully explicit; absent
    means default. The repetition goes to a "duplicate page" editor button instead. §2.
 5. **Route `wait` units** — steps or seconds? Steps are the natural unit in game 1 and mean
-   nothing in games 2 and 3. Profile-dependent, or unit-tagged like §2.2's conditions?
+   nothing in game 2. Profile-dependent, or unit-tagged like §2.2's conditions?
 6. **One document per event, or a map-level bundle?** Per-event files are easier to diff and
    move between maps; a bundle avoids dozens of tiny files per map and lets the dock open a
    whole map's events at once.

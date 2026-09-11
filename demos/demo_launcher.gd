@@ -1,11 +1,11 @@
 class_name DemoLauncher extends Control
 
-## Picks one of the three presentation demos.
+## Picks one of the two presentation demos.
 ##
 ## This is a development convenience, not the shipping arrangement: each game ships as
 ## its own executable with one profile compiled in, selected by a feature-tagged
 ## [code]run/main_scene[/code] override rather than by a menu. Being able to see the
-## three side by side is worth a launcher while the spine is being built.
+## two side by side is worth a launcher while the spine is being built.
 
 const DEMOS := [
 	{
@@ -19,12 +19,6 @@ const DEMOS := [
 		"title": "Iso-ish",
 		"blurb": "pixel-perfect ortho 3D, pitch 30, 4 yaw stops, 8 facings",
 		"scene": "res://games/isoish/isoish_demo.tscn",
-	},
-	{
-		"key": "3",
-		"title": "Action",
-		"blurb": "full 3D, analog movement, orbit camera",
-		"scene": "res://games/action/action_demo.tscn",
 	},
 ]
 
@@ -58,7 +52,7 @@ func _ready() -> void:
 	margin.add_child(col)
 
 	col.add_child(_label("2026Dev - presentation demos", 16, Color(1, 1, 1)))
-	col.add_child(_label("one shared spine, three presentations", 10, Color(0.6, 0.66, 0.72)))
+	col.add_child(_label("one shared spine, two presentations", 10, Color(0.6, 0.66, 0.72)))
 
 	for demo: Dictionary in DEMOS:
 		var button := Button.new()
@@ -69,7 +63,7 @@ func _ready() -> void:
 		col.add_child(button)
 		col.add_child(_label("     " + str(demo["blurb"]), 9, Color(0.55, 0.6, 0.66)))
 
-	col.add_child(_label("press 1, 2 or 3 - Esc returns here from any demo", 9,
+	col.add_child(_label("press 1 or 2 - Esc returns here from any demo", 9,
 		Color(0.5, 0.55, 0.6)))
 
 
