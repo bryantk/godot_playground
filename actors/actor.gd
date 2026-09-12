@@ -136,6 +136,14 @@ func is_moving() -> bool:
 	return m != null and m.is_busy()
 
 
+## Physically translating, as opposed to [method is_moving]'s "busy with a command".
+## The distinction only bites for free motion, where steering with the stick moves the
+## actor with nothing in flight - see [method MotionController.is_travelling].
+func is_travelling() -> bool:
+	var m := motion()
+	return m != null and m.is_travelling()
+
+
 # -- Internals ----------------------------------------------------------------
 
 ## Children are found by class rather than by name so a scene author can name the

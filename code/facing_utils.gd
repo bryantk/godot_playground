@@ -28,6 +28,16 @@ static func dir_to_8facings(dir: Vector2) -> Array:
 	
 static func invert_dir(dir: int) -> int:
 	return wrap(dir + 2, 0, 4)
+
+## [Space]'s compass order (N, E, S, W) as this file's screen-relative [enum Facings].
+##
+## The two lists disagree on both origin and meaning - north is away from the camera,
+## down is toward it - so anything crossing between the engine's facing vocabulary and a
+## sprite sheet's goes through here rather than assuming the indices line up.
+const FROM_COMPASS: Array[int] = [Facings.UP, Facings.RIGHT, Facings.DOWN, Facings.LEFT]
+
+static func from_compass(index4: int) -> int:
+	return FROM_COMPASS[posmod(index4, 4)]
 	
 static func string_vector_dict() -> Dictionary:
 	return {

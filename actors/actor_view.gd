@@ -13,16 +13,38 @@ class_name ActorView extends Node
 ## takes the first child, which is the normal arrangement.
 @export var visual_path: NodePath = NodePath()
 
+## How the step tween interpolates, and the default matters more than it looks.
+##
+## Easing out decelerates the sprite to a dead stop in the middle of every cell, so a
+## held direction reads as step-pause-step-pause rather than as walking - the steps are
+## back to back in time and still look separated, because the velocity hits zero at
+## each boundary. Constant velocity is what joins consecutive steps into continuous
+## motion, and it is what cell-stepping games have always done.
+##
+## Exported so a deliberate single step - a cutscene nudging an actor one tile - can
+## ease if that reads better there.
+@export var step_trans: Tween.TransitionType = Tween.TRANS_LINEAR
+@export var step_ease: Tween.EaseType = Tween.EASE_IN_OUT
+
 var _visual: Node = null
 var _offset: Vector3 = Vector3.ZERO
 var _tween: Tween = null
 var _keys := 0
+var _bound := false
 
 
+## Binding happens once, and [method _ready] must not redo it.
+##
+## A code-built actor calls [method bind_visual] before this node is ready, and a
+## subclass caches the visual's [i]resting[/i] position when it binds. Running the bind
+## a second time here would re-read that position after something had already written a
+## correction into it, folding the correction into the rest pose - which then drifts a
+## little further every time it happens.
 func _ready() -> void:
 	if _visual == null:
 		_visual = get_node_or_null(visual_path) if not visual_path.is_empty() else _first_child()
-	_after_bind()
+	if not _bound:
+		_after_bind()
 
 
 ## Point this view at its visual explicitly. Needed when the actor is built in code,
@@ -39,6 +61,7 @@ func visual() -> Node:
 ## Called whenever [member _visual] changes, so subclasses can cache typed references
 ## once rather than casting on every call.
 func _after_bind() -> void:
+	_bound = true
 	_warn_if_detached()
 
 
@@ -129,7 +152,7 @@ func apply_step_offset(back: Vector3, duration: float) -> String:
 
 	_tween = create_tween()
 	_tween.tween_method(_set_offset, back, Vector3.ZERO, duration) \
-		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		.set_trans(step_trans).set_ease(step_ease)
 	_tween.finished.connect(func () -> void: EventBus.command_finished.emit(key))
 	return key
 

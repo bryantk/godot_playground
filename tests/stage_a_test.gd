@@ -69,19 +69,48 @@ func _test_space() -> void:
 
 ## The property that makes 8 facings against 4 yaw stops worth having: every frame is
 ## an exact integer, so no yaw leaves a facing with no art.
+##
+## The expected frame is derived from the camera basis rather than restated as a formula,
+## which is not pedantry - the version of this test that asserted
+## [code]posmod(i - stop * 2, 8)[/code] passed for months against a
+## [method Space.view_frame] whose sign was wrong, because it was comparing the
+## implementation with itself. Projecting the facing onto the camera's own screen axes is
+## an independent answer, and it is the one the eye checks.
 func _test_view_frames() -> void:
 	_section("Space -- 8 facings against 4 yaw stops")
 
 	for stop in 4:
 		var yaw := float(stop) * PI * 0.5
 		_eq(Space.yaw_index(yaw), stop, "yaw stop %d reads back" % stop)
+		var basis := Basis.from_euler(Vector3(-deg_to_rad(30.0), yaw, 0.0))
 
 		var seen := {}
 		for i in 8:
-			var frame := Space.view_frame(Vector3(Space.DIRS_8[i]), yaw, 8)
+			var dir := Vector3(Space.DIRS_8[i])
+			var frame := Space.view_frame(dir, yaw, 8)
 			seen[frame] = true
-			_eq(frame, posmod(i - stop * 2, 8), "facing %d at stop %d -> frame" % [i, stop])
+			_eq(frame, _frame_on_screen(dir, basis, 8),
+				"facing %s at stop %d faces the right way on screen" % [
+					Space.DIRS_8[i], stop])
 		_eq(seen.size(), 8, "all 8 frames used at stop %d" % stop)
+
+		# The four-facing sheet the JRPG and the grid isoish actors use. The sign error
+		# this catches was invisible at 8 facings on half the stops and at 4 on the same
+		# half, so both counts are worth asserting.
+		for i in 4:
+			var dir := Vector3(Space.DIRS_4[i])
+			_eq(Space.view_frame(dir, yaw, 4), _frame_on_screen(dir, basis, 4),
+				"4-facing %s at stop %d" % [Space.DIRS_4[i], stop])
+
+
+## Which frame [param dir] should show, worked out from where it points on screen rather
+## than from the formula under test. Frame 0 is the actor facing away from the camera and
+## frames advance clockwise, matching [constant Space.DIRS_8].
+func _frame_on_screen(dir: Vector3, basis: Basis, count: int) -> int:
+	# basis.z points from the subject back toward the camera, so away is its negation.
+	var toward_camera := Vector3(basis.z.x, 0.0, basis.z.z).normalized()
+	var angle := atan2(dir.dot(basis.x), dir.dot(-toward_camera))
+	return posmod(roundi(angle / (TAU / float(count))), count)
 
 
 # -- Occupancy ----------------------------------------------------------------

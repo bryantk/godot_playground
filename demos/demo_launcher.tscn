@@ -1,10 +1,97 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://demos/demo_launcher.gd" id="1_dl"]
+[ext_resource type="PackedScene" path="res://games/jrpg/jrpg_demo.tscn" id="2_jrpg"]
+[ext_resource type="PackedScene" path="res://games/isoish/isoish_demo.tscn" id="3_iso"]
+[ext_resource type="PackedScene" path="res://games/isoish/isoish_grid_demo.tscn" id="4_grid"]
 
 [node name="DemoLauncher" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 script = ExtResource("1_dl")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.07, 0.08, 0.1, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 20
+
+[node name="Column" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Margin/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = "2026Dev - presentation demos"
+
+[node name="Subtitle" type="Label" parent="Margin/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.66, 0.72, 1)
+theme_override_font_sizes/font_size = 10
+text = "one shared spine, two games, four axes"
+
+[node name="Jrpg" type="Button" parent="Margin/Column"]
+layout_mode = 2
+tooltip_text = "2D grid, 4-way, snap-and-tween, real tile passability"
+text = "1.  JRPG"
+alignment = 0
+metadata/scene = ExtResource("2_jrpg")
+
+[node name="JrpgBlurb" type="Label" parent="Margin/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.66, 1)
+theme_override_font_sizes/font_size = 9
+text = "     2D grid, 4-way, snap-and-tween, real tile passability"
+
+[node name="Isoish" type="Button" parent="Margin/Column"]
+layout_mode = 2
+tooltip_text = "pixel-perfect ortho 3D, pitch 30, 4 yaw stops, 8 facings"
+text = "2.  Iso-ish"
+alignment = 0
+metadata/scene = ExtResource("3_iso")
+
+[node name="IsoishBlurb" type="Label" parent="Margin/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.66, 1)
+theme_override_font_sizes/font_size = 9
+text = "     pixel-perfect ortho 3D, pitch 30, 4 yaw stops, 8 facings"
+
+[node name="IsoishGrid" type="Button" parent="Margin/Column"]
+layout_mode = 2
+tooltip_text = "the same iso view, stepping cell to cell instead of moving freely"
+text = "3.  Iso-ish + grid"
+alignment = 0
+metadata/scene = ExtResource("4_grid")
+
+[node name="IsoishGridBlurb" type="Label" parent="Margin/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.66, 1)
+theme_override_font_sizes/font_size = 9
+text = "     the same iso view, stepping cell to cell instead of moving freely"
+
+[node name="Footer" type="Label" parent="Margin/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.55, 0.6, 1)
+theme_override_font_sizes/font_size = 9
+text = "press 1, 2 or 3 - Esc returns here from any demo"

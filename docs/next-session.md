@@ -72,13 +72,42 @@ In order, because each puts the one before it under load:
 Honest list of what stage A stubs or simplifies, so none of it is discovered instead of
 decided:
 
-- **`Passability._terrain_allows` treats any occupied `GridMap` cell as impassable.** That is
-  backwards for a `GridMap` used as a floor. Needs real cell metadata once a 3D map exists —
-  fine until then, because no 3D map does.
+- **`Passability._terrain_allows` treats any occupied `GridMap` cell as impassable.** Right
+  for a walls-only data layer, which is what the iso-ish grid demo uses and the first thing
+  to exercise this branch at all. Still backwards for a `GridMap` used as a *floor*, where
+  occupied means walkable — that case needs real cell metadata and no map has it yet.
 - **`ActorFactory` is written but never exercised.** Nothing constructs actors from a profile
   yet; the test builds them by hand. First real map will be its first caller.
-- **The camera rigs are unexercised** apart from `OrthoPixelRig`'s pitch arithmetic. No rig
-  has been attached to an actual camera in a scene.
+- **`CameraRig.focus_of` is what a rig must follow, not `Actor.world_position`.** The body is
+  authoritative and teleports a whole cell at grid commit, so a rig reading the body lurches
+  once per step; `focus_of` adds the view's step offset so the camera tracks the sprite, which
+  is what the eye tracks. Free motion leaves that offset at zero, so it is one expression for
+  both. Both rigs use it. Anything that adds a third rig has to remember to.
+- **`RoomCamera2D`'s deadzone was hiding that bug.** A 32×24 px deadzone against a 16 px cell
+  absorbs a one-cell jump, so game 1 never showed it and the iso demo showed it immediately.
+  Worth remembering when a demo "looks fine" — it may only mean the tolerance is wider than
+  the defect.
+- **Pixel alignment is a whole-system property, not a per-node one.** The camera, and every
+  `SpriteView3D`, must round the same quantity through `Space.snap_to_basis` on the same
+  basis-aligned grid, and only the rig may write a followed sprite's transform (see
+  `SpriteView3D._set_offset`) so the sprite is never a tween step ahead of the camera. Four
+  separate defects here each produced "the camera is jittery" and each needed a different
+  fix; if a new view or rig appears, this is the invariant to hold. two-games.md §3.6 has
+  the measurements.
+- **`is_busy` and `is_travelling` are different questions.** `is_busy` means "still working
+  through a command" — what a round joins on, and what stops a second step mid-step.
+  `is_travelling` means "physically moving", which is what presentation wants. They only
+  diverge for free motion, where steering with the stick moves the actor with no command in
+  flight: `FreeMotion.is_busy()` is false the entire time it walks, so anything gated on it
+  (a walk cycle, a footstep sound, a dust puff) silently never fires.
+- **Demo spawns need clearance in every direction.** The JRPG player used to spawn one tile
+  above the bottom wall, so pressing down did nothing and the demo read as broken rather than
+  blocked; one of its NPCs was also spawned inside a wall tile, reserving a cell nothing could
+  reach. Both fixed, and both are the kind of thing only walking the demo finds.
+- **`ActorView` binds once.** `_ready` no longer re-runs `_after_bind` when the visual was
+  already bound in code, because a subclass caches the visual's resting position there and a
+  second capture folds in whatever correction had since been written — a drift that grows
+  every frame once anything writes the transform per frame.
 - **`InputManager`'s target stack is untested**, and nothing produces an `InputIntent` yet —
   there is no per-frame producer wiring `InputProfile` to a controller. Stage B needs one.
 - **`SpriteView2D` has a loose fallback** hunting for an `AnimatedSprite2D` child; it should

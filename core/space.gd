@@ -86,6 +86,65 @@ static func quantise(dir: Vector3, count: int = 4) -> Vector3i:
 	return dirs(count)[facing_index(dir, count)]
 
 
+## [param v] snapped to the texel grid [i]as the camera sees it[/i]: rounded along the
+## basis' screen-right and screen-up axes, left alone along the view axis.
+##
+## Snapping on world axes instead is the subtle version of this that does not work. At
+## any pitch the camera's up axis is not world Y, so a world-axis round and a
+## basis-axis round land on different grids, their remainders never cancel, and
+## anything snapped one way while the camera snaps the other beats against it by up to
+## a texel. Everything that participates in pixel alignment has to round the same
+## quantity through here.
+static func snap_to_basis(v: Vector3, b: Basis, texels_per_unit: float) -> Vector3:
+	if texels_per_unit <= 0.0:
+		return v
+	var r: float = round(v.dot(b.x) * texels_per_unit) / texels_per_unit
+	var u: float = round(v.dot(b.y) * texels_per_unit) / texels_per_unit
+	return b.x * r + b.y * u + b.z * v.dot(b.z)
+
+
+## The horizontal direction that the camera compresses, and by how much.
+##
+## A tilted camera flattens the ground: a horizontal move toward or away from the eye
+## covers [code]sin(pitch)[/code] of the screen distance the same move covers sideways,
+## which is why walking "up" the screen at pitch 30 feels half speed. Returns that
+## direction as a unit vector with [code]sin(pitch)[/code] as its length, or ZERO when
+## there is nothing to compensate - a top-down camera, or the identity basis a 2D game
+## never replaces.
+##
+## Derivation, so nobody has to re-derive it: for a horizontal [param v] the screen-up
+## coordinate is [code]v.dot(b.y)[/code], and the horizontal part of [code]b.y[/code] is
+## the ground-forward axis scaled by [code]-sin(pitch)[/code]. So this vector *is* the
+## compression, read straight off the basis rather than from a pitch the caller would
+## have to be told separately.
+static func depth_axis(b: Basis) -> Vector3:
+	return flatten(b.y)
+
+
+## [param v] with its screen-depth component stretched so it covers the same screen
+## distance per second as a sideways move, blended by [param strength] (0 none, 1 full).
+##
+## Deliberately scales the component rather than the whole vector: uniform screen speed
+## is exactly what an anisotropic world gives you, so a diagonal gets stretched only in
+## the part of it that the projection squashed. World space stops being isotropic, which
+## is the trade - distances and speeds along depth are no longer world units.
+##
+## [param b] is the camera basis, pushed by the rig. An unset basis is the identity,
+## whose depth axis is zero, so an un-pushed mover and a 2D game both pass through
+## untouched with no branch anywhere else.
+static func compensate_depth(v: Vector3, b: Basis, strength: float) -> Vector3:
+	var axis := depth_axis(b)
+	var compression := axis.length()
+	# Below this the camera is near horizontal and 1 / compression runs away. Nothing
+	# in range can hit it - OrthoPixelRig clamps pitch at 20 degrees, giving 0.34 - but
+	# an identity basis lands here exactly, which is the case that matters.
+	if compression < 0.01:
+		return v
+	var along := v.dot(axis) / compression
+	var factor := lerpf(1.0, 1.0 / compression, clampf(strength, 0.0, 1.0))
+	return v + (axis / compression) * along * (factor - 1.0)
+
+
 ## Which 90-degree stop a camera yaw is at, 0 through 3. Games 2 and 3 rotate the
 ## view, which is what makes a sprite's frame depend on more than its own facing.
 static func yaw_index(yaw_radians: float) -> int:
@@ -97,6 +156,19 @@ static func yaw_index(yaw_radians: float) -> int:
 ## With 8 facings and 4 yaw stops this is exact: frames sit 45 degrees apart and each
 ## stop is 90, so a stop is worth exactly two frames. No rounding, and no yaw at which
 ## some frame has no art.
+##
+## [b]The yaw is added, not subtracted, and the reason is a handedness trap.[/b] The two
+## angles run in opposite directions: [method facing_index] measures clockwise seen from
+## above, matching [constant DIRS_8], while Godot's [member Node3D.rotation] y is
+## counter-clockwise seen from above. So the camera's angle expressed in the facing
+## convention is [i]minus[/i] the yaw index, and removing it from the world facing is a
+## subtraction of a negative.
+##
+## Subtracting looks right and is wrong at exactly half the stops, which is what makes it
+## worth a paragraph: the error is [code]count / 2[/code], and at stops 0 and 2 that is
+## zero modulo [param count]. Front and back views stay correct and the two side views
+## come out reversed - the actor moons the camera - so the bug hides until someone
+## rotates the view a quarter turn.
 static func view_frame(dir: Vector3, yaw_radians: float, count: int = 4) -> int:
 	var per_stop := count / 4
-	return posmod(facing_index(dir, count) - yaw_index(yaw_radians) * per_stop, count)
+	return posmod(facing_index(dir, count) + yaw_index(yaw_radians) * per_stop, count)

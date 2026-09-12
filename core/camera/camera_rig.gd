@@ -12,6 +12,13 @@ signal yaw_changed(yaw_radians: float)
 
 @export var follow_speed: float = 8.0
 
+## Who the camera follows, by actor id. Exported so a map scene can name its subject in
+## the inspector instead of a script calling [method follow] on ready.
+@export var follow_target: StringName = &"":
+	set(value):
+		follow_target = value
+		_target_id = value
+
 var _target_id: StringName = &""
 var _locked: bool = false
 var _keys := 0
@@ -42,12 +49,27 @@ func is_locked() -> bool:
 
 
 func follow(actor_id: StringName, _seconds: float = 0.0) -> String:
-	_target_id = actor_id
+	follow_target = actor_id
 	return ""
 
 
 func target() -> StringName:
 	return _target_id
+
+
+## Where the camera should actually look: the body, plus whatever the view has
+## displaced the visual by.
+##
+## The body is authoritative and, under [GridMotion], teleports a whole cell at commit
+## - so a rig that follows [method Actor.world_position] directly lurches one cell per
+## step. The eye tracks the sprite, not the body, so the camera must too. Free motion
+## leaves the offset at zero, which makes this the same expression for both.
+func focus_of(who: Actor) -> Vector3:
+	if who == null:
+		return Vector3.ZERO
+	var p := who.world_position()
+	var v := who.view()
+	return (p + v.offset()) if v != null else p
 
 
 # -- To implement -------------------------------------------------------------

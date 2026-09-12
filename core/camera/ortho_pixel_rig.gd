@@ -42,6 +42,29 @@ const STOPS := 4
 ## moves, because the world-to-pixel mapping drifts continuously.
 @export var quantise_camera: bool = true
 
+## Spend the snap remainder by sliding the upscaled image, which halves the size of the
+## world's scroll steps.
+##
+## [b]Off by default, and the reason is worth keeping.[/b] The slide moves the whole
+## image, and the followed actor is in that image - so it buys a smoother world scroll
+## by making the one thing the eye is locked onto jitter. Measured over a second of
+## walking at 4 cells/s:
+##
+## [codeblock]
+##             followed actor          world scroll step
+##   off       still, 0 px             0-2 px per frame
+##   on        2 px, 47 frames in 60   0-1 px per frame
+## [/codeblock]
+##
+## Whole-texel scrolling is what every game of this look did, and at any ordinary walk
+## speed the world is already advancing about a texel a frame, so there is very little
+## to win and a visibly unsteady player to lose. Worth turning on only if something
+## moves far slower than a texel per frame, where the steps would otherwise stutter.
+@export var subtexel_smoothing: bool = false
+
+## The [SubViewportContainer] the remainder is spent on. See [method bind_upscale].
+@export var upscale_path: NodePath = NodePath()
+
 ## How far back along the view axis to sit. Orthographic, so this changes nothing but
 ## clipping - it just has to clear the geometry.
 @export var distance: float = 40.0
@@ -53,13 +76,28 @@ var _camera: Camera3D = null
 var _yaw: float = 0.0
 var _tween: Tween = null
 var _subtexel := Vector2.ZERO
+var _upscale: Control = null
 
 
 func _ready() -> void:
 	super()
 	_camera = _find_camera()
+	if not upscale_path.is_empty():
+		_upscale = get_node_or_null(upscale_path) as Control
 	_apply_pitch()
 	fit_viewport()
+
+
+## Hand the rig the container that upscales the low-res viewport, so it can spend its
+## own snap remainder on it.
+##
+## The rig applies this rather than exposing [method subtexel_offset] for a caller to
+## apply, because a caller doing it in its own [method Node._process] reads whatever
+## remainder the rig computed [i]last[/i] frame - the rig lives deep in the scene and
+## processes after the map root. One stale frame is a full texel of error at walking
+## speed, which is a visible wobble on the one actor this is supposed to hold still.
+func bind_upscale(container: Control) -> void:
+	_upscale = container
 
 
 func _find_camera() -> Camera3D:
@@ -109,26 +147,69 @@ func _process(_delta: float) -> void:
 		return
 
 	var basis := Basis.from_euler(Vector3(-deg_to_rad(pitch_degrees), _yaw, 0.0))
-	var focus := who.world_position() + Vector3.UP * target_height
-	var desired := focus + basis.z * distance
 
+	# Snap the followed actor's position, not the camera's, and hang the camera off the
+	# result at a fixed offset. That is what lets a sprite land on an exact pixel: the
+	# view snaps the same quantity through the same helper, so the two rounds are
+	# identical rather than merely similar, and the actor sits perfectly still in the
+	# low-res buffer while the world stays crisp underneath it.
+	var focus := focus_of(who)
+	var snapped := focus
 	if quantise_camera and texels_per_unit > 0:
-		# Decompose along the camera's own axes and snap the two that map to screen.
-		# The basis is orthonormal, so the dot products are an exact change of basis.
 		var t := float(texels_per_unit)
-		var r := desired.dot(basis.x)
-		var u := desired.dot(basis.y)
-		var f := desired.dot(basis.z)
-		var rq: float = round(r * t) / t
-		var uq: float = round(u * t) / t
+		snapped = Space.snap_to_basis(focus, basis, t)
 		# Screen-space remainder: one world unit along a screen axis is t pixels.
-		_subtexel = Vector2((r - rq) * t, (u - uq) * t)
-		desired = basis.x * rq + basis.y * uq + basis.z * f
+		var lost := focus - snapped
+		_subtexel = Vector2(lost.dot(basis.x) * t, lost.dot(basis.y) * t)
 	else:
 		_subtexel = Vector2.ZERO
 
-	_camera.global_position = desired
+	_camera.global_position = snapped + Vector3.UP * target_height + basis.z * distance
 	_camera.global_basis = basis
+	_push_camera_frame(basis)
+	_apply_subtexel()
+
+
+## Hand every actor in the map the frame the camera is looking through: to its sprite,
+## the grid the camera just snapped to, so it rounds the way the camera did; to its
+## mover, the basis, so it can cancel the depth compression out of its speed.
+##
+## Both are the same fact - where the camera is looking from - and doing either anywhere
+## else would mean something downstream guessing at the camera's pitch. Cheap enough to
+## do per frame at these actor counts, and one walk of the list covers both.
+func _push_camera_frame(basis: Basis) -> void:
+	if _ctx == null:
+		return
+	for who: Actor in _ctx.actors():
+		var v := who.view()
+		if v is SpriteView3D:
+			(v as SpriteView3D).set_pixel_grid(basis, texels_per_unit, quantise_camera)
+		var m := who.motion()
+		if m != null:
+			m.set_view_basis(basis)
+
+
+## Shift the upscaled image back by the remainder the camera snap threw away.
+##
+## Rounded to whole [i]screen[/i] pixels, which is not a detail: a Control drawn at a
+## fractional position resamples its texture, so with nearest filtering some texels get
+## one screen pixel more than their neighbours and the split moves every frame. That is
+## the shimmer this whole mechanism exists to remove, reintroduced at the last step. At
+## a shrink of 2 the rounding still leaves half-texel granularity, so the followed actor
+## lands within a quarter of a low-res pixel of where it should be - and the error does
+## not accumulate.
+func _apply_subtexel() -> void:
+	if _upscale == null:
+		return
+	if not (subtexel_smoothing and quantise_camera):
+		_upscale.position = Vector2.ZERO
+		return
+
+	var shrink := 1.0
+	if _upscale is SubViewportContainer:
+		shrink = float(maxi(1, (_upscale as SubViewportContainer).stretch_shrink))
+	# Screen y grows downward and the camera's up axis does not, hence the one flip.
+	_upscale.position = (Vector2(-_subtexel.x, _subtexel.y) * shrink).round()
 
 
 ## Ground tile depth on screen, in px. Whole number by construction at a valid pitch.

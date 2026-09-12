@@ -11,8 +11,27 @@ class_name MotionController extends Node
 ## Cells per second for a grid stepper, world units per second for a free one.
 @export var speed: float = 6.0
 
+## How much of the camera's depth compression to cancel out of this actor's speed.
+## 0 leaves motion in honest world units; 1 makes every direction cover the same screen
+## pixels per second.
+##
+## [b]Why this exists.[/b] Under a tilted camera a horizontal move toward the eye
+## projects to [code]sin(pitch)[/code] of the screen distance the same move covers
+## sideways - at pitch 30 that is half - so walking up or down the screen reads as
+## sluggish even though the actor is moving at the same world speed. Compensating here
+## rather than changing the projection keeps the floor tile geometry the rig's pixel
+## alignment depends on.
+##
+## [b]What it costs.[/b] World space stops being isotropic: the actor genuinely covers
+## more world units per second along depth, so a distance in world units is no longer a
+## time. Set it to 0 on anything whose world speed must stay literal.
+##
+## Inert until a rig pushes a basis, so 2D games ignore this without a branch.
+@export_range(0.0, 1.0, 0.01) var depth_compensation: float = 1.0
+
 var _actor: Actor = null
 var _keys := 0
+var _view_basis: Basis = Basis.IDENTITY
 
 
 func _ready() -> void:
@@ -29,6 +48,24 @@ func context() -> MapContext:
 
 func adapter() -> SpaceAdapter:
 	return _actor.adapter() if _actor != null else null
+
+
+## The camera basis to read depth compression off, pushed by the rig each frame the
+## same way it pushes the pixel grid to views.
+##
+## Pushed rather than pulled because the mover would otherwise have to reach for a rig
+## and know its pitch, and because the axis rotates: at yaw stops 0 and 2 depth is world
+## Z, at 1 and 3 it is world X. Taking the whole basis is what makes this correct at
+## every stop instead of only the one it was authored at.
+func set_view_basis(b: Basis) -> void:
+	_view_basis = b
+
+
+## [param v] with the camera's depth compression cancelled out of it, per
+## [member depth_compensation]. Horizontal input; returns it unchanged when no rig has
+## pushed a basis.
+func compensate(v: Vector3) -> Vector3:
+	return Space.compensate_depth(v, _view_basis, depth_compensation)
 
 
 func _next_key(kind: String) -> String:
@@ -74,3 +111,14 @@ func cancel() -> void:
 
 func is_busy() -> bool:
 	return false
+
+
+## Is the actor physically translating right now?
+##
+## Deliberately not the same question as [method is_busy], which means "still working
+## through a command" - that is what a round joins on and what stops a second step being
+## accepted mid-step. An input-steered free actor is travelling and not busy; a grid
+## actor mid-tween is both. Presentation wants this one: it is what decides whether a
+## walk cycle plays.
+func is_travelling() -> bool:
+	return is_busy()

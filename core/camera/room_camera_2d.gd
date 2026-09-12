@@ -37,7 +37,7 @@ func _process(delta: float) -> void:
 	if actor == null:
 		return
 
-	var target := Space.as_v2(actor.world_position())
+	var target := Space.as_v2(focus_of(actor))
 	match style:
 		Style.ROOM_SNAP:
 			_camera.position = _room_origin(target)

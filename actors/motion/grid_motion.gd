@@ -24,14 +24,40 @@ var _moving: bool = false
 var _step_key: String = ""
 var _queue: Array[Vector3i] = []
 var _route_key: String = ""
+var _step_intent: Vector3i = Vector3i.ZERO
 
 
 func is_busy() -> bool:
 	return _moving or not _queue.is_empty()
 
 
-func step_duration() -> float:
-	return 1.0 / maxf(0.01, speed)
+## The direction to take the instant the current step settles, or ZERO for none.
+##
+## Set every frame by whatever is driving the actor, and set back to ZERO the moment it
+## stops asking. This is what makes a held direction continuous: the next step commits
+## inside [method _settle], in the same frame the tween ended, rather than a frame later
+## when the driver's [method Node._process] next runs. A single dropped frame per cell
+## is a visible hitch at these durations.
+##
+## It is an intent rather than a queue on purpose - a queue would let a released key buy
+## one more step, and would replay a stale direction after a cutscene took control.
+func set_step_intent(dir: Vector3i) -> void:
+	_step_intent = dir
+
+
+## How long one step takes. A step always crosses exactly one cell, so compensation
+## cannot change the distance - it shortens the [i]time[/i] instead, which comes to the
+## same screen pixels per second. At pitch 30 with full compensation a north step takes
+## half as long as an east one and both advance the image 16 px per step duration.
+##
+## [param dir] of ZERO asks for the uncompensated duration, which is what a caller that
+## just wants the nominal cadence means.
+func step_duration(dir: Vector3i = Vector3i.ZERO) -> float:
+	var base := 1.0 / maxf(0.01, speed)
+	if dir == Vector3i.ZERO:
+		return base
+	var d := Vector3(dir)
+	return base * d.length() / maxf(0.01, compensate(d).length())
 
 
 ## One cell in [param dir]. Returns false if the destination is not enterable, having
@@ -99,6 +125,9 @@ func move_to(cell: Vector3i, opts: Dictionary = {}) -> String:
 
 func cancel() -> void:
 	_queue.clear()
+	# Dropped too, or a cutscene that cancels the player's movement would immediately
+	# take one more step in whatever direction was last held.
+	_step_intent = Vector3i.ZERO
 	_moving = false
 	_cancel_visual()
 	if _route_key != "":
@@ -146,7 +175,7 @@ func _commit_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> void:
 	var view := _actor.view()
 	if view != null:
 		var back := ctx.cell_centre(from) - ctx.cell_centre(to)
-		var visual_key := view.apply_step_offset(back, step_duration())
+		var visual_key := view.apply_step_offset(back, step_duration(to - from))
 		if visual_key == "":
 			_settle()
 		else:
@@ -174,7 +203,18 @@ func _settle() -> void:
 		EventBus.command_finished.emit(key)
 	if _actor != null:
 		_actor.arrived.emit(_actor.cell())
+
+	# A route in progress owns the actor, so it wins over whatever is holding a
+	# direction - otherwise player input would steer an actor mid-cutscene.
 	_advance()
+
+	# Consumed rather than left standing, which also bounds this: a zero-duration view
+	# settles synchronously, so an intent that survived being taken would recurse until
+	# the actor hit a wall. The driver re-asserts it next frame if the key is still down.
+	if not _moving and _step_intent != Vector3i.ZERO:
+		var again := _step_intent
+		_step_intent = Vector3i.ZERO
+		step(again)
 
 
 func _advance() -> void:

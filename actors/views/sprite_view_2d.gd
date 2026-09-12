@@ -9,6 +9,7 @@ const DIR_NAMES: Array[StringName] = [&"north", &"east", &"south", &"west"]
 @export var facing_count: int = 4
 
 var _sprite: AnimatedSprite2D = null
+var _sheet: SpriteSheet = null
 var _anim: StringName = &"idle"
 var _dir_index: int = 2
 
@@ -16,7 +17,19 @@ var _dir_index: int = 2
 func _after_bind() -> void:
 	super()
 	_sprite = _visual as AnimatedSprite2D
+	_sheet = _visual as SpriteSheet
 	_refresh()
+
+
+## A [SpriteSheet] runs its own cycle and only needs to be told whether to. Polled
+## rather than driven from a signal because it has to be right for both motions: a grid
+## step has a clean start and end to hook, and free movement has neither.
+func _process(_delta: float) -> void:
+	if _sheet == null:
+		return
+	var who := get_parent() as Actor
+	if who != null:
+		_sheet.animating(who.is_travelling())
 
 
 func set_facing(dir: Vector3i) -> void:
@@ -50,6 +63,11 @@ func apply_art(art: Dictionary) -> void:
 
 
 func _refresh() -> void:
+	if _sheet != null:
+		# The sheet thinks in screen directions and the engine in compass ones, and the
+		# two orders do not line up - hence the explicit conversion.
+		_sheet.facing = FacingUtils.from_compass(_dir_index) as FacingUtils.Facings
+		return
 	if _sprite == null or _sprite.sprite_frames == null:
 		return
 	# "walk_east", falling back to the bare animation name so a single-direction

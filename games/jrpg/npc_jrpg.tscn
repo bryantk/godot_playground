@@ -1,0 +1,29 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://actors/actor.gd" id="1_sklam"]
+[ext_resource type="Script" path="res://core/space_2d.gd" id="2_ru44o"]
+[ext_resource type="Script" path="res://actors/views/sprite_view_2d.gd" id="3_56it5"]
+[ext_resource type="Texture2D" path="res://resources/Test_SpriteSheet_D_U_Side.png" id="4_x65xk"]
+[ext_resource type="Script" path="res://code/SpriteSheet.gd" id="5_c1tak"]
+
+[node name="NpcJrpg" type="Node2D" unique_id=671676061]
+
+[node name="Actor" type="Node" parent="." unique_id=375750054]
+script = ExtResource("1_sklam")
+actor_id = &"npc"
+
+[node name="Space" type="Node" parent="Actor" unique_id=1763239242]
+script = ExtResource("2_ru44o")
+
+[node name="View" type="Node" parent="Actor" unique_id=858165551]
+script = ExtResource("3_56it5")
+visual_path = NodePath("../../Sprite")
+
+[node name="Sprite" type="Sprite2D" parent="." unique_id=1375855288]
+modulate = Color(0.65, 0.8, 1, 1)
+texture_filter = 1
+texture = ExtResource("4_x65xk")
+offset = Vector2(0, -4)
+hframes = 3
+vframes = 3
+script = ExtResource("5_c1tak")

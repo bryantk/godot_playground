@@ -29,6 +29,14 @@ func is_busy() -> bool:
 	return _target != null
 
 
+## Horizontal speed, not [member _target]: steering with the stick moves the actor
+## without any command being in flight, so [method is_busy] is false the whole time it
+## is walking. Vertical motion is excluded so that falling or jumping on the spot does
+## not read as walking.
+func is_travelling() -> bool:
+	return _target != null or Space.flatten(_velocity).length_squared() > 0.01
+
+
 ## Per-frame steering, in world space and already basis-corrected by [InputProfile].
 func set_intent(dir: Vector3) -> void:
 	_intent = Space.flatten(dir)
@@ -86,7 +94,14 @@ func _physics_process(delta: float) -> void:
 	var desired := _intent
 	if _target != null:
 		var to_target := Space.flatten(_target as Vector3 - adapt.world_position())
-		if to_target.length() <= arrive_radius:
+		# Arrival scales with the compensation, because the approach speed does. A
+		# depth-bound actor at pitch 30 crosses twice the ground per frame, and a
+		# tolerance sized for the uncompensated speed is one it can step over and back
+		# across forever.
+		var reach := arrive_radius
+		if to_target.length_squared() > 0.0001:
+			reach *= compensate(to_target.normalized()).length()
+		if to_target.length() <= reach:
 			var key := _target_key
 			_target = null
 			_target_key = ""
@@ -96,7 +111,9 @@ func _physics_process(delta: float) -> void:
 		else:
 			desired = to_target.normalized()
 
-	var wanted := desired * speed
+	# Compensated after the speed multiply and before acceleration, so acceleration
+	# stays in honest world units and only the velocity it is chasing is stretched.
+	var wanted := compensate(desired * speed)
 	_velocity.x = move_toward(_velocity.x, wanted.x, acceleration * delta)
 	_velocity.z = move_toward(_velocity.z, wanted.z, acceleration * delta)
 	_velocity.y -= gravity * delta

@@ -41,7 +41,7 @@ func _jrpg() -> GameProfile:
 	p.motion_script = GridMotion
 	p.view_script = SpriteView2D
 	p.camera_script = RoomCamera2D
-	p.input_profile = _make_input(4, false, true)
+	p.input_profile = _make_input(4, false, true, "res://games/jrpg/jrpg_input.tres")
 	return p
 
 
@@ -66,17 +66,27 @@ func _isoish() -> GameProfile:
 	p.camera_script = OrthoPixelRig
 	# 8 facings, and view-relative because the camera rotates - the moment it does,
 	# "up" on the stick is no longer -Z.
-	p.input_profile = _make_input(8, true, false)
+	p.input_profile = _make_input(8, true, false, "res://games/isoish/isoish_input.tres")
 	return p
 
 
-func _make_input(directions: int, view_relative: bool, discrete: bool) -> InputProfile:
+## Written as its own file rather than embedded in the profile, so a map scene can point
+## an [InputDriver] at the same resource the profile uses. A sub-resource inside a .tres
+## has no path and cannot be referenced from anywhere else, which would have meant the
+## scenes carrying a second copy of the same numbers.
+func _make_input(directions: int, view_relative: bool, discrete: bool,
+		path: String) -> InputProfile:
 	var ip := InputProfile.new()
 	ip.direction_count = directions
 	ip.view_relative = view_relative
 	ip.discrete_steps = discrete
 	ip.tap_turns_in_place = discrete
-	return ip
+	var err := ResourceSaver.save(ip, path)
+	if err != OK:
+		printerr("failed to write %s (%d)" % [path, err])
+		return ip
+	print("wrote %s" % path)
+	return load(path)
 
 
 func _write(profile: GameProfile, path: String) -> int:

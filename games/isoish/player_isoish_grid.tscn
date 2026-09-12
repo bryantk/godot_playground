@@ -1,0 +1,51 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://actors/actor.gd" id="1_5pqkl"]
+[ext_resource type="Script" path="res://core/space_3d.gd" id="2_jfpkx"]
+[ext_resource type="Script" path="res://actors/motion/grid_motion.gd" id="3_54qfh"]
+[ext_resource type="Script" path="res://actors/views/sprite_view_3d.gd" id="4_b4gbb"]
+[ext_resource type="Texture2D" path="res://resources/Test_SpriteSheet_D_U_Side.png" id="5_w7vfx"]
+[ext_resource type="Script" path="res://code/sprite_sheet_3d.gd" id="6_w4hdv"]
+[ext_resource type="Script" path="res://actors/views/actor_shadow.gd" id="7_jelk5"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_0anda"]
+radius = 0.3
+height = 1.2
+
+[node name="PlayerIsoishGrid" type="CharacterBody3D" unique_id=259822946]
+
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=654672329]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+shape = SubResource("CapsuleShape3D_0anda")
+
+[node name="Actor" type="Node" parent="." unique_id=472102877]
+script = ExtResource("1_5pqkl")
+actor_id = &"player"
+
+[node name="Space" type="Node" parent="Actor" unique_id=56016279]
+script = ExtResource("2_jfpkx")
+
+[node name="Motion" type="Node" parent="Actor" unique_id=1110752564]
+script = ExtResource("3_54qfh")
+publishes_pulse = true
+speed = 4.0
+
+[node name="View" type="Node" parent="Actor" unique_id=1196466949]
+script = ExtResource("4_b4gbb")
+visual_path = NodePath("../../Sprite")
+
+[node name="Sprite" type="Sprite3D" parent="." unique_id=705023487]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+pixel_size = 0.0625
+billboard = 2
+alpha_cut = 1
+texture_filter = 0
+texture = ExtResource("5_w7vfx")
+hframes = 3
+vframes = 3
+script = ExtResource("6_w4hdv")
+rate = 0.125
+
+[node name="Shadow" type="Decal" parent="." unique_id=1871739356]
+script = ExtResource("7_jelk5")
+target_path = NodePath("../Sprite")

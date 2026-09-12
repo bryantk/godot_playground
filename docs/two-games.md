@@ -410,6 +410,13 @@ a tap that only turns in place — and that belongs in the profile. Note that th
 duration therefore *is* game 1's input latency and its difficulty pacing, which is a good
 reason to keep blocking responder actions short.
 
+**"The moment" is literal, and it is the whole difference between stepping and walking.**
+The driver hands `GridMotion` a step intent rather than re-testing the key next frame, so
+the next step commits inside the settle instead of one `_process` later — see
+architecture.md §5. Combined with a linear step tween, a held direction produces genuinely
+continuous motion; with either one missing it reads as step-pause-step-pause. The gate
+holds the chained step too, or a locked round would leak exactly one step.
+
 The target-stack idea in architecture.md §7.8 still stands; it sits under this, and §3.8
 folds it in.
 
@@ -486,17 +493,36 @@ pretending the decision is untouched.
   **Recommended fix, for stage E:** author vertical-face art at **14 texels per world unit of
   height** rather than 16, so it maps to 13.856 px — a 1% squash instead of 14%. Texel density
   stays 16 for everything horizontal. Worth deciding before wall art, not after.
-- **Camera quantisation, and sub-pixel actors.** The ortho camera's position must snap to
-  whole texels each frame or everything shimmers as it moves; sub-texel smoothness is
-  recovered by offsetting the upscaled viewport, not the camera.
+- **Camera quantisation, and sub-pixel actors.** The ortho camera must snap to whole texels
+  each frame or everything shimmers as it moves. The logical position stays a continuous
+  `Vector3` and only the *render* rounds — quantising the logical position instead would
+  silently turn sub-pixel movement into 16 px stepping.
 
-  Game 2's player moves sub-pixel, which is compatible with that but only one way round:
-  logical position stays a continuous `Vector3`, `SpriteView3D` **rounds to whole texels**
-  when it writes the transform, and the sub-texel remainder is what goes into the viewport
-  offset. There is only one viewport offset to spend, so the followed actor is perfectly
-  smooth and every other free-moving actor snaps texel-to-texel. That is the standard trade,
-  and the failure mode if it is done the other way round — quantising the logical position
-  instead of the render — is that sub-pixel movement silently becomes 16 px stepping.
+  **Everything that rounds must round the same quantity on the same grid**, and this is the
+  part that is easy to get subtly wrong. The camera snaps along its own basis — screen right
+  and screen up, which at pitch 30 is not world Y — so a sprite rounding on world X/Y/Z is
+  snapping to a grid the camera does not share. The remainders never cancel and the followed
+  actor wobbles by up to a texel. `Space.snap_to_basis` is the one place that rounding
+  happens, the rig snaps *the followed actor's position* (not the camera's) and hangs the
+  camera off the result at a fixed offset, and it pushes its basis to every `SpriteView3D`
+  each frame so they round identically. Get that right and the followed actor sits on one
+  pixel and stays there.
+
+  **The viewport offset does not do what it looks like it does.** Spending the snap
+  remainder by sliding the upscaled image halves the size of the world's scroll steps — but
+  it slides the *whole* image, and the followed actor is in that image. So it buys a
+  smoother world by making the one thing the eye is locked onto jitter. Measured over a
+  second of walking at 4 cells/s:
+
+  | | followed actor | world scroll step |
+  | --- | --- | --- |
+  | offset off | still, 0 px | 0–2 px per frame |
+  | offset on | 2 px, 47 frames in 60 | 0–1 px per frame |
+
+  So `OrthoPixelRig.subtexel_smoothing` defaults **off**. Whole-texel scrolling is what
+  every game of this look did, and at any ordinary walk speed the world already advances
+  about a texel a frame, so there is very little to win and a visibly unsteady player to
+  lose. It is worth turning on only for something moving far slower than a texel per frame.
 - **Sprites in a rotating 3D world** need a billboard mode that yaws to the camera but keeps
   its own pitch, plus a depth-sorting decision — a slight tilt writing to the depth buffer
   is usually cleanest; pure billboards intersect geometry badly.

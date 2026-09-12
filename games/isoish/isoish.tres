@@ -1,24 +1,18 @@
 [gd_resource type="Resource" script_class="GameProfile" format=3]
 
 [ext_resource type="Script" path="res://core/camera/ortho_pixel_rig.gd" id="1_6kwjx"]
-[ext_resource type="Script" path="res://core/input_profile.gd" id="2_h03vw"]
+[ext_resource type="Resource" path="res://games/isoish/isoish_input.tres" id="2_h03vw"]
 [ext_resource type="Script" path="res://actors/motion/free_motion.gd" id="3_g5sx0"]
 [ext_resource type="Script" path="res://core/game_profile.gd" id="4_xtrlx"]
 [ext_resource type="Script" path="res://core/space_3d.gd" id="5_y1r3h"]
 [ext_resource type="Script" path="res://actors/views/sprite_view_3d.gd" id="6_s3wfk"]
-
-[sub_resource type="Resource" id="Resource_btcjb"]
-script = ExtResource("2_h03vw")
-direction_count = 8
-tap_turns_in_place = false
-discrete_steps = false
 
 [resource]
 script = ExtResource("4_xtrlx")
 id = &"isoish"
 display_name = "Iso-ish"
 capabilities = Array[int]([1, 2, 5])
-input_profile = SubResource("Resource_btcjb")
+input_profile = ExtResource("2_h03vw")
 space_script = ExtResource("5_y1r3h")
 motion_script = ExtResource("3_g5sx0")
 view_script = ExtResource("6_s3wfk")

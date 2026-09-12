@@ -1,0 +1,36 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://actors/actor.gd" id="1_5bh6k"]
+[ext_resource type="Script" path="res://core/space_3d.gd" id="2_3oatq"]
+[ext_resource type="Script" path="res://actors/views/sprite_view_3d.gd" id="3_khoer"]
+[ext_resource type="Texture2D" path="res://resources/Test_SpriteSheet_D_U_Side.png" id="4_618hq"]
+[ext_resource type="Script" path="res://code/sprite_sheet_3d.gd" id="5_4q1ha"]
+[ext_resource type="Script" path="res://actors/views/actor_shadow.gd" id="6_5cxvq"]
+
+[node name="NpcIsoish" type="Node3D" unique_id=1086510251]
+
+[node name="Actor" type="Node" parent="." unique_id=886923640]
+script = ExtResource("1_5bh6k")
+actor_id = &"npc"
+
+[node name="Space" type="Node" parent="Actor" unique_id=2081145613]
+script = ExtResource("2_3oatq")
+
+[node name="View" type="Node" parent="Actor" unique_id=275474020]
+script = ExtResource("3_khoer")
+visual_path = NodePath("../../Sprite")
+
+[node name="Sprite" type="Sprite3D" parent="." unique_id=1692335591]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+modulate = Color(0.65, 0.8, 1, 1)
+pixel_size = 0.0625
+billboard = 2
+alpha_cut = 1
+texture_filter = 0
+texture = ExtResource("4_618hq")
+hframes = 3
+vframes = 3
+script = ExtResource("5_4q1ha")
+
+[node name="Shadow" type="Decal" parent="." unique_id=1455232038]
+script = ExtResource("6_5cxvq")

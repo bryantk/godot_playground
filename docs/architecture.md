@@ -62,6 +62,11 @@ event system nor anything above it ever needs to know which is in play.
         FreeMotion    (unused, works) 3D field, jumping
 ```
 
+Three of those four squares have a demo (`demos/demo_launcher.tscn`). The top-right one
+costs a `MapContext.default_motion` of `GRID` and a `GridMotion` child instead of a
+`FreeMotion` one, with nothing above the actor layer changed — which is the claim this
+section makes, now exercised rather than asserted.
+
 Everything above the actor layer speaks `Vector3` world positions and `Vector3i` cells.
 The conversion to and from `Vector2` happens in exactly one place: the space adapter.
 
@@ -214,8 +219,24 @@ already uses — the caller awaits it or ignores it.
    single `Occupancy.commit(changes)`. Then **set the body's world position to the
    destination cell centre immediately**.
 4. Push the visual child back by `-delta` via `ActorView.apply_step_offset` and tween it to
-   zero over `step_duration`, easing to taste.
+   zero over `step_duration`, **linearly**.
 5. Emit `arrived` when the tween ends, resolving the step's completion key.
+
+Step 4 says linearly rather than "to taste", because the taste turns out to be forced.
+An eased step decelerates the sprite to a dead stop in the middle of every cell, so a held
+direction reads as step-pause-step-pause even when the steps are back to back in time —
+the velocity hits zero at each boundary and the eye reads that as a stop, not as walking.
+Constant velocity is what joins consecutive steps into continuous motion. `ActorView`
+exports `step_trans`/`step_ease` so a deliberate one-tile nudge in a cutscene can still
+ease, but the default is linear and continuous movement depends on it.
+
+Step 5 has a matching constraint: the next step has to commit **inside** the settle, not a
+frame later. Whatever drives the actor hands `GridMotion` a `set_step_intent(dir)` each
+frame and withdraws it when it stops asking, and `_settle` consumes it after the route
+queue gets its turn. Re-testing the input in the driver's own `_process` instead would
+drop one frame per cell, which at a 167–250 ms step is a visible hitch at every boundary.
+It is an intent rather than a queue so that a released key cannot buy one more step, and a
+`cancel()` — a cutscene taking over — drops it.
 
 Step 3 goes through `commit` even though a single step is only two cell changes and could be
 written as two dictionary writes. That is the point: `push` needs an all-or-nothing multi-cell

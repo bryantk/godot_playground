@@ -67,7 +67,13 @@ func _process(delta: float) -> void:
 ## set by the step completing rather than by a repeat timer. A tap under
 ## [member InputProfile.turn_grace] only turns, which changes no cell and so opens no
 ## round.
+##
+## "The moment it settles" is why the held direction is handed to [GridMotion] as a step
+## intent rather than re-tested here next frame: this runs in [method Node._process] and
+## the tween finishes inside the scene tree's own step, so testing here would insert one
+## dropped frame per cell. At a 250 ms step that reads as a stutter at every boundary.
 func _drive_grid(who: Actor, delta: float) -> void:
+	var grid := who.motion() as GridMotion
 	var dir := Space.quantise(intent.move, profile.direction_count)
 
 	if dir == Vector3i.ZERO:
@@ -77,6 +83,9 @@ func _drive_grid(who: Actor, delta: float) -> void:
 		_held = 0.0
 		_last_dir = Vector3i.ZERO
 		intent.step = Vector3i.ZERO
+		# Withdrawn the frame the key comes up, so a release cannot buy one more cell.
+		if grid != null:
+			grid.set_step_intent(Vector3i.ZERO)
 		return
 
 	if dir != _last_dir:
@@ -86,9 +95,19 @@ func _drive_grid(who: Actor, delta: float) -> void:
 
 	intent.step = dir
 
+	# Held long enough to mean "walk" rather than "turn and look". Tapping a new
+	# direction mid-step therefore turns at the boundary instead of stepping, which is
+	# the same rule the standing case below applies.
+	var committed := not profile.tap_turns_in_place or _held >= profile.turn_grace
+
 	if who.is_moving():
+		if grid != null:
+			# effective_step, not dir: a locked gate has to hold the chained step too,
+			# or the round gate would leak exactly one step per round.
+			grid.set_step_intent(intent.effective_step() if committed else Vector3i.ZERO)
 		return
-	if profile.tap_turns_in_place and _held < profile.turn_grace:
+
+	if not committed:
 		# Face it now; commit only if the key is still down once the grace passes.
 		who.set_facing(dir)
 		return
