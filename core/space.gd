@@ -132,16 +132,21 @@ static func depth_axis(b: Basis) -> Vector3:
 ## [param b] is the camera basis, pushed by the rig. An unset basis is the identity,
 ## whose depth axis is zero, so an un-pushed mover and a 2D game both pass through
 ## untouched with no branch anywhere else.
-static func compensate_depth(v: Vector3, b: Basis, strength: float) -> Vector3:
+static func compensate_depth(v: Vector3, b: Basis, strength: float,
+		max_factor: float = INF) -> Vector3:
 	var axis := depth_axis(b)
 	var compression := axis.length()
-	# Below this the camera is near horizontal and 1 / compression runs away. Nothing
-	# in range can hit it - OrthoPixelRig clamps pitch at 20 degrees, giving 0.34 - but
-	# an identity basis lands here exactly, which is the case that matters.
+	# A zero-length depth axis means there is no depth direction to stretch: the identity
+	# basis a 2D game never replaces, or a camera looking straight down where nothing is
+	# compressed in the first place. Either way there is nothing to do, and 1 /
+	# compression would be a division by zero.
 	if compression < 0.01:
 		return v
 	var along := v.dot(axis) / compression
-	var factor := lerpf(1.0, 1.0 / compression, clampf(strength, 0.0, 1.0))
+	# Capped before the strength blend, so max_factor means what it says at full strength.
+	# Without it a near-flat camera asks for an unbounded boost - 1 / sin(5 degrees) is
+	# 11x - and the actor leaves the map. See MotionController.max_depth_boost.
+	var factor := lerpf(1.0, minf(1.0 / compression, max_factor), clampf(strength, 0.0, 1.0))
 	return v + (axis / compression) * along * (factor - 1.0)
 
 

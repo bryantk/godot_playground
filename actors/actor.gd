@@ -5,6 +5,12 @@ class_name Actor extends Node
 ## [CharacterBody3D] in a field.
 ##
 ## Registers itself with its map's [MapContext] on ready and deregisters on exit.
+##
+## [b]It decides nothing.[/b] An actor is an id, a facing and a handful of axis children
+## - a [SpaceAdapter], a [MotionController], an [ActorView] - none of which choose where
+## to go. Choosing is a [Brain]'s job, and the brain is a child added per placement
+## rather than baked into the scene. That is what lets the player and every NPC on a map
+## be the same prefab: what differs is which brain, if any, is attached.
 
 enum MotionMode { INHERIT, GRID, FREE }
 
@@ -29,6 +35,7 @@ var _ctx: MapContext = null
 var _adapter: SpaceAdapter = null
 var _motion: MotionController = null
 var _view: ActorView = null
+var _brain: Brain = null
 var _facing: Vector3i = Vector3i(0, 0, 1)
 
 
@@ -53,6 +60,8 @@ func _resolve_parts() -> void:
 		_motion = _find_child_of_type("MotionController") as MotionController
 	if _view == null:
 		_view = _find_child_of_type("ActorView") as ActorView
+	if _brain == null:
+		_brain = _find_child_of_type("Brain") as Brain
 
 
 ## A solid grid actor claims the cell it spawned in, so two NPCs authored onto the
@@ -91,6 +100,15 @@ func view() -> ActorView:
 	if _view == null:
 		_resolve_parts()
 	return _view
+
+
+## What is driving this actor, if anything. A [PlayerBrain] makes it the player, a
+## [RouteBrain] makes it a patrol, and null is an actor that stands there - which is
+## the difference between two placements of the same prefab.
+func brain() -> Brain:
+	if _brain == null:
+		_resolve_parts()
+	return _brain
 
 
 ## [member motion_mode] with INHERIT resolved against the map's default.

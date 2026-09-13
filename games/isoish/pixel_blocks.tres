@@ -1,11 +1,11 @@
-[gd_resource type="MeshLibrary" format=4 uid="uid://c7s3cgc20xdw7"]
+[gd_resource type="MeshLibrary" format=4 uid="uid://drtb106vr6bc1"]
 
 [ext_resource type="Texture2D" uid="uid://cc7q1su60ctr6" path="res://art/test_floor_tile.png" id="1_2g55a"]
 [ext_resource type="Texture2D" uid="uid://bcouygpqccpyu" path="res://art/test_wall_tile.png" id="2_3ry81"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8v1xv"]
 cull_mode = 2
-shading_mode = 0
+specular_mode = 2
 albedo_texture = ExtResource("1_2g55a")
 uv1_scale = Vector3(0.5, 0.5, 1)
 texture_filter = 0
@@ -18,7 +18,7 @@ size = Vector2(1, 1)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_5pvti"]
 cull_mode = 2
-shading_mode = 0
+specular_mode = 2
 albedo_texture = ExtResource("1_2g55a")
 uv1_scale = Vector3(0.5, 0.5, 1)
 uv1_offset = Vector3(0.5, 0, 0)
@@ -32,7 +32,7 @@ size = Vector2(1, 1)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lnlxh"]
 cull_mode = 2
-shading_mode = 0
+specular_mode = 2
 albedo_texture = ExtResource("1_2g55a")
 uv1_scale = Vector3(0.5, 0.5, 1)
 uv1_offset = Vector3(0, 0.5, 0)
@@ -46,7 +46,7 @@ size = Vector2(1, 1)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_g5bak"]
 cull_mode = 2
-shading_mode = 0
+specular_mode = 2
 albedo_texture = ExtResource("1_2g55a")
 uv1_scale = Vector3(0.5, 0.5, 1)
 uv1_offset = Vector3(0.5, 0.5, 0)
@@ -60,7 +60,7 @@ size = Vector2(1, 1)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_6inms"]
 cull_mode = 2
-shading_mode = 0
+specular_mode = 2
 albedo_color = Color(0.72, 0.72, 0.72, 1)
 albedo_texture = ExtResource("2_3ry81")
 uv1_scale = Vector3(0.5, 0.4375, 1)
@@ -68,7 +68,7 @@ texture_filter = 0
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_1qy5p"]
 cull_mode = 2
-shading_mode = 0
+specular_mode = 2
 albedo_texture = ExtResource("2_3ry81")
 uv1_scale = Vector3(0.5, 0.5, 1)
 texture_filter = 0
@@ -98,7 +98,7 @@ _surfaces = [{
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pfyr3"]
 cull_mode = 2
-shading_mode = 0
+specular_mode = 2
 albedo_color = Color(0.72, 0.72, 0.72, 1)
 albedo_texture = ExtResource("2_3ry81")
 uv1_scale = Vector3(0.5, 0.875, 1)
@@ -106,7 +106,7 @@ texture_filter = 0
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7ftdc"]
 cull_mode = 2
-shading_mode = 0
+specular_mode = 2
 albedo_texture = ExtResource("2_3ry81")
 uv1_scale = Vector3(0.5, 0.5, 1)
 texture_filter = 0
@@ -139,28 +139,28 @@ size = Vector3(1, 2, 1)
 item/0/name = "floor_0"
 item/0/mesh = SubResource("PlaneMesh_8g6uj")
 item/0/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
-item/0/mesh_cast_shadow = 1
+item/0/mesh_cast_shadow = 0
 item/0/shapes = [SubResource("BoxShape3D_lla8c"), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)]
 item/0/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 item/0/navigation_layers = 1
 item/1/name = "floor_1"
 item/1/mesh = SubResource("PlaneMesh_0xr8b")
 item/1/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
-item/1/mesh_cast_shadow = 1
+item/1/mesh_cast_shadow = 0
 item/1/shapes = [SubResource("BoxShape3D_y55tn"), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)]
 item/1/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 item/1/navigation_layers = 1
 item/2/name = "floor_2"
 item/2/mesh = SubResource("PlaneMesh_7d8i0")
 item/2/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
-item/2/mesh_cast_shadow = 1
+item/2/mesh_cast_shadow = 0
 item/2/shapes = [SubResource("BoxShape3D_3vg8d"), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)]
 item/2/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 item/2/navigation_layers = 1
 item/3/name = "floor_3"
 item/3/mesh = SubResource("PlaneMesh_jmiig")
 item/3/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
-item/3/mesh_cast_shadow = 1
+item/3/mesh_cast_shadow = 0
 item/3/shapes = [SubResource("BoxShape3D_i68r0"), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)]
 item/3/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 item/3/navigation_layers = 1

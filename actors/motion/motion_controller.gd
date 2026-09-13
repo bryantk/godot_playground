@@ -29,6 +29,20 @@ class_name MotionController extends Node
 ## Inert until a rig pushes a basis, so 2D games ignore this without a branch.
 @export_range(0.0, 1.0, 0.01) var depth_compensation: float = 1.0
 
+## Ceiling on the depth speed-up, as a multiple of [member speed].
+##
+## [b]Why a ceiling is needed at all.[/b] The honest compensation is
+## [code]1 / sin(pitch)[/code], which is well behaved at the angles this game actually
+## uses - 2x at 30 degrees, 1.15x at 60 - and runs away as the camera approaches flat:
+## 11x at 5 degrees, unbounded at 0. Now that [member OrthoPixelRig.pitch_degrees] opens
+## all the way to a flat-on elevation, an uncapped boost turns a shallow angle into an
+## actor that crosses the map in a frame.
+##
+## 3.0 corresponds to a pitch of about 19.5 degrees. Below that the compensation simply
+## stops growing rather than doing something clever, because at a near-flat camera the
+## depth axis is nearly invisible and no speed makes movement along it read properly.
+@export var max_depth_boost: float = 3.0
+
 var _actor: Actor = null
 var _keys := 0
 var _view_basis: Basis = Basis.IDENTITY
@@ -65,7 +79,7 @@ func set_view_basis(b: Basis) -> void:
 ## [member depth_compensation]. Horizontal input; returns it unchanged when no rig has
 ## pushed a basis.
 func compensate(v: Vector3) -> Vector3:
-	return Space.compensate_depth(v, _view_basis, depth_compensation)
+	return Space.compensate_depth(v, _view_basis, depth_compensation, max_depth_boost)
 
 
 func _next_key(kind: String) -> String:

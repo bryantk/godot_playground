@@ -34,6 +34,9 @@ signal actor_unregistered(actor_id: StringName)
 
 var occupancy := Occupancy.new()
 
+## The rig looking at this map, registered by [CameraRig] on ready.
+var _camera_rig: CameraRig = null
+
 ## actor_id -> Actor
 var _actors: Dictionary[StringName, Actor] = {}
 
@@ -94,6 +97,22 @@ func unregister(who: Actor) -> void:
 	_actors.erase(id)
 	occupancy.release_actor(id)
 	actor_unregistered.emit(id)
+
+
+## Called by [CameraRig] on ready. One rig per map: a [PlayerBrain] inside an actor
+## prefab needs the yaw that resolves "up on the stick", and the one thing a shared
+## prefab must not carry is a [NodePath] up out of itself into whichever map instanced
+## it. Asking the map is how it finds the rig instead.
+func register_camera(rig: CameraRig) -> void:
+	if _camera_rig != null and _camera_rig != rig and is_instance_valid(_camera_rig):
+		push_warning("MapContext(%s): a second camera rig registered; keeping the first."
+			% map_id)
+		return
+	_camera_rig = rig
+
+
+func camera_rig() -> CameraRig:
+	return _camera_rig if is_instance_valid(_camera_rig) else null
 
 
 func actor(actor_id: StringName) -> Actor:

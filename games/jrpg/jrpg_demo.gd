@@ -10,7 +10,12 @@ extends Node2D
 ## decided 16 px per tile is used at native resolution and yields four variants of each.
 ## What is left here is behaviour: the pulse counter, the escape key, and the HUD text.
 ##
-## Controls: WASD/arrows step, tap to turn in place, . wait a step, Esc back.
+## The player and both NPCs are one prefab, [code]actor_jrpg.tscn[/code]. What makes
+## one of them the player is the [Brain] hanging off its [Actor] - a [PlayerBrain]
+## here, a [RouteBrain] pacing the NPC at the bottom of the map, and no brain at all on
+## the other, which is why it stands there.
+##
+## Controls: WASD/arrows step, Shift+direction turns in place, . wait a step, Esc back.
 
 const TILE := 16
 
@@ -43,5 +48,5 @@ func _process(_delta: float) -> void:
 			"stepping" if _player.is_moving() else "idle"],
 		"pulses %d   occupied cells %d   tile %d px, 4-way" % [
 			_steps, ctx.occupancy.size(), TILE],
-		"WASD/arrows step, tap to turn   . wait   Esc back",
+		"WASD/arrows step   Shift+dir turn   . wait   Esc back",
 	])

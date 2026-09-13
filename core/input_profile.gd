@@ -6,6 +6,11 @@ class_name InputProfile extends Resource
 ## rotates, "up" on the stick is no longer -Z. Input direction has to be resolved
 ## through the camera basis and then re-quantised. Get it wrong and rotation feels
 ## broken in a way that is hard to diagnose later.
+##
+## What is [i]not[/i] here: whether steps are discrete. That follows from the actor's
+## [MotionController] - [Brain] hands a [GridMotion] a committed step and a [FreeMotion]
+## continuous steering - so a profile that also declared it would be a second source of
+## truth for the one thing [MapContext.default_motion] is allowed to override.
 
 ## Directions a movement intent snaps to. 4 for game 1's grid, 8 for game 2. 0 means
 ## a fully analog stick, which no shipping profile uses.
@@ -15,17 +20,14 @@ class_name InputProfile extends Resource
 ## where screen up should always mean world north.
 @export var view_relative: bool = true
 
-## Does a tap that only changes facing count as a turn rather than a step? Game 1's
-## "turn in place" - and the reason turning opens no round, since it changes no cell.
-@export var tap_turns_in_place: bool = true
-
-## Seconds a direction must be held before it becomes a step rather than a turn.
-@export var turn_grace: float = 0.12
-
-## Discrete stepping. The cadence is set by round completion rather than a repeat
-## timer, so holding a direction means "step again the moment the round closes, if
-## still held".
-@export var discrete_steps: bool = true
+## Turning in place is a held modifier - the [code]turn_in_place[/code] action, Shift -
+## rather than a tap under a grace timer, so there is nothing to tune here.
+##
+## [b]Why the tap went.[/b] A tap-versus-hold rule makes the first frames of every step
+## ambiguous: the game cannot know whether a press is a step or a turn until the grace
+## has elapsed, so either the step is delayed by that long or a turn retroactively
+## cancels one. A modifier key is unambiguous on the frame it arrives, and it can be
+## held across several turns without the timer resetting under your fingers.
 
 
 ## [param raw] as a world-space direction, resolved through [param camera_yaw] and

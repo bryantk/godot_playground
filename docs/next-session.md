@@ -20,6 +20,35 @@ Regenerate the two game profiles after changing `GameProfile` or `InputProfile`:
 godot --headless --path . res://tools/make_profiles.tscn
 ```
 
+The three demo scenes are **hand-authored `.tscn` files** — edit them in the editor, not
+in code. The bootstrap that first generated them (`tools/make_demo_scenes.gd`) is gone as
+of 2026-09-12; re-running it would only have clobbered editor work. What guards them now:
+
+```
+godot --headless --path . res://tests/demo_scenes_test.tscn
+```
+
+It loads each demo, walks the player, and checks the nodes the demo scripts reach by
+`@onready` path still exist — which is the failure a rename in the editor causes.
+
+**Player and NPC are one prefab** as of 2026-09-12. Each game has a single actor scene —
+`actor_jrpg.tscn`, `actor_isoish.tscn`, `actor_isoish_grid.tscn` — and every placement of
+it is a data container with no opinion about what it does. A `Brain` child supplies that:
+`PlayerBrain` (the keyboard, formerly `core/input_driver.gd`), `RouteBrain` (a looping
+`move_to` / `step` / `face` / `wait` list in the event format's vocabulary), or nothing at
+all for scenery. See architecture.md §5. Two consequences worth remembering:
+
+- Stage C's event runner is the third brain, not a second system bolted beside one. A
+  route authored today is a route graph later.
+- `MapContext.camera_rig()` exists so a `PlayerBrain` inside a prefab can find the yaw
+  that resolves "up on the stick" without a `NodePath` reaching up out of the prefab.
+
+**Turning in place is Shift**, not a tap, as of 2026-09-12. `InputProfile` lost
+`tap_turns_in_place` and `turn_grace`; the `turn_in_place` action (Shift, sharing the key
+with `run` — a grid game never runs and a free game never turns) decides on the frame the
+direction arrives. A tap-versus-hold grace made the first frames of every press ambiguous:
+the step had to be delayed by the grace or retroactively cancelled by a turn.
+
 Nothing 🔴 is outstanding. Questions 20, 21, 27 and 28 were answered by building.
 
 ---

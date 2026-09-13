@@ -5,6 +5,10 @@ class_name ActorFactory
 ## has to instantiate them. It is also what a future [code]spawn[/code] command uses to
 ## create a monster from an event graph.
 ##
+## It does not add a [Brain], and that is the line: this fills in the axis children an
+## actor needs to exist, while what drives it is the caller's decision. A [code]spawn[/code]
+## command that wants the monster to patrol attaches the brain it wants after equipping.
+##
 ## Precedence, stated once here so the two declarations cannot disagree:
 ## [b]map overrides profile[/b]. [member MapContext.default_motion] wins over
 ## [member GameProfile.motion_script], which is what keeps grid movement in a 3D town

@@ -27,6 +27,8 @@ var _ctx: MapContext = null
 
 func _ready() -> void:
 	_ctx = MapContext.of(self)
+	if _ctx != null:
+		_ctx.register_camera(self)
 
 
 func context() -> MapContext:

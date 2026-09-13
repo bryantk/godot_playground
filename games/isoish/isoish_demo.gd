@@ -9,6 +9,9 @@ extends Node
 ## that matter - texel density, ortho pitch, per-face UV scale - are properties on those
 ## nodes and on that mesh library rather than constants in here.
 ##
+## The player is [code]actor_isoish.tscn[/code] with a [PlayerBrain] child - the same
+## prefab an NPC here would use, minus that brain.
+##
 ## Vertical faces are authored at 14 texels per world unit rather than 16, because at
 ## pitch 30 a face is 13.856 px per unit and art drawn at 16 loses about one row in
 ## seven. That now lives in the block materials inside [code]pixel_blocks.tres[/code],

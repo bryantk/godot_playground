@@ -3,28 +3,22 @@
 [ext_resource type="Script" path="res://games/jrpg/jrpg_demo.gd" id="1_b3m1s"]
 [ext_resource type="Script" path="res://core/map_context.gd" id="2_shd0p"]
 [ext_resource type="TileSet" path="res://games/jrpg/jrpg_tiles.tres" id="3_yispp"]
-[ext_resource type="PackedScene" path="res://games/jrpg/player_jrpg.tscn" id="4_0l83r"]
-[ext_resource type="Script" path="res://actors/actor.gd" id="5_irolo"]
-[ext_resource type="Script" path="res://actors/motion/grid_motion.gd" id="6_q5ugx"]
-[ext_resource type="Script" path="res://core/space_2d.gd" id="7_5i4nh"]
-[ext_resource type="Script" path="res://actors/views/sprite_view_2d.gd" id="8_nlnxt"]
-[ext_resource type="Texture2D" path="res://resources/Test_SpriteSheet_D_U_Side.png" id="9_pw8xa"]
-[ext_resource type="Script" path="res://code/SpriteSheet.gd" id="10_132e7"]
-[ext_resource type="PackedScene" path="res://games/jrpg/npc_jrpg.tscn" id="11_ijukk"]
+[ext_resource type="PackedScene" path="res://games/jrpg/actor_jrpg.tscn" id="4_0l83r"]
+[ext_resource type="Script" path="res://actors/brain/player_brain.gd" id="5_irolo"]
+[ext_resource type="Script" path="res://actors/brain/route_brain.gd" id="6_q5ugx"]
 [ext_resource type="Script" path="res://core/camera/room_camera_2d.gd" id="12_gxjgp"]
-[ext_resource type="Script" path="res://core/input_driver.gd" id="13_nxmqk"]
 [ext_resource type="Resource" path="res://games/jrpg/jrpg_input.tres" id="14_eih3y"]
 
-[node name="JrpgDemo" type="Node2D" unique_id=1526131131]
+[node name="JrpgDemo" type="Node2D" unique_id=1278033596]
 script = ExtResource("1_b3m1s")
 
-[node name="MapContext" type="Node" parent="." unique_id=923837177]
+[node name="MapContext" type="Node" parent="." unique_id=304033263]
 script = ExtResource("2_shd0p")
 map_id = &"jrpg_demo"
 cell_size = Vector3(16, 0, 16)
 collision_node = NodePath("../Collision")
 
-[node name="Background" type="ColorRect" parent="." unique_id=864497402]
+[node name="Background" type="ColorRect" parent="." unique_id=1003183580]
 z_index = -100
 offset_left = -2048.0
 offset_top = -2048.0
@@ -32,107 +26,65 @@ offset_right = 2048.0
 offset_bottom = 2048.0
 color = Color(0.05, 0.06, 0.09, 1)
 
-[node name="Floor" type="TileMapLayer" parent="." unique_id=96444847]
+[node name="Floor" type="TileMapLayer" parent="." unique_id=1594023702]
 texture_filter = 1
 tile_map_data = PackedByteArray("AAABAAEAAAABAAEAAAACAAEAAAAAAAEAAAADAAEAAAABAAEAAAAEAAEAAAAAAAEAAAAFAAEAAAABAAEAAAAGAAEAAAAAAAEAAAAHAAEAAAABAAEAAAAIAAEAAAAAAAEAAAAJAAEAAAABAAEAAAAKAAEAAAAAAAEAAAALAAEAAAABAAEAAAAMAAEAAAAAAAEAAAANAAEAAAABAAEAAAAOAAEAAAAAAAEAAAAPAAEAAAABAAEAAAAQAAEAAAAAAAEAAAARAAEAAAABAAEAAAASAAEAAAAAAAEAAAABAAIAAAABAAAAAAACAAIAAAAAAAAAAAAGAAIAAAAAAAAAAAAHAAIAAAABAAAAAAAIAAIAAAAAAAAAAAAJAAIAAAABAAAAAAALAAIAAAABAAAAAAAMAAIAAAAAAAAAAAANAAIAAAABAAAAAAAOAAIAAAAAAAAAAAAPAAIAAAABAAAAAAAQAAIAAAAAAAAAAAARAAIAAAABAAAAAAASAAIAAAAAAAAAAAABAAMAAAABAAEAAAACAAMAAAAAAAEAAAADAAMAAAABAAEAAAAEAAMAAAAAAAEAAAAGAAMAAAAAAAEAAAAHAAMAAAABAAEAAAAIAAMAAAAAAAEAAAAJAAMAAAABAAEAAAALAAMAAAABAAEAAAAMAAMAAAAAAAEAAAANAAMAAAABAAEAAAASAAMAAAAAAAEAAAABAAQAAAABAAAAAAACAAQAAAAAAAAAAAADAAQAAAABAAAAAAAEAAQAAAAAAAAAAAAGAAQAAAAAAAAAAAAHAAQAAAABAAAAAAAIAAQAAAAAAAAAAAAJAAQAAAABAAAAAAALAAQAAAABAAAAAAAMAAQAAAAAAAAAAAANAAQAAAABAAAAAAAOAAQAAAAAAAAAAAAPAAQAAAABAAAAAAAQAAQAAAAAAAAAAAASAAQAAAAAAAAAAAABAAUAAAABAAEAAAACAAUAAAAAAAEAAAAGAAUAAAAAAAEAAAAHAAUAAAABAAEAAAAIAAUAAAAAAAEAAAAJAAUAAAABAAEAAAALAAUAAAABAAEAAAAMAAUAAAAAAAEAAAANAAUAAAABAAEAAAAOAAUAAAAAAAEAAAAPAAUAAAABAAEAAAAQAAUAAAAAAAEAAAASAAUAAAAAAAEAAAABAAYAAAABAAAAAAACAAYAAAAAAAAAAAADAAYAAAABAAAAAAAEAAYAAAAAAAAAAAAFAAYAAAABAAAAAAAGAAYAAAAAAAAAAAAHAAYAAAABAAAAAAAIAAYAAAAAAAAAAAAJAAYAAAABAAAAAAALAAYAAAABAAAAAAAMAAYAAAAAAAAAAAAQAAYAAAAAAAAAAAASAAYAAAAAAAAAAAABAAcAAAABAAEAAAACAAcAAAAAAAEAAAADAAcAAAABAAEAAAAIAAcAAAAAAAEAAAAJAAcAAAABAAEAAAALAAcAAAABAAEAAAAMAAcAAAAAAAEAAAANAAcAAAABAAEAAAAOAAcAAAAAAAEAAAAQAAcAAAAAAAEAAAARAAcAAAABAAEAAAASAAcAAAAAAAEAAAABAAgAAAABAAAAAAACAAgAAAAAAAAAAAADAAgAAAABAAAAAAAEAAgAAAAAAAAAAAAFAAgAAAABAAAAAAAGAAgAAAAAAAAAAAAIAAgAAAAAAAAAAAAJAAgAAAABAAAAAAALAAgAAAABAAAAAAAMAAgAAAAAAAAAAAANAAgAAAABAAAAAAAOAAgAAAAAAAAAAAABAAkAAAABAAEAAAACAAkAAAAAAAEAAAADAAkAAAABAAEAAAAEAAkAAAAAAAEAAAAFAAkAAAABAAEAAAAGAAkAAAAAAAEAAAAIAAkAAAAAAAEAAAAJAAkAAAABAAEAAAALAAkAAAABAAEAAAAMAAkAAAAAAAEAAAANAAkAAAABAAEAAAAOAAkAAAAAAAEAAAAPAAkAAAABAAEAAAAQAAkAAAAAAAEAAAARAAkAAAABAAEAAAASAAkAAAAAAAEAAAABAAoAAAABAAAAAAACAAoAAAAAAAAAAAAIAAoAAAAAAAAAAAAJAAoAAAABAAAAAAAOAAoAAAAAAAAAAAAPAAoAAAABAAAAAAASAAoAAAAAAAAAAAABAAsAAAABAAEAAAACAAsAAAAAAAEAAAADAAsAAAABAAEAAAAEAAsAAAAAAAEAAAAFAAsAAAABAAEAAAAGAAsAAAAAAAEAAAAHAAsAAAABAAEAAAAIAAsAAAAAAAEAAAAJAAsAAAABAAEAAAAKAAsAAAAAAAEAAAALAAsAAAABAAEAAAAMAAsAAAAAAAEAAAANAAsAAAABAAEAAAAOAAsAAAAAAAEAAAARAAsAAAABAAEAAAASAAsAAAAAAAEAAAABAAwAAAABAAAAAAACAAwAAAAAAAAAAAADAAwAAAABAAAAAAAEAAwAAAAAAAAAAAAFAAwAAAABAAAAAAAGAAwAAAAAAAAAAAAHAAwAAAABAAAAAAAIAAwAAAAAAAAAAAAJAAwAAAABAAAAAAAKAAwAAAAAAAAAAAALAAwAAAABAAAAAAAMAAwAAAAAAAAAAAANAAwAAAABAAAAAAAOAAwAAAAAAAAAAAAPAAwAAAABAAAAAAAQAAwAAAAAAAAAAAARAAwAAAABAAAAAAASAAwAAAAAAAAAAAA=")
 tile_set = ExtResource("3_yispp")
 
-[node name="Collision" type="TileMapLayer" parent="." unique_id=2030225139]
+[node name="Collision" type="TileMapLayer" parent="." unique_id=1429817022]
 texture_filter = 1
 tile_map_data = PackedByteArray("AAAAAAAAAQAAAAAAAAABAAAAAQABAAAAAAACAAAAAQAAAAAAAAADAAAAAQABAAAAAAAEAAAAAQAAAAAAAAAFAAAAAQABAAAAAAAGAAAAAQAAAAAAAAAHAAAAAQABAAAAAAAIAAAAAQAAAAAAAAAJAAAAAQABAAAAAAAKAAAAAQAAAAAAAAALAAAAAQABAAAAAAAMAAAAAQAAAAAAAAANAAAAAQABAAAAAAAOAAAAAQAAAAAAAAAPAAAAAQABAAAAAAAQAAAAAQAAAAAAAAARAAAAAQABAAAAAAASAAAAAQAAAAAAAAATAAAAAQABAAAAAAAAAAEAAQAAAAEAAAATAAEAAQABAAEAAAAAAAIAAQAAAAAAAAADAAIAAQABAAAAAAAEAAIAAQAAAAAAAAAFAAIAAQABAAAAAAAKAAIAAQAAAAAAAAATAAIAAQABAAAAAAAAAAMAAQAAAAEAAAAFAAMAAQABAAEAAAAKAAMAAQAAAAEAAAAOAAMAAQAAAAEAAAAPAAMAAQABAAEAAAAQAAMAAQAAAAEAAAARAAMAAQABAAEAAAATAAMAAQABAAEAAAAAAAQAAQAAAAAAAAAFAAQAAQABAAAAAAAKAAQAAQAAAAAAAAARAAQAAQABAAAAAAATAAQAAQABAAAAAAAAAAUAAQAAAAEAAAADAAUAAQABAAEAAAAEAAUAAQAAAAEAAAAFAAUAAQABAAEAAAAKAAUAAQAAAAEAAAARAAUAAQABAAEAAAATAAUAAQABAAEAAAAAAAYAAQAAAAAAAAAKAAYAAQAAAAAAAAANAAYAAQABAAAAAAAOAAYAAQAAAAAAAAAPAAYAAQABAAAAAAARAAYAAQABAAAAAAATAAYAAQABAAAAAAAAAAcAAQAAAAEAAAAEAAcAAQAAAAEAAAAFAAcAAQABAAEAAAAGAAcAAQAAAAEAAAAHAAcAAQABAAEAAAAKAAcAAQAAAAEAAAAPAAcAAQABAAEAAAATAAcAAQABAAEAAAAAAAgAAQAAAAAAAAAHAAgAAQABAAAAAAAKAAgAAQAAAAAAAAAPAAgAAQABAAAAAAAQAAgAAQAAAAAAAAARAAgAAQABAAAAAAASAAgAAQAAAAAAAAATAAgAAQABAAAAAAAAAAkAAQAAAAEAAAAHAAkAAQABAAEAAAAKAAkAAQAAAAEAAAATAAkAAQABAAEAAAAAAAoAAQAAAAAAAAADAAoAAQABAAAAAAAEAAoAAQAAAAAAAAAFAAoAAQABAAAAAAAGAAoAAQAAAAAAAAAHAAoAAQABAAAAAAAKAAoAAQAAAAAAAAALAAoAAQABAAAAAAAMAAoAAQAAAAAAAAANAAoAAQABAAAAAAAQAAoAAQAAAAAAAAARAAoAAQABAAAAAAATAAoAAQABAAAAAAAAAAsAAQAAAAEAAAAPAAsAAQABAAEAAAAQAAsAAQAAAAEAAAATAAsAAQABAAEAAAAAAAwAAQAAAAAAAAATAAwAAQABAAAAAAAAAA0AAQAAAAEAAAABAA0AAQABAAEAAAACAA0AAQAAAAEAAAADAA0AAQABAAEAAAAEAA0AAQAAAAEAAAAFAA0AAQABAAEAAAAGAA0AAQAAAAEAAAAHAA0AAQABAAEAAAAIAA0AAQAAAAEAAAAJAA0AAQABAAEAAAAKAA0AAQAAAAEAAAALAA0AAQABAAEAAAAMAA0AAQAAAAEAAAANAA0AAQABAAEAAAAOAA0AAQAAAAEAAAAPAA0AAQABAAEAAAAQAA0AAQAAAAEAAAARAA0AAQABAAEAAAASAA0AAQAAAAEAAAATAA0AAQABAAEAAAA=")
 tile_set = ExtResource("3_yispp")
 
-[node name="Actors" type="Node2D" parent="." unique_id=1972178743]
+[node name="Actors" type="Node2D" parent="." unique_id=462701620]
 
-[node name="Player" parent="Actors" unique_id=429428978 instance=ExtResource("4_0l83r")]
+[node name="Player" parent="Actors" instance=ExtResource("4_0l83r")]
 position = Vector2(232, 152)
 
-[node name="Actor" parent="Actors/Player" index="0" unique_id=925363460]
-script = ExtResource("5_irolo")
+[node name="Actor" parent="Actors/Player" index="0"]
 actor_id = &"player"
 
-[node name="Motion" parent="Actors/Player/Actor" index="0" unique_id=629040335]
-script = ExtResource("6_q5ugx")
+[node name="Motion" parent="Actors/Player/Actor" index="1"]
 publishes_pulse = true
 
-[node name="Space" parent="Actors/Player/Actor" index="1" unique_id=2070007876]
-script = ExtResource("7_5i4nh")
+[node name="Brain" type="Node" parent="Actors/Player/Actor" index="3"]
+script = ExtResource("5_irolo")
+profile = ExtResource("14_eih3y")
 
-[node name="View" parent="Actors/Player/Actor" index="2" unique_id=761933758]
-script = ExtResource("8_nlnxt")
-visual_path = NodePath("../../Sprite")
-
-[node name="Sprite" parent="Actors/Player" index="1" unique_id=975545169]
-texture_filter = 1
-texture = ExtResource("9_pw8xa")
-offset = Vector2(0, -4)
-hframes = 3
-vframes = 3
-script = ExtResource("10_132e7")
-rate = 0.08333333333333333
-
-[node name="Npc_17_9" parent="Actors" unique_id=671676061 instance=ExtResource("11_ijukk")]
+[node name="Npc_17_9" parent="Actors" instance=ExtResource("4_0l83r")]
 position = Vector2(280, 152)
 
-[node name="Actor" parent="Actors/Npc_17_9" index="0" unique_id=375750054]
-script = ExtResource("5_irolo")
+[node name="Actor" parent="Actors/Npc_17_9" index="0"]
 actor_id = &"npc_17_9"
 
-[node name="Space" parent="Actors/Npc_17_9/Actor" index="0" unique_id=1763239242]
-script = ExtResource("7_5i4nh")
-
-[node name="View" parent="Actors/Npc_17_9/Actor" index="1" unique_id=858165551]
-script = ExtResource("8_nlnxt")
-visual_path = NodePath("../../Sprite")
-
-[node name="Sprite" parent="Actors/Npc_17_9" index="1" unique_id=1375855288]
+[node name="Sprite" parent="Actors/Npc_17_9" index="1"]
 modulate = Color(0.65, 0.8, 1, 1)
-texture_filter = 1
-texture = ExtResource("9_pw8xa")
-offset = Vector2(0, -4)
-hframes = 3
-vframes = 3
-script = ExtResource("10_132e7")
 
-[node name="Npc_8_12" parent="Actors" unique_id=320786042 instance=ExtResource("11_ijukk")]
+[node name="Npc_8_12" parent="Actors" instance=ExtResource("4_0l83r")]
 position = Vector2(136, 200)
 
-[node name="Actor" parent="Actors/Npc_8_12" index="0" unique_id=375750054]
-script = ExtResource("5_irolo")
+[node name="Actor" parent="Actors/Npc_8_12" index="0"]
 actor_id = &"npc_8_12"
 
-[node name="Space" parent="Actors/Npc_8_12/Actor" index="0" unique_id=1763239242]
-script = ExtResource("7_5i4nh")
+[node name="Brain" type="Node" parent="Actors/Npc_8_12/Actor" index="3"]
+script = ExtResource("6_q5ugx")
+commands = [{"args": {"cell": [12, 0, 12]}, "command": "move_to"}, {"args": {"seconds": 1.0}, "command": "wait"}, {"args": {"cell": [8, 0, 12]}, "command": "move_to"}, {"args": {"seconds": 1.5}, "command": "wait"}]
 
-[node name="View" parent="Actors/Npc_8_12/Actor" index="1" unique_id=858165551]
-script = ExtResource("8_nlnxt")
-visual_path = NodePath("../../Sprite")
-
-[node name="Sprite" parent="Actors/Npc_8_12" index="1" unique_id=1375855288]
+[node name="Sprite" parent="Actors/Npc_8_12" index="1"]
 modulate = Color(0.65, 0.8, 1, 1)
-texture_filter = 1
-texture = ExtResource("9_pw8xa")
-offset = Vector2(0, -4)
-hframes = 3
-vframes = 3
-script = ExtResource("10_132e7")
 
-[node name="Camera" type="Camera2D" parent="." unique_id=2057894782]
+[node name="Camera" type="Camera2D" parent="." unique_id=1139933062]
 zoom = Vector2(2, 2)
 
-[node name="Rig" type="Node" parent="Camera" unique_id=1296808778]
+[node name="Rig" type="Node" parent="Camera" unique_id=72448511]
 script = ExtResource("12_gxjgp")
 deadzone = Vector2(32, 24)
 bounds = Rect2(0, 0, 320, 224)
 follow_target = &"player"
 
-[node name="Input" type="Node" parent="." unique_id=681755995]
-script = ExtResource("13_nxmqk")
-profile = ExtResource("14_eih3y")
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1140600383]
 
-[node name="HUD" type="CanvasLayer" parent="." unique_id=1128488476]
-
-[node name="Label" type="Label" parent="HUD" unique_id=1534633343]
+[node name="Label" type="Label" parent="HUD" unique_id=23019168]
 offset_left = 6.0
 offset_top = 4.0
 offset_right = 6.0

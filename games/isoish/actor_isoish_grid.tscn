@@ -1,0 +1,50 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://actors/actor.gd" id="1_actor"]
+[ext_resource type="Script" path="res://core/space_3d.gd" id="2_space"]
+[ext_resource type="Script" path="res://actors/motion/grid_motion.gd" id="3_motion"]
+[ext_resource type="Script" path="res://actors/views/sprite_view_3d.gd" id="4_view"]
+[ext_resource type="Texture2D" path="res://resources/Test_SpriteSheet_D_U_Side.png" id="5_sheet"]
+[ext_resource type="Script" path="res://code/sprite_sheet_3d.gd" id="6_sprite"]
+[ext_resource type="Script" path="res://actors/views/actor_shadow.gd" id="7_shadow"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.3
+height = 1.2
+
+[node name="ActorIsoishGrid" type="CharacterBody3D"]
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+shape = SubResource("CapsuleShape3D_body")
+
+[node name="Actor" type="Node" parent="."]
+script = ExtResource("1_actor")
+actor_id = &"actor"
+
+[node name="Space" type="Node" parent="Actor"]
+script = ExtResource("2_space")
+
+[node name="Motion" type="Node" parent="Actor"]
+script = ExtResource("3_motion")
+speed = 4.0
+
+[node name="View" type="Node" parent="Actor"]
+script = ExtResource("4_view")
+visual_path = NodePath("../../Sprite")
+
+[node name="Sprite" type="Sprite3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+pixel_size = 0.0625
+billboard = 2
+alpha_cut = 1
+texture_filter = 0
+texture = ExtResource("5_sheet")
+hframes = 3
+vframes = 3
+script = ExtResource("6_sprite")
+rate = 0.125
+
+[node name="Shadow" type="Decal" parent="."]
+script = ExtResource("7_shadow")
+target_path = NodePath("../Sprite")

@@ -14,6 +14,9 @@ const ACTIONS := {
 	"move_right": [KEY_D, KEY_RIGHT],
 	"jump":       [KEY_SPACE],
 	"run":        [KEY_SHIFT],
+	# Shift again, deliberately: a grid game never runs and a free-motion game never
+	# turns in place, so the two never contend for the key in the same map.
+	"turn_in_place": [KEY_SHIFT],
 	"wait_step":  [KEY_PERIOD],
 	"yaw_ccw":    [KEY_Q],
 	"yaw_cw":     [KEY_E],

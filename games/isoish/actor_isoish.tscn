@@ -1,18 +1,18 @@
-[gd_scene format=3 uid="uid://dq0o31eqf87bw"]
+[gd_scene format=3 uid="uid://dvgv7b755fsko"]
 
-[ext_resource type="Script" uid="uid://c1bru16ajlsdu" path="res://actors/actor.gd" id="1_hfbo4"]
-[ext_resource type="Script" uid="uid://bacy8dt1kqrae" path="res://core/space_3d.gd" id="2_3ossr"]
-[ext_resource type="Script" uid="uid://1yqlneyvdt51" path="res://actors/motion/free_motion.gd" id="3_uu7lw"]
-[ext_resource type="Script" uid="uid://dyccud21n2l51" path="res://actors/views/sprite_view_3d.gd" id="4_gn357"]
-[ext_resource type="Texture2D" uid="uid://baru88pr1ckdy" path="res://resources/Test_SpriteSheet_D_U_Side.png" id="5_2ia1h"]
-[ext_resource type="Script" uid="uid://dm7a6sokvt4gd" path="res://code/sprite_sheet_3d.gd" id="6_yggjs"]
-[ext_resource type="Script" uid="uid://empytwhkqpqq" path="res://actors/views/actor_shadow.gd" id="7_0ntvg"]
+[ext_resource type="Script" uid="uid://c1bru16ajlsdu" path="res://actors/actor.gd" id="1_actor"]
+[ext_resource type="Script" uid="uid://bacy8dt1kqrae" path="res://core/space_3d.gd" id="2_space"]
+[ext_resource type="Script" uid="uid://1yqlneyvdt51" path="res://actors/motion/free_motion.gd" id="3_motion"]
+[ext_resource type="Script" uid="uid://dyccud21n2l51" path="res://actors/views/sprite_view_3d.gd" id="4_view"]
+[ext_resource type="Texture2D" uid="uid://baru88pr1ckdy" path="res://resources/Test_SpriteSheet_D_U_Side.png" id="5_sheet"]
+[ext_resource type="Script" uid="uid://dm7a6sokvt4gd" path="res://code/sprite_sheet_3d.gd" id="6_sprite"]
+[ext_resource type="Script" uid="uid://empytwhkqpqq" path="res://actors/views/actor_shadow.gd" id="7_shadow"]
 
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_m4db6"]
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.3
 height = 1.2
 
-[sub_resource type="Image" id="Image_hfbo4"]
+[sub_resource type="Image" id="Image_ekmtj"]
 data = {
 "data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
 "format": "RGBA8",
@@ -21,53 +21,53 @@ data = {
 "width": 11
 }
 
-[sub_resource type="ImageTexture" id="ImageTexture_3ossr"]
-image = SubResource("Image_hfbo4")
+[sub_resource type="ImageTexture" id="ImageTexture_ifop8"]
+image = SubResource("Image_ekmtj")
 
-[node name="PlayerIsoish" type="CharacterBody3D" unique_id=658829660]
+[node name="ActorIsoish" type="CharacterBody3D" unique_id=1743577051]
 
-[node name="Collision" type="CollisionShape3D" parent="." unique_id=598770961]
+[node name="Collision" type="CollisionShape3D" parent="." unique_id=328184065]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
-shape = SubResource("CapsuleShape3D_m4db6")
+shape = SubResource("CapsuleShape3D_body")
 
-[node name="Actor" type="Node" parent="." unique_id=364480351]
-script = ExtResource("1_hfbo4")
-actor_id = &"player"
+[node name="Actor" type="Node" parent="." unique_id=1900005135]
+script = ExtResource("1_actor")
+actor_id = &"actor"
 solid = false
 facing_count = 8
 
-[node name="Space" type="Node" parent="Actor" unique_id=527523550]
-script = ExtResource("2_3ossr")
+[node name="Space" type="Node" parent="Actor" unique_id=1803415411]
+script = ExtResource("2_space")
 
-[node name="Motion" type="Node" parent="Actor" unique_id=1026114271]
-script = ExtResource("3_uu7lw")
+[node name="Motion" type="Node" parent="Actor" unique_id=321912954]
+script = ExtResource("3_motion")
 gravity = 20.0
 jump_strength = 6.0
 direction_count = 8
 speed = 4.0
 
-[node name="View" type="Node" parent="Actor" unique_id=1155284801]
-script = ExtResource("4_gn357")
+[node name="View" type="Node" parent="Actor" unique_id=103846771]
+script = ExtResource("4_view")
 visual_path = NodePath("../../Sprite")
 
-[node name="Sprite" type="Sprite3D" parent="." unique_id=509340730]
+[node name="Sprite" type="Sprite3D" parent="." unique_id=986768101]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
 pixel_size = 0.0625
 billboard = 2
 alpha_cut = 1
 texture_filter = 0
-texture = ExtResource("5_2ia1h")
+texture = ExtResource("5_sheet")
 hframes = 3
 vframes = 3
 frame = 1
-script = ExtResource("6_yggjs")
+script = ExtResource("6_sprite")
 rate = 0.12
 
-[node name="Shadow" type="Decal" parent="." unique_id=2127148387]
+[node name="Shadow" type="Decal" parent="." unique_id=497210637]
 process_priority = 100
 top_level = true
 size = Vector3(0.7, 0.4, 0.7)
-texture_albedo = SubResource("ImageTexture_3ossr")
+texture_albedo = SubResource("ImageTexture_ifop8")
 modulate = Color(0, 0, 0, 0.55)
-script = ExtResource("7_0ntvg")
+script = ExtResource("7_shadow")
 target_path = NodePath("../Sprite")

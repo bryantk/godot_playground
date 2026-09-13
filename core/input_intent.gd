@@ -19,8 +19,8 @@ var interact: bool = false
 ## A discrete committed step, or ZERO. Game 1.
 var step: Vector3i = Vector3i.ZERO
 
-## Turning without stepping - a tap under [member InputProfile.turn_grace]. Changes no
-## cell, so it opens no round.
+## Turning without stepping - the player holding the turn modifier, or a route saying
+## [code]face[/code]. Changes no cell, so it opens no round.
 var turn: Vector3i = Vector3i.ZERO
 
 ## Passing time deliberately. Explicit rather than letting the player bump a wall to

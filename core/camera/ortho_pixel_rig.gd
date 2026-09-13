@@ -1,7 +1,7 @@
 class_name OrthoPixelRig extends CameraRig
 
-## Game 2's camera: orthographic, pixel-quantised, yaw snapped to four 90-degree
-## stops, pitch 30.
+## Game 2's camera: orthographic, pixel-quantised, yaw snapped to four 90-degree stops,
+## pitch free between a flat-on elevation and top-down.
 ##
 ## [b]Why 90-degree stops.[/b] All four views are congruent, so ground tiles stay
 ## axis-aligned at every stop and there is exactly one tile geometry to draw. With
@@ -9,13 +9,15 @@ class_name OrthoPixelRig extends CameraRig
 ## render them axis-aligned, and those are not congruent at any pitch - so eight stops
 ## costs two distinct tile presentations, not merely twice the sprite art.
 ##
-## [b]Why 30 degrees.[/b] A ground tile projects to
-## [code]TEXELS_PER_TILE x TEXELS_PER_TILE * sin(pitch)[/code] px. If that height is
-## not a whole number the tile grid drifts against the pixel grid and rows come out
-## unequal. Only the angles where it lands on an integer are usable at all - 30.00,
-## 34.23, 38.68, 43.43, 48.59, 54.34, 61.04, 69.64 - and every round number that looks
-## like a natural choice (45, 60) is fractional. 30 gives an exact 16x8 tile, and being
-## the shallowest of them it shows height best, which suits the game that has jumping.
+## [b]Why pitch is a slider and yaw is not.[/b] The yaw stops are a correctness
+## constraint: the tile geometry has to be congruent at every stop or the art doubles.
+## Pitch changes nothing about which art is needed, only how tall the same tile draws, so
+## it is free to be a creative control - and it is the one dial that carries this camera
+## across the whole range from an elevation to a top-down map. What a fractional angle
+## costs is pixel cleanliness, not correctness; see [member pitch_degrees].
+##
+## [b]Why 30 is the default.[/b] It gives an exact 16x8 tile, and being the shallowest
+## pixel-clean angle it shows height best, which suits the game that has jumping.
 
 const TEXELS_PER_TILE := 16
 
@@ -25,8 +27,27 @@ const TEXELS_PER_UNIT_VERTICAL := 14
 
 const STOPS := 4
 
-## 16 * sin(pitch) must be a whole number. See the class note.
-@export_range(20.0, 80.0, 0.01) var pitch_degrees: float = 30.0
+## The camera's tilt, and the main creative control on this rig: 0 is a flat-on
+## elevation where walls read at full height and the floor vanishes to a line, 90 is
+## straight down where the floor is square and walls vanish entirely. 30 is the default
+## and the angle the rest of this file's arithmetic is written around.
+##
+## [b]Pixel-clean angles.[/b] A ground tile projects to
+## [code]TEXELS_PER_TILE x TEXELS_PER_TILE * sin(pitch)[/code] px, and when that height
+## is not a whole number the tile grid drifts against the pixel grid and rows come out
+## unequal. The angles where it lands on an integer are 0, 30.00, 34.23, 38.68, 43.43,
+## 48.59, 54.34, 61.04, 69.64 and 90 - every round number that looks like a natural
+## choice (45, 60) is fractional. Set whatever reads best; [method is_pixel_clean]
+## reports whether the angle landed on one of them, and [method _ready] warns once if a
+## scene was authored at one that did not.
+##
+## [b]Two things move with it.[/b] Depth compensation reads [code]sin(pitch)[/code] off
+## the camera basis, so walking speed re-balances on its own as this changes - bounded by
+## [member MotionController.max_depth_boost], which is what stops a near-flat camera
+## launching actors across the map. And vertical faces are [code]16 * cos(pitch)[/code]
+## px per world unit, so art authored for 30 degrees is wrong at any other angle; see
+## [constant TEXELS_PER_UNIT_VERTICAL].
+@export_range(0.0, 90.0, 0.01) var pitch_degrees: float = 30.0 : set = _set_pitch
 
 @export var yaw_stop: int = 0 : set = _set_yaw_stop
 
@@ -85,6 +106,11 @@ func _ready() -> void:
 	if not upscale_path.is_empty():
 		_upscale = get_node_or_null(upscale_path) as Control
 	_apply_pitch()
+	# Once, here, for a pitch that was authored into the scene and saved. The setter
+	# stays quiet so a live sweep does not flood the log - see _set_pitch.
+	if not is_pixel_clean():
+		push_warning("OrthoPixelRig: pitch %.2f gives a floor depth of %.3f px, which is not a whole number - the tile grid will drift against the pixel grid. The clean angles are 0, 30.00, 34.23, 38.68, 43.43, 48.59, 54.34, 61.04, 69.64 and 90." % [pitch_degrees, floor_depth_px()])
+	_apply_clip()
 	fit_viewport()
 
 
@@ -127,6 +153,7 @@ func fit_viewport() -> void:
 		return
 	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	_camera.size = height / float(texels_per_unit)
+	_apply_clip()
 
 
 ## The part of the camera's position that quantisation threw away, in screen pixels.
@@ -295,5 +322,42 @@ func _apply_pitch() -> void:
 		return
 	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	_camera.rotation.x = -deg_to_rad(pitch_degrees)
-	if not is_pixel_clean():
-		push_warning("OrthoPixelRig: pitch %.2f gives a floor depth of %.3f px, which is not a whole number - the tile grid will drift against the pixel grid." % [pitch_degrees, floor_depth_px()])
+
+
+## Applied immediately, so the angle can be swept live - which is the point of opening
+## the range up.
+##
+## Deliberately silent about pixel cleanliness. A live sweep passes through hundreds of
+## fractional angles on its way somewhere, and warning at each would bury every other
+## message in the log. [method _ready] carries the warning instead, where it catches the
+## case that actually matters: a scene saved at an angle nobody checked.
+func _set_pitch(value: float) -> void:
+	pitch_degrees = clampf(value, 0.0, 90.0)
+	_apply_pitch()
+
+
+## Pull the far plane in to something the map actually occupies.
+##
+## [b]This is what makes directional shadows work at all here.[/b] Godot fits the
+## directional shadow map to the camera's frustum, and an orthographic camera keeps the
+## default far plane of 4000 unless told otherwise. Fitting a shadow map across 4000
+## units to light a 20x14 map spends essentially all of its depth precision on empty
+## space, and what reaches the screen is not "no shadows" but something worse to
+## diagnose: every lit surface self-shadows faintly, the whole floor dims by a few
+## percent, and raising [member DirectionalLight3D.shadow_bias] to clear the acne erases
+## the real shadows first. Measured on the iso grid map, far 4000 darkened 17% of the
+## frame by at most 0.23; far 80 darkens 6% by 0.44 - fewer pixels, and actually shaped
+## like the blocks casting them.
+##
+## It also explains the symptom that gives this away: shadows look right in the editor,
+## whose viewport uses its own perspective camera, and wrong the moment the game runs
+## through this one.
+##
+## Twice [member distance] because the camera sits exactly that far back along the view
+## axis, so this leaves as much room in front of the focus as behind it. [member
+## Camera3D.near] is deliberately left alone - tightening it buys almost nothing here
+## (6.41% to 6.25% measured) and risks clipping anything tall near the camera.
+func _apply_clip() -> void:
+	if _camera == null:
+		return
+	_camera.far = maxf(1.0, distance * 2.0)

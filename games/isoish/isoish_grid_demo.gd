@@ -10,18 +10,22 @@ extends Node
 ##
 ## The map is authored in [code]isoish_grid_demo.tscn[/code]. Two [GridMap]s: Floor is
 ## decoration, Blocks is both the walls and the terrain data [Passability] reads, which
-## is why [MapContext.collision_node] points at it. The player is
-## [code]player_isoish_grid.tscn[/code], whose [Actor] is left on
+## is why [MapContext.collision_node] points at it. Every actor on it - the player and
+## both NPCs - is [code]actor_isoish_grid.tscn[/code], whose [Actor] is left on
 ## [code]INHERIT[/code] so the map's [code]default_motion[/code] is what decides - the
 ## precedence rule that keeps "grid movement in a 3D town" possible.
 ##
-## Controls: WASD/arrows step, tap to turn in place, Q/E rotate the view,
+## What separates the three is the [Brain] child each placement carries: a [PlayerBrain]
+## on the player, a [RouteBrain] pacing the guard north of the wall, and nothing at all
+## on the one standing in the doorway.
+##
+## Controls: WASD/arrows step, Shift+direction turns in place, Q/E rotate the view,
 ## 1 4-way/8-way, 2 sub-texel smoothing, 3 terrain data on/off, Esc back.
 
 @onready var _rig: OrthoPixelRig = $Upscale/World/Map/Camera/Rig
 @onready var _ctx: MapContext = $Upscale/World/Map/MapContext
 @onready var _blocks: GridMap = $Upscale/World/Map/Blocks
-@onready var _driver: InputDriver = $Upscale/World/Map/Input
+@onready var _brain: PlayerBrain = $Upscale/World/Map/Actors/Player/Actor/Brain
 @onready var _player: Actor = $Upscale/World/Map/Actors/Player/Actor
 @onready var _view: SpriteView3D = $Upscale/World/Map/Actors/Player/Actor/View
 @onready var _motion: GridMotion = $Upscale/World/Map/Actors/Player/Actor/Motion
@@ -77,7 +81,7 @@ func _cycle_directions() -> void:
 	var count := 8 if _motion.direction_count == 4 else 4
 	_motion.direction_count = count
 	_player.facing_count = count
-	_driver.profile.direction_count = count
+	_brain.profile.direction_count = count
 
 
 ## Turning the terrain layer off leaves occupancy and physics still consulted, which is
@@ -99,7 +103,7 @@ func _process(_delta: float) -> void:
 			_motion.direction_count, _motion.step_duration() * 1000.0,
 			"on" if _terrain_data else "OFF"],
 		"",
-		"WASD/arrows step, tap to turn   Q/E rotate the view",
+		"WASD/arrows step   Shift+dir turn   Q/E rotate the view",
 		"1 %d-way   2 sub-texel smooth: %s   3 terrain data: %s   Esc back" % [
 			8 if _motion.direction_count == 4 else 4,
 			"on" if _rig.subtexel_smoothing else "OFF",

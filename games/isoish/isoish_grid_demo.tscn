@@ -1,23 +1,22 @@
-[gd_scene format=3 uid="uid://b62g6gkpgs2l2"]
+[gd_scene format=3 uid="uid://il6eoemdabl0"]
 
 [ext_resource type="Script" uid="uid://mngosoq638vn" path="res://games/isoish/isoish_grid_demo.gd" id="1_nbbrd"]
 [ext_resource type="Script" uid="uid://c6bwsrlf14puk" path="res://core/map_context.gd" id="2_jiamt"]
-[ext_resource type="MeshLibrary" uid="uid://c7s3cgc20xdw7" path="res://games/isoish/pixel_blocks.tres" id="3_4q3m1"]
-[ext_resource type="PackedScene" path="res://games/isoish/player_isoish_grid.tscn" id="4_4yn8y"]
-[ext_resource type="PackedScene" path="res://games/isoish/npc_isoish.tscn" id="12_6p7u4"]
+[ext_resource type="MeshLibrary" uid="uid://drtb106vr6bc1" path="res://games/isoish/pixel_blocks.tres" id="3_4q3m1"]
+[ext_resource type="PackedScene" path="res://games/isoish/actor_isoish_grid.tscn" id="4_4yn8y"]
+[ext_resource type="Script" uid="uid://bw0on2cdcl40l" path="res://actors/brain/player_brain.gd" id="5_ubx1w"]
+[ext_resource type="Script" uid="uid://kgmsoygjvc80" path="res://actors/brain/route_brain.gd" id="6_q5ub7"]
 [ext_resource type="Script" uid="uid://bywa73wc0217k" path="res://core/camera/ortho_pixel_rig.gd" id="13_oh435"]
-[ext_resource type="Script" uid="uid://bl4gy43yte7oj" path="res://core/input_driver.gd" id="14_8uagk"]
-[ext_resource type="Resource" path="res://games/isoish/isoish_grid_input.tres" id="15_nu3qy"]
+[ext_resource type="Resource" uid="uid://c3xxi7lq37mk2" path="res://games/isoish/isoish_grid_input.tres" id="15_nu3qy"]
 
 [sub_resource type="Environment" id="Environment_ewyff"]
 background_mode = 1
 background_color = Color(0.05, 0.06, 0.09, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.42, 0.48, 0.68, 1)
+ambient_light_energy = 0.85
 
-[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_0anda"]
-radius = 0.3
-height = 1.2
-
-[sub_resource type="Image" id="Image_y7j2v"]
+[sub_resource type="Image" id="Image_3bf7d"]
 data = {
 "data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
 "format": "RGBA8",
@@ -26,10 +25,10 @@ data = {
 "width": 11
 }
 
-[sub_resource type="ImageTexture" id="ImageTexture_lk3x3"]
-image = SubResource("Image_y7j2v")
+[sub_resource type="ImageTexture" id="ImageTexture_y7j2v"]
+image = SubResource("Image_3bf7d")
 
-[sub_resource type="Image" id="Image_12pxd"]
+[sub_resource type="Image" id="Image_lk3x3"]
 data = {
 "data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
 "format": "RGBA8",
@@ -38,10 +37,10 @@ data = {
 "width": 11
 }
 
-[sub_resource type="ImageTexture" id="ImageTexture_17eat"]
-image = SubResource("Image_12pxd")
+[sub_resource type="ImageTexture" id="ImageTexture_12pxd"]
+image = SubResource("Image_lk3x3")
 
-[sub_resource type="Image" id="Image_yqpgd"]
+[sub_resource type="Image" id="Image_17eat"]
 data = {
 "data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
 "format": "RGBA8",
@@ -50,36 +49,43 @@ data = {
 "width": 11
 }
 
-[sub_resource type="ImageTexture" id="ImageTexture_fyado"]
-image = SubResource("Image_yqpgd")
+[sub_resource type="ImageTexture" id="ImageTexture_yqpgd"]
+image = SubResource("Image_17eat")
 
-[node name="IsoishGridDemo" type="Node" unique_id=2080769318]
+[node name="IsoishGridDemo" type="Node" unique_id=1935666997]
 script = ExtResource("1_nbbrd")
 
-[node name="Upscale" type="SubViewportContainer" parent="." unique_id=1207158847]
+[node name="Upscale" type="SubViewportContainer" parent="." unique_id=989201560]
 texture_filter = 1
 offset_right = 640.0
 offset_bottom = 320.0
 stretch = true
 stretch_shrink = 2
 
-[node name="World" type="SubViewport" parent="Upscale" unique_id=1585127977]
+[node name="World" type="SubViewport" parent="Upscale" unique_id=68658033]
 handle_input_locally = false
 size = Vector2i(320, 160)
 render_target_update_mode = 4
 
-[node name="Map" type="Node3D" parent="Upscale/World" unique_id=1491332309]
+[node name="Map" type="Node3D" parent="Upscale/World" unique_id=1198387411]
 
-[node name="Env" type="WorldEnvironment" parent="Upscale/World/Map" unique_id=263579535]
+[node name="Env" type="WorldEnvironment" parent="Upscale/World/Map" unique_id=941239507]
 environment = SubResource("Environment_ewyff")
 
-[node name="MapContext" type="Node" parent="Upscale/World/Map" unique_id=1947707268]
+[node name="Sun" type="DirectionalLight3D" parent="Upscale/World/Map" unique_id=1846767697]
+transform = Transform3D(0.81915206, 0.45198438, -0.35312894, 0, 0.6156615, 0.7880107, 0.57357645, -0.6455006, 0.5043204, 0, 0, 0)
+light_energy = 1.15
+shadow_enabled = true
+directional_shadow_mode = 0
+directional_shadow_max_distance = 60.0
+
+[node name="MapContext" type="Node" parent="Upscale/World/Map" unique_id=2021654724]
 script = ExtResource("2_jiamt")
 map_id = &"isoish_grid_demo"
 supports_height = true
 collision_node = NodePath("../Blocks")
 
-[node name="Floor" type="GridMap" parent="Upscale/World/Map" unique_id=37220979]
+[node name="Floor" type="GridMap" parent="Upscale/World/Map" unique_id=79562873]
 mesh_library = ExtResource("3_4q3m1")
 cell_size = Vector3(1, 1, 1)
 cell_center_y = false
@@ -87,7 +93,7 @@ data = {
 "cells": PackedInt32Array(1, 1, 3, 2, 1, 2, 3, 1, 3, 4, 1, 2, 5, 1, 3, 6, 1, 2, 7, 1, 3, 8, 1, 2, 9, 1, 3, 10, 1, 2, 11, 1, 3, 12, 1, 2, 13, 1, 3, 14, 1, 2, 15, 1, 3, 16, 1, 2, 17, 1, 3, 18, 1, 2, 1, 2, 1, 2, 2, 0, 3, 2, 1, 6, 2, 0, 7, 2, 1, 8, 2, 0, 9, 2, 1, 11, 2, 1, 12, 2, 0, 13, 2, 1, 14, 2, 0, 15, 2, 1, 16, 2, 0, 17, 2, 1, 18, 2, 0, 1, 3, 3, 2, 3, 2, 3, 3, 3, 6, 3, 2, 7, 3, 3, 8, 3, 2, 9, 3, 3, 11, 3, 3, 12, 3, 2, 13, 3, 3, 14, 3, 2, 17, 3, 3, 18, 3, 2, 1, 4, 1, 2, 4, 0, 3, 4, 1, 4, 4, 0, 5, 4, 1, 6, 4, 0, 7, 4, 1, 8, 4, 0, 9, 4, 1, 11, 4, 1, 12, 4, 0, 13, 4, 1, 14, 4, 0, 17, 4, 1, 18, 4, 0, 1, 5, 3, 2, 5, 2, 5, 5, 3, 6, 5, 2, 7, 5, 3, 8, 5, 2, 9, 5, 3, 11, 5, 3, 12, 5, 2, 13, 5, 3, 14, 5, 2, 15, 5, 3, 16, 5, 2, 17, 5, 3, 18, 5, 2, 1, 6, 1, 2, 6, 0, 5, 6, 1, 6, 6, 0, 7, 6, 1, 8, 6, 0, 9, 6, 1, 10, 6, 0, 11, 6, 1, 12, 6, 0, 17, 6, 1, 18, 6, 0, 1, 7, 3, 2, 7, 2, 3, 7, 3, 4, 7, 2, 5, 7, 3, 6, 7, 2, 7, 7, 3, 8, 7, 2, 9, 7, 3, 10, 7, 2, 11, 7, 3, 12, 7, 2, 13, 7, 3, 14, 7, 2, 15, 7, 3, 16, 7, 2, 17, 7, 3, 18, 7, 2, 1, 8, 1, 2, 8, 0, 3, 8, 1, 4, 8, 0, 7, 8, 1, 8, 8, 0, 9, 8, 1, 11, 8, 1, 12, 8, 0, 13, 8, 1, 14, 8, 0, 15, 8, 1, 16, 8, 0, 17, 8, 1, 18, 8, 0, 1, 9, 3, 2, 9, 2, 3, 9, 3, 4, 9, 2, 7, 9, 3, 8, 9, 2, 9, 9, 3, 11, 9, 3, 12, 9, 2, 13, 9, 3, 16, 9, 2, 17, 9, 3, 18, 9, 2, 1, 10, 1, 2, 10, 0, 3, 10, 1, 4, 10, 0, 5, 10, 1, 6, 10, 0, 7, 10, 1, 8, 10, 0, 9, 10, 1, 11, 10, 1, 12, 10, 0, 13, 10, 1, 16, 10, 0, 17, 10, 1, 18, 10, 0, 1, 11, 3, 2, 11, 2, 3, 11, 3, 4, 11, 2, 5, 11, 3, 6, 11, 2, 7, 11, 3, 8, 11, 2, 12, 11, 2, 13, 11, 3, 14, 11, 2, 15, 11, 3, 16, 11, 2, 17, 11, 3, 18, 11, 2, 1, 12, 1, 2, 12, 0, 3, 12, 1, 4, 12, 0, 5, 12, 1, 6, 12, 0, 7, 12, 1, 8, 12, 0, 9, 12, 1, 10, 12, 0, 11, 12, 1, 12, 12, 0, 13, 12, 1, 14, 12, 0, 15, 12, 1, 16, 12, 0, 17, 12, 1, 18, 12, 0)
 }
 
-[node name="Blocks" type="GridMap" parent="Upscale/World/Map" unique_id=2115011272]
+[node name="Blocks" type="GridMap" parent="Upscale/World/Map" unique_id=927570675]
 mesh_library = ExtResource("3_4q3m1")
 cell_size = Vector3(1, 1, 1)
 cell_center_y = false
@@ -95,78 +101,106 @@ data = {
 "cells": PackedInt32Array(0, 0, 5, 1, 0, 5, 2, 0, 5, 3, 0, 5, 4, 0, 5, 5, 0, 5, 6, 0, 5, 7, 0, 5, 8, 0, 5, 9, 0, 5, 10, 0, 5, 11, 0, 5, 12, 0, 5, 13, 0, 5, 14, 0, 5, 15, 0, 5, 16, 0, 5, 17, 0, 5, 18, 0, 5, 19, 0, 5, 0, 1, 5, 19, 1, 5, 0, 2, 5, 4, 2, 4, 5, 2, 4, 10, 2, 5, 19, 2, 5, 0, 3, 5, 4, 3, 4, 5, 3, 4, 10, 3, 5, 15, 3, 4, 16, 3, 4, 19, 3, 5, 0, 4, 5, 10, 4, 5, 15, 4, 4, 16, 4, 4, 19, 4, 5, 0, 5, 5, 3, 5, 5, 4, 5, 5, 10, 5, 5, 19, 5, 5, 0, 6, 5, 3, 6, 5, 4, 6, 5, 13, 6, 4, 14, 6, 4, 15, 6, 4, 16, 6, 4, 19, 6, 5, 0, 7, 5, 19, 7, 5, 0, 8, 5, 5, 8, 4, 6, 8, 4, 10, 8, 5, 19, 8, 5, 0, 9, 5, 5, 9, 4, 6, 9, 4, 10, 9, 5, 14, 9, 5, 15, 9, 5, 19, 9, 5, 0, 10, 5, 10, 10, 5, 14, 10, 5, 15, 10, 5, 19, 10, 5, 0, 11, 5, 9, 11, 4, 10, 11, 4, 11, 11, 4, 19, 11, 5, 0, 12, 5, 19, 12, 5, 0, 13, 5, 1, 13, 5, 2, 13, 5, 3, 13, 5, 4, 13, 5, 5, 13, 5, 6, 13, 5, 7, 13, 5, 8, 13, 5, 9, 13, 5, 10, 13, 5, 11, 13, 5, 12, 13, 5, 13, 13, 5, 14, 13, 5, 15, 13, 5, 16, 13, 5, 17, 13, 5, 18, 13, 5, 19, 13, 5)
 }
 
-[node name="Actors" type="Node3D" parent="Upscale/World/Map" unique_id=1644765824]
+[node name="Actors" type="Node3D" parent="Upscale/World/Map" unique_id=1936012918]
 
-[node name="Player" parent="Upscale/World/Map/Actors" unique_id=259822946 instance=ExtResource("4_4yn8y")]
+[node name="Player" parent="Upscale/World/Map/Actors" unique_id=1962074185 instance=ExtResource("4_4yn8y")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 7.5)
 
-[node name="Collision" parent="Upscale/World/Map/Actors/Player" index="0" unique_id=654672329]
-shape = SubResource("CapsuleShape3D_0anda")
+[node name="Actor" parent="Upscale/World/Map/Actors/Player" index="1"]
+actor_id = &"player"
 
-[node name="Sprite" parent="Upscale/World/Map/Actors/Player" index="2" unique_id=705023487]
+[node name="Motion" parent="Upscale/World/Map/Actors/Player/Actor" index="1"]
+publishes_pulse = true
+
+[node name="Brain" type="Node" parent="Upscale/World/Map/Actors/Player/Actor" index="3" unique_id=139118840]
+script = ExtResource("5_ubx1w")
+profile = ExtResource("15_nu3qy")
+
+[node name="Sprite" parent="Upscale/World/Map/Actors/Player" index="2"]
 frame = 1
 
-[node name="Shadow" parent="Upscale/World/Map/Actors/Player" index="3" unique_id=1871739356]
+[node name="Shadow" parent="Upscale/World/Map/Actors/Player" index="3"]
 process_priority = 100
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 7.5)
 top_level = true
 size = Vector3(0.7, 0.4, 0.7)
-texture_albedo = SubResource("ImageTexture_lk3x3")
+texture_albedo = SubResource("ImageTexture_y7j2v")
 modulate = Color(0, 0, 0, 0.55)
 
-[node name="Npc_10_7" parent="Upscale/World/Map/Actors" unique_id=1086510251 instance=ExtResource("12_6p7u4")]
+[node name="Npc_10_7" parent="Upscale/World/Map/Actors" unique_id=926035196 instance=ExtResource("4_4yn8y")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.5, 0, 7.5)
 
-[node name="Actor" parent="Upscale/World/Map/Actors/Npc_10_7" index="0" unique_id=886923640]
+[node name="Actor" parent="Upscale/World/Map/Actors/Npc_10_7" index="1"]
 actor_id = &"npc_10_7"
 
-[node name="Sprite" parent="Upscale/World/Map/Actors/Npc_10_7" index="1" unique_id=1692335591]
+[node name="Sprite" parent="Upscale/World/Map/Actors/Npc_10_7" index="2"]
+modulate = Color(0.65, 0.8, 1, 1)
 frame = 1
 
-[node name="Shadow" parent="Upscale/World/Map/Actors/Npc_10_7" index="2" unique_id=1455232038]
+[node name="Shadow" parent="Upscale/World/Map/Actors/Npc_10_7" index="3"]
 process_priority = 100
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.5, 0, 7.5)
 top_level = true
 size = Vector3(0.7, 0.4, 0.7)
-texture_albedo = SubResource("ImageTexture_17eat")
+texture_albedo = SubResource("ImageTexture_12pxd")
 modulate = Color(0, 0, 0, 0.55)
 
-[node name="Npc_7_4" parent="Upscale/World/Map/Actors" unique_id=797962578 instance=ExtResource("12_6p7u4")]
+[node name="Npc_7_4" parent="Upscale/World/Map/Actors" unique_id=784194929 instance=ExtResource("4_4yn8y")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 4.5)
 
-[node name="Actor" parent="Upscale/World/Map/Actors/Npc_7_4" index="0" unique_id=886923640]
+[node name="Actor" parent="Upscale/World/Map/Actors/Npc_7_4" index="1"]
 actor_id = &"npc_7_4"
 
-[node name="Sprite" parent="Upscale/World/Map/Actors/Npc_7_4" index="1" unique_id=1692335591]
+[node name="Brain" type="Node" parent="Upscale/World/Map/Actors/Npc_7_4/Actor" index="3" unique_id=1247669565]
+script = ExtResource("6_q5ub7")
+commands = Array[Dictionary]([{
+"args": {
+"cell": [7, 0, 1]
+},
+"command": "move_to"
+}, {
+"args": {
+"seconds": 1.0
+},
+"command": "wait"
+}, {
+"args": {
+"cell": [7, 0, 4]
+},
+"command": "move_to"
+}, {
+"args": {
+"seconds": 1.5
+},
+"command": "wait"
+}])
+
+[node name="Sprite" parent="Upscale/World/Map/Actors/Npc_7_4" index="2"]
+modulate = Color(0.65, 0.8, 1, 1)
 frame = 1
 
-[node name="Shadow" parent="Upscale/World/Map/Actors/Npc_7_4" index="2" unique_id=1455232038]
+[node name="Shadow" parent="Upscale/World/Map/Actors/Npc_7_4" index="3"]
 process_priority = 100
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 4.5)
 top_level = true
 size = Vector3(0.7, 0.4, 0.7)
-texture_albedo = SubResource("ImageTexture_fyado")
+texture_albedo = SubResource("ImageTexture_yqpgd")
 modulate = Color(0, 0, 0, 0.55)
 
-[node name="Camera" type="Camera3D" parent="Upscale/World/Map" unique_id=1075605227]
+[node name="Camera" type="Camera3D" parent="Upscale/World/Map" unique_id=629880923]
 
-[node name="Rig" type="Node" parent="Upscale/World/Map/Camera" unique_id=1155509231]
+[node name="Rig" type="Node" parent="Upscale/World/Map/Camera" unique_id=1370895803]
 script = ExtResource("13_oh435")
 upscale_path = NodePath("../../../..")
 follow_target = &"player"
 
-[node name="Input" type="Node" parent="Upscale/World/Map" unique_id=1527132148 node_paths=PackedStringArray("camera_rig")]
-script = ExtResource("14_8uagk")
-profile = ExtResource("15_nu3qy")
-camera_rig = NodePath("../Camera/Rig")
+[node name="HUD" type="CanvasLayer" parent="." unique_id=1589959749]
 
-[node name="HUD" type="CanvasLayer" parent="." unique_id=761899660]
-
-[node name="Label" type="Label" parent="HUD" unique_id=204470886]
+[node name="Label" type="Label" parent="HUD" unique_id=367095980]
 offset_left = 6.0
-offset_top = 226.0
-offset_right = 6.0
-offset_bottom = 226.0
+offset_top = 191.0
+offset_right = 7.0
+offset_bottom = 208.0
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
