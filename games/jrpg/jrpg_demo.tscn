@@ -77,9 +77,6 @@ position = Vector2(232, 152)
 [node name="Actor" parent="Actors/Player" index="0"]
 actor_id = &"player"
 
-[node name="Motion" parent="Actors/Player/Actor" index="1"]
-publishes_pulse = true
-
 [node name="Brain" type="Node" parent="Actors/Player/Actor" index="3" unique_id=1224347219]
 script = ExtResource("5_irolo")
 profile = ExtResource("14_eih3y")

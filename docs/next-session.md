@@ -128,20 +128,83 @@ jumping, and none of the vertical half may reach it.
 
 ---
 
-## 1. Answer four questions first
+## 1. The four questions — answered 2026-09-14
 
-Stage B needs these, and answering them first makes it one pass instead of two. Every one
-has a recommendation on file, so "yes" to all four is a complete answer.
+All four are decided and in [solved-questions.md](solved-questions.md). **Stage B is
+unblocked.**
 
-| # | Question | Recommendation |
+| # | Question | Answer |
 | --- | --- | --- |
-| 11 | Is monster AI authored as event graphs? | Yes, with routes carrying the common cases |
-| 6 | Does turning in place open a round? | No — it changes no cell |
-| 7 | Does bumping a wall open a round? | No, plus an explicit "wait one step" input |
-| 9 | Does scripted player movement pulse? | No — opt-in `pulse: true` on move commands |
+| 6 | Does turning in place open a round? | **No** — but it emits `EventBus.actor_turned` |
+| 7 | Does bumping a wall open a round? | **No** — but it emits `EventBus.actor_blocked`, plus a "wait one step" input |
+| 9 | Does scripted player movement pulse? | **No** — opt-in `pulse: true` per move command |
+| 11 | Is monster AI authored as event graphs? | **Yes**, plus reusable named routes |
 
-11 is the one worth actual thought: it sets how much of stage C must be right before game 1
-is playable. The other three are gameplay levers.
+**The common thread in 6 and 7 is worth carrying into stage B:** *opening no round is not the
+same as being silent.* `actor_turned` and `actor_blocked` are triggers — published always, so
+they can be observed but nothing depends on them to drive anything.
+
+**Revised the same day, and worth reading before touching any of this: the whole actor-event
+set was redesigned around one rule.** *Every* actor event is now a trigger, not just 6 and
+7's two. `actor_stepped` was gated by a per-actor `publishes_pulse` export and by
+`ModeStack.suppresses_pulse()`; there was also a separate always-on `cell_entered` for
+listeners that needed every actor's step regardless. Both are deleted. `EventBus` now
+publishes **four** unconditional actor moments and their `player_*` shorthands:
+
+| Signal | Fires when |
+| --- | --- |
+| `actor_stepped` / `player_stepped` | A step commits — body on the new cell, sprite not yet |
+| `actor_settled` / `player_settled` | The sprite has caught up — the land-on-it moment |
+| `actor_blocked` / `player_blocked` | A step was refused (7) |
+| `actor_turned` / `player_turned` | Facing changed, with or without a step (6) |
+
+**Built with the answers, and green** — 232 stage A assertions, up from 205
+(`core/event_bus.gd`, `actors/actor.gd`, `actors/motion/grid_motion.gd`):
+
+- `Actor.set_facing` publishes `actor_turned` for every facing change — a listener meaning
+  "turned in place" checks the actor is not moving — and re-facing the way it already faces
+  publishes nothing, or the signal would fire every frame a brain re-asserts its direction.
+- The two `blocked.emit` sites in `GridMotion` now go through **`Actor.report_blocked`**, and
+  `_settle()` now goes through the new **`Actor.report_settled`**, so terrain refusals,
+  occupancy refusals and the settle moment each have one announcement point instead of one
+  per call site that can drift.
+- `actor_stepped` is unconditional: `publishes_pulse` and the `suppresses_pulse()` check
+  inside `_commit_step` are both deleted, and so is `cell_entered` — `actor_stepped` now does
+  its job. **What this means for question 9** (does scripted movement pulse — still no by
+  default): the answer is unchanged, but the enforcement is no longer built. It moves to
+  whatever consumes `actor_stepped` for AI purposes — `StepResponder`, below, must ask
+  `ModeStack.suppresses_pulse()` itself before reacting, and a `pulse: true` command needs a
+  way to tell it "react anyway" for that one step.
+- **`EventBus` carries four `player_*` shorthands** — one the `actor_*` signal without the id,
+  because most listeners only ever care about the player. Who the player is, is
+  **`Actor.is_player()`**, one definition; `AreaComponent`'s PLAYER filter had a second copy
+  of that test and now calls it. None of the four diverges from its `actor_*` counterpart any
+  more — there is no gating left at this layer for `player_stepped` to disagree with.
+- **One moment, one signal.** A `player_entered_cell` was written and deleted the same day: it
+  fired with `player_stepped`, always, and differed only in dropping `from`. Want just the
+  cell, take `(_from, to)` — Godot 4 will not connect a shorter callable, so the underscore is
+  required, and it is still cheaper than a second name for one event. This is the rule the
+  whole redesign applies at scale: a signal earns its place by covering a different *moment*,
+  never a different payload subset or listener subset of an existing one.
+
+**Still to build from these answers**, none of it stage A:
+
+- The **"wait one step" input** that 7 promises — an `InputIntent` field and an action, on the
+  stage B list below, not a stage C command.
+- `StepResponder` must gate itself against `ModeStack` — see above. This did not exist as a
+  requirement until the pulse gate moved out of `GridMotion`; it belongs to the
+  `StepResponder` bullet below rather than being treated as already covered.
+- `pulse: true` on move commands, and the responder-side hook it needs to reach — stage C,
+  when `EventCommand` exists.
+- **Shared routes** — stage C. `res://events/routes/<name>.route.json`, referenced as
+  `{"use": "patrol_ns"}`. **Two route modes now, not one**: `steps` is a list of relative
+  moves (`step_n`/`step_s`/`step_e`/`step_w`, plus `wait`/`face`) and is expected to be the
+  common case, since a patrol is naturally authored that way and a `steps` route needs no
+  anchor to be shared — reuse is free once the mode is relative. `waypoints` stays absolute
+  cells for the gizmo-dragged case and is the one that needs the anchor trick: a shared
+  `waypoints` template stores cells **relative to a spawn anchor**, not absolutely, or six
+  guards using one template all patrol the same strip. event-pages.md §3 and §3.2 have the
+  whole shape, including the three things the gizmo owes a shared `waypoints` route.
 
 **Question 8 — the round watchdog — was cut on 2026-09-13.** Nothing force-closes a round;
 the gate closes on its completion keys alone. Do not build one back in.
@@ -154,7 +217,10 @@ In order, because each puts the one before it under load:
 
 - [ ] **`StepResponder`** — per-actor `speed`/`credit`, driven by `EventBus.actor_stepped`.
       Resolution is **actor-at-a-time**: each responder drains its credit fully before the
-      next acts, iterating `MapContext.actors()` for the stable order.
+      next acts, iterating `MapContext.actors()` for the stable order. **Must check
+      `ModeStack.suppresses_pulse()` itself before reacting** — `actor_stepped` no longer
+      gates that at the emitter (§1 above), so a responder that skips this check reacts to
+      the player's cutscene steps exactly the bug question 9 was answered to prevent.
 - [ ] **`RoundGate`** — opens on a committed step, joins over completion keys, closes when
       all resolve, holds `InputIntent.step` only, and runs only where
       `ModeStack.rounds_active()`. With question 8 cut there is no timeout underneath it, so
@@ -164,6 +230,12 @@ In order, because each puts the one before it under load:
 - [ ] **`push`** — the test case for transactional occupancy. Block chains, a block shoved
       into a monster, and a block pushed over a hole. `Occupancy.commit` already takes the
       multi-cell set; this is the caller it was built for.
+- [ ] **Wire the "wait one step" input** — what question 7 promised in exchange for a wall
+      bump not passing time. `InputIntent.wait` already exists and nothing produces it: it
+      needs an action in `InputProfile` and a `GridMotion` path that opens a round and
+      resolves its key without moving. Cheap, and it belongs **before** `RoundGate` is called
+      done, because a round opened by a command that commits no step is the degenerate case
+      the join has to survive.
 - [ ] **Paint the JRPG map** — the `Pathing` layer exists, is wired to
       `MapContext.collision_node` and is empty, so that map is open ground and its walls are
       currently scenery. Painting it is a job for the tile editor; `1` in the demo shows the
@@ -218,6 +290,8 @@ decided:
   every frame once anything writes the transform per frame.
 - **`InputManager`'s target stack is untested**, and nothing produces an `InputIntent` yet —
   there is no per-frame producer wiring `InputProfile` to a controller. Stage B needs one.
+  `InputIntent.wait` is the field most obviously waiting on it: it is declared, documented,
+  and set by nothing.
 - **`SpriteView2D` has a loose fallback** hunting for an `AnimatedSprite2D` child; it should
   take the visual explicitly once a real actor scene exists.
 - **`move_to` is straight-line-then-stop**, and stops rather than repathing when blocked.
@@ -231,6 +305,10 @@ decided:
       launcher. Should become game 1's main scene when one exists.
 - [ ] **Vertical-face art at 14 texels per world unit**, not 16 — needed before wall art, not
       after (two-games.md §3.6).
+- [ ] **Editor tooling wishlist** (open-questions.md Cluster 6, added 2026-09-14) — scaling
+      area gizmos, a snap-to-cell shortcut on the root actor/event node, a static (non-
+      animated) route preview that flags wall hits, and mid-step/mid-command save resume.
+      None block a stage; noted so they aren't lost before the gizmo work starts.
 
 ---
 

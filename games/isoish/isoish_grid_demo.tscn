@@ -181,9 +181,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 7.5)
 [node name="Actor" parent="Upscale/World/Map/Actors/Player" index="1"]
 actor_id = &"player"
 
-[node name="Motion" parent="Upscale/World/Map/Actors/Player/Actor" index="1"]
-publishes_pulse = true
-
 [node name="Brain" type="Node" parent="Upscale/World/Map/Actors/Player/Actor" index="3" unique_id=139118840]
 script = ExtResource("5_ubx1w")
 profile = ExtResource("15_nu3qy")

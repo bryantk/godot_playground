@@ -8,17 +8,15 @@ class_name GridMotion extends MotionController
 ## half-cell state, and a cutscene that teleports an actor mid-step just cancels the
 ## tween.
 ##
-## Everything happens at commit: the occupancy commit, the step pulse, and any cell
-## trigger on the destination. One moment when a step happened, so monsters and traps
-## observe identical state. The land-on-it feel is [code]wait_settle[/code] joining
+## Everything happens at commit: the occupancy commit and [signal EventBus.actor_stepped],
+## fired unconditionally for every grid actor. One moment when a step happened, so
+## monsters and traps observe identical state - there is no per-actor flag or mode that
+## silences it; a listener that only wants some actors' steps filters them itself. The
+## land-on-it feel is [signal EventBus.actor_settled] / [code]wait_settle[/code] joining
 ## the key this returns, not a flag on the trigger.
 
 ## How many world directions a step may take. 4 for game 1.
 @export_range(4, 8, 4) var direction_count: int = 4
-
-## Does a committed step publish [signal EventBus.actor_stepped]? The player's does;
-## most NPCs' do not, or every patrolling guard would drive the monsters.
-@export var publishes_pulse: bool = false
 
 var _moving: bool = false
 var _step_key: String = ""
@@ -86,6 +84,10 @@ func step_duration(dir: Vector3i = Vector3i.ZERO) -> float:
 ## Facing changes even on a blocked step, deliberately: turning to look at the wall
 ## you walked into is what every game of this kind does, and turning changes no cell
 ## so it opens no round.
+##
+## Neither half of a refused step is silent, though: the turn publishes
+## [signal EventBus.actor_turned] and the refusal [signal EventBus.actor_blocked]
+## (open-questions 6 and 7). Published, not pulsed - they drive nothing.
 func step(dir: Vector3i) -> bool:
 	if _actor == null or dir == Vector3i.ZERO:
 		return false
@@ -104,7 +106,7 @@ func step(dir: Vector3i) -> bool:
 	var to := from + d
 
 	if not Passability.can_enter(ctx, to, _actor):
-		_actor.blocked.emit(to)
+		_actor.report_blocked(to)
 		return false
 
 	_commit_step(ctx, from, to)
@@ -174,7 +176,7 @@ func _commit_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> void:
 	# phasing actor's claim is simply never refused. Gating the call on the flag would
 	# lose the through actor from the cell it is standing on.
 	if not ctx.occupancy.commit_step(_actor.actor_id, from, to):
-		_actor.blocked.emit(to)
+		_actor.report_blocked(to)
 		return
 
 	# 2. The body snaps. It is authoritative from here on.
@@ -185,26 +187,27 @@ func _commit_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> void:
 	_moving = true
 	_step_key = _next_key("step")
 
-	# 3. The pulse, at commit rather than at settle, so monsters move *with* the
-	#    player rather than a beat behind.
-	if publishes_pulse and not ModeStack.suppresses_pulse():
-		EventBus.actor_stepped.emit(_actor.actor_id, from, to)
-
-	# 4. Cell triggers, at the same moment, so a trap and a monster see one world.
-	EventBus.cell_entered.emit(_actor.actor_id, to)
+	# 3. actor_stepped, at commit rather than at settle, so monsters move *with* the
+	#    player rather than a beat behind - for whichever listener chooses to act on it.
+	#    Unconditional: no per-actor flag, no mode-stack check. Anything that must not
+	#    react during a cutscene (a future StepResponder) asks ModeStack itself; the bus
+	#    does not decide that on every listener's behalf.
+	EventBus.actor_stepped.emit(_actor.actor_id, from, to)
+	if _actor.is_player():
+		EventBus.player_stepped.emit(from, to)
 	_actor.step_committed.emit(from, to)
 
-	# 5. Zones, asked of the physics server now that the body is where it is going.
+	# 4. Zones, asked of the physics server now that the body is where it is going.
 	#    Synchronous on purpose: an overlap signal would arrive next physics frame,
 	#    which is after this step has already been given its speed. A SpeedModifier
 	#    registering here is registered before the first frame of the step is advanced,
 	#    so the step that enters the mud is itself slow.
 	_actor.update_areas(AreaZone.zones_at(_actor, to))
 
-	# 6. The visual is pushed back and walks to zero under _process. This is the only
+	# 5. The visual is pushed back and walks to zero under _process. This is the only
 	#    thing that takes time, and its key is what wait_settle joins. Started last so
 	#    that a viewless actor - a headless test, or a settled teleport - cannot settle
-	#    the step before the pulse above has been published.
+	#    the step before actor_stepped above has been published.
 	var view := _actor.view()
 	if view == null:
 		_settle()
@@ -272,8 +275,11 @@ func _settle() -> void:
 		var key := _step_key
 		_step_key = ""
 		EventBus.command_finished.emit(key)
+	# actor_settled after command_finished resolves: wait_settle joins the step key
+	# above, and a listener reacting to the signal should see that join already able
+	# to have happened rather than racing it.
 	if _actor != null:
-		_actor.arrived.emit(_actor.cell())
+		_actor.report_settled(_actor.cell())
 
 	# A route in progress owns the actor, so it wins over whatever is holding a
 	# direction - otherwise player input would steer an actor mid-cutscene.

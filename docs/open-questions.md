@@ -8,8 +8,10 @@ Assembled 2026-09-07.
 when the answered half had grown larger than this one and reading the list no longer told
 you what was left to decide. A question moves there the moment it is answered and **keeps
 its number** — numbers are never reused and never renumbered, so "question 27" in a commit
-message or a docstring still finds exactly one thing. Clusters 2, 4 and 7 appear in both
-files: the heading stays here, where their open questions are.
+message or a docstring still finds exactly one thing. Cluster 4 and 7 appear in both files:
+the heading stays here, where their open questions are. **Clusters 2 and 3 are fully answered
+as of 2026-09-14** and so appear only in solved-questions.md now — a cluster heading moves
+out entirely once nothing under it is still open, the same rule a single question follows.
 
 Grouped by **when the answer is needed**, not by which document raised it. Several
 questions filed separately turn out to be the same decision seen from different angles —
@@ -18,8 +20,12 @@ those are marked as clusters, and answering the cluster answers all of them.
 Every question has a recommendation. If a recommendation is right, "yes" is a complete
 answer; the reasoning is in the linked section.
 
-**What is left: 5, 6, 7, 9** (control and rounds), **11–14** (how much lives in data),
-**15, 16, 18, 19** (authoring format), **22** (gizmo undo), **23, 25** (deferred to stage E).
+**What is left: 15, 16, 18, 19** (authoring format), **22** (gizmo undo), **23, 25**
+(deferred to stage E).
+
+Clusters 2 and 3 are fully answered as of 2026-09-14 — 5, 6, 7, 9, 11, 12, 13 and 14 were
+all decided that day, which unblocks both stage B and stage C's format design. Only cluster 4
+and the two stage-E deferrals remain.
 
 ---
 
@@ -36,59 +42,6 @@ There is no ✅ row any more — a decided question is not here. See
 
 Build stages referenced below are two-games.md §4.3: **A** shared spine, **B** game 1
 slice, **C** event system, **D** game 2, **E** saves/battle/modes.
-
----
-
-## Cluster 2 — Who owns control? 🟡
-
-*Stage A is built. 8, 10, 27 and 28 are answered and have moved to
-[solved-questions.md](solved-questions.md); what remains is 🟡 again.*
-
-5. **Camera ownership** (architecture.md §12.6) — does the camera follow the player by
-   default with events borrowing it, or is it always driven by whoever holds the exclusive
-   slot? **Recommend:** follow by default; events borrow and return, via `CameraRig.lock()`.
-6. **Does turning in place open a round?** (two-games.md §5.1) **Recommend no** — turning
-   changes no cell. Also a difficulty lever: "no" lets the player re-aim for free before a
-   fight.
-7. **Does bumping a wall open a round?** (two-games.md §5.1) **Recommend no**, plus an
-   explicit "wait one step" input, so passing time is a choice rather than a wall-bumping
-   trick.
-9. **Does scripted player movement pulse?** (two-games.md §5.1) **Recommend no** — pulses
-   suppressed outside `Field` mode, with an opt-in `pulse: true` on move commands. Another
-   consumer of `ModeStack`.
-
-**The synthesis, revised:** 5 and 9 are "does the event system take over, or borrow?"; 6 and
-7 are "what closes a round?"; 27 and 28 were "who arbitrates, and what is scoped to a map?".
-The general principle — *events borrow and must return; rounds close on cell changes only;
-`ModeStack` arbitrates and `MapContext` owns per-map state* — answers all of them. It used to
-read "rounds close on cell changes only, **with a hard time bound**"; the time bound was 8,
-and 8 was cut.
-
----
-
-## Cluster 3 — How much is data, how much is code? 🟡
-
-*Blocks: stage C. This is the project's central bet, and worth deciding as one thing.*
-
-11. **Is monster AI authored as event graphs?** (two-games.md §5.3) **Recommend yes**, with
-    routes (event-pages.md §3) carrying the common cases so graphs are only needed for
-    genuinely scripted monsters. Note this is a **smaller bet than first filed**:
-    event-pages.md §3's `toward`/`away`/`random` route modes already handle most monsters
-    with no graph at all, so "the format is expressive enough" is being asked of scripted
-    monsters only, not of every slime.
-12. **Sub-graphs** (architecture.md §12.2) — does `call` run another `.event.json`, and does
-    the callee share the caller's context or get its own? **Recommend yes, own context**,
-    with explicit argument passing.
-13. **Can a graph set its own page?** (event-pages.md §6.7) A `set_page` command is
-    convenient and undermines conditions being the single source of truth. **Recommend no.**
-14. **`GameState` scope** (architecture.md §12.3) — flags and ints only, or typed variables
-    with a declared manifest so editors can offer dropdowns? **Recommend the manifest**:
-    event-pages.md §2.2 conditions want a variable picker, and a manifest is what makes one
-    possible.
-
-**Note how 11 and 14 pull together:** the more behaviour lives in data, the more the editors
-need to know what the data *can* say. A manifest is cheap when written early and awkward to
-retrofit once graphs reference bare strings.
 
 ---
 
@@ -133,6 +86,28 @@ is the argument that settled it.
 This is the largest single unknown in the plan in terms of implementation risk — not because
 the decision is hard, but because Godot's editor undo is object-property shaped and the data
 here is a file. Worth timeboxing when it comes up.
+
+**Wishlist, added 2026-09-14** — not decisions, no recommendation needed, just noted so
+they're not lost before the tooling work starts:
+
+- **Area gizmos should scale with distance.** An `AreaZone`'s marker (§4.2's sibling problem
+  for `core/areas/`, not routes) is presumably a fixed-size icon or handle today; at a
+  Godot-editor-plugin level that reads as huge up close and invisible from across a large
+  map unless it scales with camera distance the way Godot's own light and audio gizmos do.
+- **A snap-to-cell button or shortcut on the root `Actor`/event node**, `@tool`-scripted, so
+  placing a guard or a chest by eye and then snapping it onto the grid is one action instead
+  of hand-typing a `Vector3i` into an inspector field or eyeballing pixel-perfect placement.
+- **A static route preview, not just the animated one.** §4.2's ghost-sprite preview
+  (event-pages.md) answers "what does walking it look like"; this is the cheaper, always-on
+  question — draw the path over the map while editing waypoints or a `steps` list (event-
+  pages.md §3), and colour a segment that would hit a wall, so a bad route is visible while
+  authoring it rather than only discovered on playtest or by running the animated preview.
+- **Resuming a save mid-step, mid-command.** Touches architecture.md §12 Q4 (save format),
+  which currently recommends the simpler "ambient events always restart from the top" —
+  this wishlist item is the harder version, capturing an `EventRunner` at whatever command it
+  was mid-executing (and a `GridMotion` mid-step) rather than only at a graph's top or a
+  round boundary. Worth re-opening Q4 with this in mind once stage C's runner exists, rather
+  than deciding it in the abstract now.
 
 ---
 

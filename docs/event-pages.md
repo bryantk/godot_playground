@@ -162,17 +162,49 @@ distinct from the graph, which is what it does when triggered.
 
 | Field | Values |
 | --- | --- |
-| `mode` | `fixed` (never moves), `waypoints`, `toward` / `away` (an actor id, default player), `random` |
-| `loop` | `none`, `cycle` (return to the first waypoint), `pingpong` |
-| `on_blocked` | `wait`, `skip` (drop that waypoint), `reverse`, `repath` (A\*) |
+| `mode` | `fixed` (never moves), `waypoints`, `steps`, `toward` / `away` (an actor id, default player), `random` |
+| `loop` | `none`, `cycle` (return to the first waypoint or the start of the step list), `pingpong` |
+| `on_blocked` | `wait`, `skip` (drop that waypoint or step), `reverse`, `repath` (A\*, `waypoints` only) |
 | `speed` | The speed class from two-games.md §3.1 — credit gained per pulse. `200` acts twice, `50` every other pulse. |
 | `waypoints` | `waypoints` mode only. `cell` is required; `face` and `wait` (in steps or seconds by profile) are optional per point. |
+| `steps` | `steps` mode only. A list of relative moves — see below. |
 
-**Absolute cells, not relative steps.** A `{"step": [1,0,0], "repeat": 3}` notation is more
-compact to type, but a waypoint list is what can be drawn as draggable handles in the
-viewport — and visual authoring is the requirement here. Recommend absolute cells as the
-single canonical stored form, with relative step lists accepted on parse and expanded
-immediately, so a pasted-in pattern still works but the editor only ever sees one shape.
+**Absolute cells for `waypoints`, relative for `steps` — two modes, not one field with two
+notations.** The first draft of this document proposed one canonical stored shape (absolute)
+with a relative-step notation accepted only as parser sugar. That was wrong for the case that
+turned out to matter most: **`step_n`, `step_s`, `step_e`, `step_w` (open-questions 11's
+route-reuse decision, 2026-09-14) are the single most common move command a route will ever
+use**, because a patrolling guard is naturally authored as "two steps north, one east, wait,
+two south" rather than as a list of world cells. Normalising that to absolute cells at parse
+time would defeat the exact reuse it exists for — a route stored as absolute cells describes
+one place, however it was typed.
+
+So there are properly two modes, kept separate rather than merged:
+
+- **`waypoints`** stays absolute cells, canonical, because it is what a gizmo drags in the
+  viewport (§4.2) — dragging a handle onto a specific cell is inherently about *that* cell.
+- **`steps`** is relative and stays relative — a list of single-cell moves, `wait`s and
+  `face`s, using the same terse tokens as the graph's move commands (architecture.md §7.2's
+  `mov n 2`-style sugar; a `steps` list is a sequence of those, one step per token):
+
+  ```json
+  "route": {
+    "mode": "steps",
+    "loop": "pingpong",
+    "on_blocked": "wait",
+    "speed": 100,
+    "steps": ["n", "n", "e", {"wait": 2}, "s", "s", "w"]
+  }
+  ```
+
+  A route in this mode never mentions a cell at all, which is what makes it **trivially
+  reusable**: the same `steps` list, referenced by six guards in six different rooms
+  (event-pages.md §3.2), patrols six different two-north-one-east-wait-two-south-west
+  shapes, each relative to wherever that guard spawned. No anchor, no offset, no expansion
+  step — the reuse §3.2 wanted from the anchor-relative `waypoints` scheme comes for free
+  from choosing the relative mode, and `steps` should be the one a route library reaches for
+  first. `waypoints`' anchor-relative sharing (§3.2) is the fallback for a patrol shape too
+  organic to type as steps and worth dragging instead.
 
 **`toward` / `away` / `random` modes are why the slime does not need a graph.** "Patrols
 normally, chases you once you steal the idol" is two pages with two routes and no logic at
@@ -182,7 +214,10 @@ all. That is a large share of an RPG's monsters handled by data alone.
 
 A route must not be a second execution engine. Recommend it **compiles to the same command
 stream `EventRunner` already executes** — a waypoint becomes `move_to`, a `wait` becomes
-`wait`, `toward` becomes a `move_to` recomputed each pulse.
+`wait`, `toward` becomes a `move_to` recomputed each pulse, and a `steps` entry compiles even
+more directly than a waypoint does: `step_n` is already the `step` command (architecture.md
+§7.3) by another name, so `steps` compiling to commands is closer to a direct read-through
+than a translation.
 
 Three things follow for free rather than needing design:
 
@@ -192,6 +227,59 @@ Three things follow for free rather than needing design:
 - A complex patrol that outgrows the route form can be rewritten as a graph with `goto`
   (as [patrol_guard.event.json](events/patrol_guard.event.json) does today) with no change
   in behaviour, because both end up as the same commands.
+
+### 3.2 Shared routes
+
+Decided 2026-09-14 alongside open-questions 11: **a route can live in a library and be used
+by many monsters**, rather than being copied into each one's page. Six guards patrolling the
+same shape is the ordinary case, and six copies is six places to edit when the shape changes.
+
+A route lives at `res://events/routes/<name>.route.json` — one file per route, so it diffs
+cleanly and the editor can list what exists — and a page references it by name:
+
+```json
+"route": {"use": "patrol_ns", "speed": 50}
+```
+
+`mode`, `loop`, `on_blocked` and `speed` may be overridden at the reference site. `waypoints`
+and `steps` may not be partially overridden: a page either uses the template's list or
+authors its own inline, because a half-overridden move list has no readable meaning.
+
+**`steps` is the mode a shared patrol should be written in, and it needs no anchor at all.**
+§3 settled this the same day as this section: a `steps` route is a list of relative moves —
+`step_n`, `step_s`, `step_e`, `step_w`, `wait`, `face` — and never mentions a cell, so it is
+reusable by construction. Six guards referencing one `steps` template each patrol their own
+two-north-one-east shape relative to wherever they spawned, with no expansion pass and
+nothing to resolve at parse beyond the ordinary `use` lookup. This is expected to be **most**
+shared routes, because a patrol is naturally authored this way in the first place — reuse
+falls out of picking the right mode, not out of machinery built to enable it.
+
+**`waypoints` can still be shared, and that case does need an anchor, because absolute cells
+are the one thing `steps` cannot express** — an organic path too irregular to type as steps,
+worth dragging in the gizmo instead. A shared `waypoints` template stores offsets from the
+instance's spawn cell, expanded at parse against that cell into the absolute form §3 expects
+everywhere else. Treat this as the fallback: reach for `steps` first, and reach for a shared
+`waypoints` template only when the shape genuinely has to be drawn.
+
+**`fixed`, `toward`, `away` and `random` have no waypoints or steps at all**, so sharing them
+is a bare named reference with nothing to resolve — and those modes carry a large share of an
+RPG's monsters on their own, before either move-list mode is even in play.
+
+**A reference resolves at parse.** The in-memory page holds a fully expanded route, never a
+`use` string, which is the same rule §2.1 and question 17 apply everywhere else: accept
+shorthand at the boundary, normalise immediately, keep one shape in memory. That is also why
+this is not the page inheritance question 17 rejected — that was implicit and positional;
+this is explicit, named and gone by the time anything reads it.
+
+**What the editor owes a shared route** (§4.2 gizmos), none of it optional past the second
+user:
+
+- **A user count, shown before editing.** Dragging one guard's handle moves all six, and the
+  author must know that before the drag, not after.
+- **"Make local copy".** The way the seventh guard stops being the sixth.
+- **A validator error for a missing `use` target**, at import. A typo'd route name would
+  otherwise read in-game as a monster that simply stands still — the hardest class of bug to
+  attribute, because nothing failed.
 
 ---
 
@@ -229,6 +317,15 @@ The Godot-specific shape of this, since it is the least familiar part:
 - **Preview:** a viewport button that walks a ghost sprite along the route at the configured
   speed. Cheap to build once routes compile to commands (§3.1) and worth far more than it
   costs — a patrol that looks right in a still image can still be wrong.
+- **A shared `steps` route has nothing to drag.** It is a token list, edited as text or a
+  small step-by-step list widget, not a viewport gizmo — the gizmo in this section is for
+  `waypoints` only. A `steps` route still wants a **preview**, walking the ghost from each
+  using actor's own spawn cell, since that is the only way to see the shape it produces.
+- **A shared `waypoints` route is drawn around the instance, edited in the template** (§3.2).
+  Handles sit at spawn-anchor plus offset for the actor being looked at, so the gizmo still
+  looks absolute; the drag writes the offset back to the `.route.json`, which moves every
+  other user. Hence the user count and "make local copy" that §3.2 asks for — they belong on
+  this surface, next to the handles, not in a separate inspector.
 
 **The real friction: undo, and where the data lives during editing.** Godot's
 `EditorUndoRedoManager` operates on object properties, but the source of truth here is an
@@ -298,6 +395,7 @@ which keeps the "what is at this cell?" lookup uniform.
 6. **One document per event, or a map-level bundle?** Per-event files are easier to diff and
    move between maps; a bundle avoids dozens of tiny files per map and lets the dock open a
    whole map's events at once.
-7. **Can a graph change its own page?** A `set_page` command is occasionally very convenient
-   and completely undermines conditions being the single source of which page is active.
-   Recommend against, but it is worth deciding rather than discovering.
+7. ~~Can a graph change its own page?~~ ✅ **No** (2026-09-14). There is no `set_page`
+   command; page selection stays driven purely by §2.3's conditions, checked rather than
+   assigned. A graph that wants a different page active sets the flag or variable the target
+   page's conditions test. solved-questions cluster 3, question 13.

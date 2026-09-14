@@ -357,8 +357,95 @@ yet written. `Occupancy`, `Passability`, `Actor` and `GridMotion` all change.*
 
 ## Cluster 2 — Who owns control?
 
-*The cluster heading is still in [open-questions.md](open-questions.md); 5, 6, 7 and 9 are
-open there. These four are answered.*
+*This cluster is fully answered as of 2026-09-14 — nothing is left open in
+[open-questions.md](open-questions.md).*
+
+5. ~~Camera ownership?~~ ✅ **The recommendation, plus a third mode.** The camera follows
+   the player by default; events borrow it and must return it, via `CameraRig.lock()`
+   (already built). Confirmed and extended: an event may also **follow something other than
+   the player** — `CameraRig.follow()` already takes any actor id, so this was mostly already
+   true, and a fixed point (a chest, a cutscene mark) is `CameraRig.move_to()`, listed in
+   architecture.md §12.6 as "to implement."
+
+   **The new half: the camera is sometimes locked to a smaller bounds than the map makes
+   available.** `RoomCamera2D.bounds` (already built) clamps the camera to the *map's* edges
+   — a Rect2, checked once per map. What this decision adds is a **second, narrower bound an
+   event can impose temporarily** — a boss arena inside a bigger room, a cutscene that must
+   not let the camera drift past a doorway — and it must follow the same borrow-and-return
+   shape as `lock()`, not overwrite `bounds` outright: `push_bounds(rect)` /
+   `pop_bounds()`, with `bounds` itself as the floor a `pop_bounds()` with an empty stack
+   returns to. Not yet built - `RoomCamera2D` has the single map-wide `bounds` field and
+   nothing stacked on top of it. When this is built, `CameraRig.lock()` and
+   `push_bounds()`/`pop_bounds()` are two independent things an event can hold, not one
+   combined "the event owns the camera" flag — a cutscene can narrow the bounds without
+   taking control of what the camera looks at, and vice versa.
+6. ~~Does turning in place open a round?~~ ✅ **No — but it emits an event** (2026-09-14).
+   Turning changes no cell, `actor_stepped` is about cells, and facing stays free: the player
+   re-aims before a fight without giving the monsters a move. The rider is the half worth
+   recording — **closing no round is not the same as being silent.** `Actor.set_facing`
+   publishes `EventBus.actor_turned(actor_id, from_dir, to_dir)`, so a guard's line of sight,
+   a statue puzzle or a graph condition can watch a turn without holding a reference to the
+   actor. It fires for **every** facing change, the one a step makes on its way out included;
+   a listener that means "turned in place" checks the actor is not moving. Emitting it from
+   the one choke point rather than from the turn-in-place path was deliberate — "the player is
+   now facing me" is the question being asked, and how the facing was acquired is the
+   listener's business, not the emitter's.
+7. ~~Does bumping a wall open a round?~~ ✅ **No — but it emits an event** (2026-09-14), the
+   same shape of answer as 6. Walking into a wall passes no time, so time cannot be passed by
+   the trick; the explicit "wait one step" input is how it is passed on purpose, and it stays
+   on the stage B list. `Actor.report_blocked` publishes
+   `EventBus.actor_blocked(actor_id, from, to)` — a thud, a locked-door bark, a tutorial
+   noticing the player shoving at the same wall. **Both refusals come through it**, the
+   terrain one and the occupancy one, which is why the two `blocked.emit` sites in
+   `GridMotion` were routed through a single method on `Actor` instead: a bump has one
+   announcement point, or the two kinds drift apart.
+
+**Revised 2026-09-14, the same day: the whole actor-event set was redesigned around one
+rule — every actor event is a trigger, and none is a clock.** The first pass (above) still
+had a two-tier system: `actor_stepped` was gated by a per-actor `publishes_pulse` export and
+by `ModeStack.suppresses_pulse()`, and a separate always-on `cell_entered` existed only to
+give traps an unconditional signal `actor_stepped` didn't provide. Both of those are now
+deleted. `EventBus` carries **four** unconditional actor moments — `actor_stepped`,
+`actor_settled` (new: the step's visual has caught up, the "land-on-it" half `actor_stepped`
+never covered), `actor_blocked`, `actor_turned` — and `cell_entered` is gone, because
+`actor_stepped` now does its job.
+
+**The gating question (9, below) did not disappear — it moved from the emitter to the
+listener.** `EventBus` stays a dumb hub with no state (architecture.md §7.7), so "should a
+cutscene's player steps drive the monsters" is no longer answered by `GridMotion` deciding
+whether to emit at all. It is answered by whatever listens *for AI purposes* — a future
+`StepResponder` asks `ModeStack.rounds_active()` / `suppresses_pulse()` itself before
+reacting to `actor_stepped` — while a HUD, footstep or music cue, which never needed gating
+in the first place, is completely unaffected by the change. `decision 10`'s "cell triggers
+fire at commit too" now means: a future `EventRunner` checking `MapContext.events_at()` also
+listens to the unconditional `actor_stepped`, not to a signal built specifically for it.
+
+**A rider on all four — the `player_*` shorthands** (2026-09-14). `EventBus` carries **four**
+of them beside the `actor_*` signals: `player_stepped`, `player_settled`, `player_blocked`
+and `player_turned`, each its `actor_*` counterpart with the id dropped. They exist because
+**most listeners only ever care about the player** — a HUD, a minimap, a footstep, a music
+cue, a been-here-before flag — and written out each of those is the same four lines: connect,
+compare the id, drop the argument. Four lines repeated thirty times is thirty chances to get
+the player test subtly wrong, so the test itself moved to one place: **`Actor.is_player()`**
+(a `PlayerBrain`, or the id `player` as the fallback for a map that places the player without
+one). `AreaComponent`'s PLAYER filter, which had its own copy of that expression, now asks
+there too. Now that no `actor_*` signal carries gating of its own, **every `player_*` form is
+exactly its `actor_*` counterpart filtered** — the divergence the first pass required
+(`player_stepped` ignoring pulse suppression that `actor_stepped` obeyed) no longer exists,
+because there is no suppression left at this layer to diverge from.
+
+**Four, not five — `player_entered_cell` was written and then deleted the same day**, and
+the rule it leaves behind is worth more than the signal was: *one moment, one signal.* It
+fired at the same instant as `player_stepped`, under the same conditions, always in the same
+pair, and differed only in carrying the destination without the origin. That is a **payload
+preference**, and a listener expresses one with an underscore —
+`func _on_player_stepped(_from: Vector3i, to: Vector3i)` — since Godot 4 refuses a callable
+with fewer parameters than the signal has (verified: it logs
+*"Method expected 1 argument(s), but called with 2"* and silently drops the call, so the
+underscore is not optional). One unused parameter is a smaller cost than a second name for
+the same event. This is the rule the whole redesign above applies at a larger scale: a second
+signal earns its place only by covering a genuinely different moment, never a different
+subset of the same moment's payload or a different subset of the same moment's listeners.
 
 8. ~~Round watchdog timeout~~ ✅ **Cut, 2026-09-13 — there is no watchdog.** The question was
    "what maximum round duration force-closes the gate", and the answer is that nothing does.
@@ -372,6 +459,30 @@ open there. These four are answered.*
     than moved into page settings; the land-on-it case is a `wait_settle` command at the top
     of the trigger's own graph, which is `wait_for` against the step's existing completion
     key. One ordering, one default, one fewer knob to validate.
+    **Revised 2026-09-14:** "the step pulse" is no longer a separate thing from "cell
+    triggers" — both read as `EventBus.actor_stepped`, unconditional, since `cell_entered`
+    is deleted (cluster 2 rider, above). The land-on-it side of this decision now has its
+    own signal too: `EventBus.actor_settled` fires when the sprite catches up, which is what
+    `wait_settle` was already joining internally and is now also a public moment.
+9. ~~Does scripted player movement pulse?~~ ✅ **No by default, and the opt-in is per
+   command** (2026-09-14). A cutscene that walks the player past a room of monsters must not
+   drive them, so pulses are suppressed outside `Field` mode, with an opt-in `pulse: true`
+   argument on a move command, defaulting false, for the rare scripted sequence that wants
+   monsters reacting while the player is driven. Opt-in per command rather than a mode: a
+   chase sequence usually wants the pulse on two commands out of forty, and a pulsing *mode*
+   would make the author remember to leave it.
+   **Revised the same day: where this is enforced moved.** The first pass built the
+   suppression as a `ModeStack.suppresses_pulse()` check inside `GridMotion._commit_step`,
+   gating `EventBus.actor_stepped` itself. That check is gone — `actor_stepped` is
+   unconditional now (cluster 2 rider, above) — so the decision here is unchanged but is no
+   longer self-enforcing at the emitter. It is stage C's to build: a `StepResponder` (or
+   whatever reacts to `actor_stepped` for AI purposes) must itself check
+   `ModeStack.suppresses_pulse()`, and a `pulse: true` command needs a way to tell it "react
+   anyway" for this one step - an argument the responder reads, not a flag the bus carries.
+   `publishes_pulse` - the per-actor export that answered "whose steps count as a pulse at
+   all" - is deleted along with the mechanism it belonged to; every grid actor's steps are
+   visible on `EventBus` now; whether they *matter* to a responder is that responder's
+   question to ask.
 27. ~~Who owns "input is locked"?~~ ✅ **`ModeStack`**, built in stage A rather than F. Each
     mode declares whether it pulses, pauses physics, keeps the map loaded and **has rounds**;
     the round gate only holds where `rounds_active()`, so a cutscene entered mid-round no
@@ -384,6 +495,105 @@ open there. These four are answered.*
     map loaded, and teardown disposes both tables for free. Actors already reach their context
     by walking up the tree, so nothing above needed a new parameter.
     See [core/map_context.gd](../core/map_context.gd).
+
+---
+
+## Cluster 3 — How much is data, how much is code?
+
+*This cluster is fully answered as of 2026-09-14 — nothing is left open in
+[open-questions.md](open-questions.md).*
+
+11. ~~Is monster AI authored as event graphs?~~ ✅ **Yes** (2026-09-14) — the project's
+    central bet, taken. Monster behaviour is data: routes for the common cases, graphs for
+    genuinely scripted monsters, and no separate AI component to keep in step with the event
+    format. **And routes are reusable**, which is the part this answer added: one route
+    definition can be shared by many monsters instead of copied into each.
+
+    **Shared routes, and the one thing that makes them hard.** A route is referenced by name
+    from a library — `res://events/routes/<name>.route.json`, one file per route so it diffs
+    and the editor can list it — and the reference site may override the scalar fields:
+
+    ```json
+    "route": {"use": "patrol_ns", "speed": 50}
+    ```
+
+    `mode`, `loop`, `on_blocked` and `speed` override cleanly. **`waypoints` looked like the
+    problem, and turned out to have an easier sibling instead of a fix.** §3 of
+    [event-pages.md](event-pages.md) makes absolute cells canonical for `waypoints` because
+    absolute cells are what a gizmo drags — but a route shared by six guards in six rooms
+    cannot hold absolute cells, or all six patrol the same strip.
+
+    **The fix that shipped, the same day, is a second route mode rather than an exception
+    bolted onto the first.** `step_n` / `step_s` / `step_e` / `step_w` — a single relative
+    step, already the graph's `step` command by another name — turns out to be **the most
+    common move command a route will ever use**, because a patrol is naturally authored as
+    "two north, one east, wait, two south" and not as a list of world cells. A route in the
+    new `steps` mode is a list of exactly those tokens and never mentions a cell, so sharing
+    one needs no anchor, no per-instance expansion, nothing beyond the ordinary `use` lookup
+    — reuse falls out of the mode, not out of machinery built to enable it. `steps` is now
+    the mode a shared patrol reaches for first.
+
+    **`waypoints` keeps the anchor-relative scheme, demoted to the fallback.** A route
+    template in `waypoints` mode still stores its cells relative to an anchor, expanded
+    against each instance's spawn cell at parse — kept for the organic path too irregular to
+    type as steps and worth dragging instead. An inline (non-shared) route in either mode is
+    unaffected: `waypoints` stores absolute cells as always, and a `steps` list was already
+    relative with nothing to resolve.
+
+    **Most monsters never touch either mode's machinery.** `fixed`, `toward`, `away` and
+    `random` have no waypoints or steps at all, so sharing them is nothing but a named
+    reference — and those are the modes that carry a large share of an RPG's monsters before
+    `steps` is even in play.
+
+    **This is not page inheritance** (question 17, which was answered no). Inheritance there
+    meant implicit and positional — a page silently taking fields from the page before it.
+    A route reference is explicit, named, and **resolved at parse into a fully expanded
+    inline route**, so the in-memory page is still exactly one shape and cluster 4's boundary
+    rule holds: *accept shorthand at the boundary, normalise immediately.*
+
+    **Three things the editor owes this**, none of them optional once a route has more than
+    one user: a shared route must show **how many users it has** before it is edited, since
+    dragging one guard's handle moves six; a **"make local copy"** button, which is how the
+    seventh guard stops being the sixth; and a **validator check for a missing `use` target**
+    that fails at import rather than at runtime, because a typo'd route name would otherwise
+    read in-game as a monster that simply stands still.
+
+    The graph-side equivalent of this is question 12, below, and it lands consistent with
+    it: explicit, named, own context.
+12. ~~Sub-graphs — does `call` run another `.event.json`, own context or shared?~~ ✅ **Yes,
+    and own context — with the caller reachable through it** (2026-09-14). `call` runs a
+    whole other `.event.json`, and the callee's `GameState`-adjacent graph context is its
+    own, not the caller's — consistent with how a shared route (11, above) gets its own
+    resolved data rather than reading the reference site's. What the plain "own context"
+    recommendation was missing: a sub-graph is usually called *for* something specific to the
+    call site (which NPC asked, what item was involved), so **the callee's context carries a
+    `parent_context` key pointing back at the caller's**, rather than the two being sealed off
+    from each other. A condition or command inside the callee reaches an argument the caller
+    didn't bother re-passing via `parent_context.some_field`, while `GameState` itself — the
+    global flags and variables (14, below) — stays visible from anywhere regardless, since
+    it was never per-context to begin with. `parent_context` chains if `call` nests, the same
+    way a call stack would, so a graph three levels deep can still reach the outermost
+    caller's data by walking `parent_context.parent_context...` rather than everything being
+    re-passed at each hop.
+13. ~~Can a graph set its own page?~~ ✅ **No** (2026-09-14), as recommended. There is no
+    `set_page` command; page selection stays exactly what event-pages.md §2.3 already
+    describes — conditions are the single source of truth for which page is active, checked
+    (**"conditional validation"**) rather than imperatively assigned. A graph that wants a
+    different page active sets the flag or variable a page's `conditions` test and lets page
+    selection notice on its own, the same as a player's own actions would. This is what keeps
+    condition lists trustworthy: a page can always be identified by reading its
+    `conditions` alone, with no `set_page` call elsewhere in the project able to have
+    silently overridden that.
+14. ~~`GameState` scope — flags and ints, or a manifest?~~ ✅ **The manifest** (2026-09-14),
+    as recommended, with the type list settled: **bools and ints are what a common command
+    reads and writes** — a flag, a counter, a chapter number — and are the two types every
+    condition and command signature (event-pages.md §2.2) should assume by default. Strings,
+    floats, arrays and dictionaries are declarable too, for the cases that need them (an NPC's
+    remembered name, a percentage, a party roster), but are the exception a manifest entry
+    opts into rather than the common shape. The manifest is what event-pages.md §2.2's
+    variable picker reads from, and (11, above) is exactly why this got more pressing: a
+    shared route or graph template that takes an argument is asking for a declared, typed
+    variable, which is unavailable without this.
 
 ---
 

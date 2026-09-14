@@ -188,6 +188,17 @@ land-on-it feel is a `wait_settle` command inside the trigger's own graph rather
 `fire_on` flag on the trigger; architecture.md §5 has the detail and §7.6 there records
 `fire_on` being dropped rather than moved into page settings.
 
+**Revised 2026-09-14: `actor_stepped` is unconditional, and it is the only signal a cell
+trigger needs.** The mechanism above once meant "the player's step is gated to a pulse by
+`publishes_pulse` and `ModeStack.suppresses_pulse()`, and a separate always-on `cell_entered`
+exists for traps that need every actor's step regardless." Both the gate and the second
+signal are gone: `actor_stepped` now fires for **every** grid actor, on every step, always.
+A trap's `ActorStepped` trigger below reads it the same as ever; a monster's `StepResponder`
+below is now the thing responsible for asking `ModeStack` whether *it* should react, since
+the bus no longer decides that on any listener's behalf. architecture.md §7.7 has the full
+signal set, including `actor_settled` for the land-on-it half `wait_settle` already used
+internally.
+
 **The trigger.** A new `ActorStepped` trigger value in a page's `settings`
 (event-pages.md §4.3, which renames `EventSource` to `GameEvent`), with an actor filter
 defaulting to the player. Then a monster's behaviour is an ordinary event graph:
@@ -292,19 +303,38 @@ precisely why §3.5 separates `step` from the other intent fields — the gate i
 one field, not a push onto the input target stack.
 
 **Two design levers this exposes**, both genuine gameplay decisions rather than technical
-ones:
+ones. **Both decided 2026-09-14 — no, and both emit an event** (open-questions 6 and 7):
 
-- **Does turning in place open a round?** If yes, the player cannot re-aim for free before a
-  fight. If no, facing is free. Recommend no — turning does not change a cell, and
-  `actor_stepped` is about cells — but it is a real difficulty lever for puzzle design.
-- **Does bumping a wall open a round?** If yes, the player can pass time by walking into
-  walls, which some games make a deliberate mechanic. Recommend no, plus an explicit
-  "wait one step" input so passing time is a choice rather than a trick.
+- **Does turning in place open a round?** ✅ **No.** Turning changes no cell and
+  `actor_stepped` is about cells, so facing is free and the player re-aims before a fight
+  without giving the monsters a move.
+- **Does bumping a wall open a round?** ✅ **No**, plus an explicit "wait one step" input, so
+  passing time is a choice rather than a wall-bumping trick.
+
+**But neither is silent, and that distinction is the load-bearing half.** A thing that opens
+no round is not a thing nothing may observe: `EventBus.actor_turned` and
+`EventBus.actor_blocked` publish both moments, unconditionally — every actor event on
+`EventBus` is a trigger now, `actor_stepped` included (revised below). A guard's line of
+sight, a statue puzzle, a locked-door bark and a tutorial noticing the player shoving at a
+wall all want these; none of them wants a round.
 
 **Event-driven player movement should not pulse by default.** A cutscene that walks the
-player past monsters would otherwise drive them. Recommend pulses are suppressed outside
-`Field` mode (§3.8 owns this), with an opt-in `pulse: true` argument on move commands for
-the rare scripted sequence that wants monsters reacting.
+player past monsters would otherwise drive them. ✅ **Decided 2026-09-14:** an opt-in
+`pulse: true` argument on move commands, defaulting false, for the rare scripted sequence
+that wants monsters reacting. Per command rather than per mode — a chase sequence wants the
+pulse on two commands out of forty, and a pulsing mode is the kind of thing an author forgets
+to leave.
+
+**Revised the same day: `actor_stepped` no longer gates itself, so this suppression is no
+longer built where §3.1 first put it.** The original mechanism was a
+`ModeStack.suppresses_pulse()` check inside `GridMotion._commit_step`, which made
+`actor_stepped` fire only for the player, only outside a suppressing mode. That check, and
+the per-actor `publishes_pulse` export beside it, are both deleted: `actor_stepped` now fires
+for every grid actor on every step, always (§3.1 below). Nothing about the *decision* here
+changed — a cutscene still must not drive the monsters, and `pulse: true` is still the
+escape hatch — but the enforcement moves to whatever consumes `actor_stepped` for AI purposes
+(a future `StepResponder`), which checks `ModeStack` itself rather than relying on the bus to
+have already decided on its behalf.
 
 **Animation duration is now load-bearing, not cosmetic.** A fast monster taking two steps
 per pulse must fit both inside roughly one player step duration — otherwise being fast makes
@@ -717,16 +747,23 @@ would otherwise only show up as a puzzle that quietly stopped being solvable.
 
 1. ~~Mid-step pulse policy~~ — **decided:** input is gated until every blocking action in the
    round completes. See §3.1. Of its four follow-ons, the resolution order within a pulse is
-   now decided (actor-at-a-time, §3.1); turning in place, wall-bumping and whether scripted
-   movement pulses remain as recommendations in open-questions.md Cluster 2.
+   now decided (actor-at-a-time, §3.1), and so, on 2026-09-14, are the last three of them:
+   turning in place and wall-bumping open **no** round but publish an event each, and
+   scripted movement does **not** pulse unless a command opts in. §3.1, solved-questions
+   6, 7 and 9. Cluster 2 is down to camera ownership alone.
 2. ~~Does the pulse fire on step commit or on visual settle?~~ — **decided:** commit, and
    cell triggers fire there too. `fire_on` is dropped and `wait_settle` replaces it. §3.1,
    architecture.md §5.
-3. **Is monster AI authored as event graphs** (§3.1), or as a separate component with event
-   graphs only for scripted monsters? Graphs-for-everything is a large reuse win and a real
-   bet on the format; worth deciding deliberately rather than by default. Note that
-   event-pages.md §3's `toward`/`away`/`random` route modes already carry most monsters
-   without a graph, which makes this a much smaller bet than it first looked.
+3. ~~Is monster AI authored as event graphs?~~ — **decided 2026-09-14: yes.** Routes carry
+   the common cases and graphs carry the scripted ones; there is no separate AI component.
+   The answer added a requirement: **routes are reusable** — a named route in a library, used
+   by many monsters, with scalar overrides at the reference site. Reuse turned out to want a
+   second route mode: **`steps`**, a list of relative moves (`step_n`/`step_s`/`step_e`/
+   `step_w`) that is expected to be the common way a patrol gets authored and needs no anchor
+   to share, because it never mentions a cell. `waypoints` (absolute, gizmo-dragged) is the
+   fallback, and *that* mode's shared form stores cells **relative to a spawn anchor** rather
+   than absolutely, or every monster using it patrols the same strip. solved-questions 11 and
+   event-pages.md §3, §3.2.
 4. ~~Yaw stops and pitch for game 2~~ — **decided:** 4 stops at 90° and **pitch 30°**, giving
    a 16 × 8 px ground tile. Texel density is 16 px per tile horizontally, and §3.6 recommends
    14 texels per world unit on vertical faces so wall art is not resampled 14%. §3.6.

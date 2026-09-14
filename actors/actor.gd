@@ -167,6 +167,16 @@ func brain() -> Brain:
 	return _brain
 
 
+## Is this the player? A [PlayerBrain] is the real test; the id is the fallback for a
+## map where the player is placed without one (a cutscene-only scene, a test rig).
+##
+## [b]One definition, used everywhere[/b] - the [code]player_*[/code] signals on
+## [EventBus] and [AreaComponent]'s PLAYER filter both ask here. Two copies of this test
+## is how "the trap fires for the player but the music cue does not" happens.
+func is_player() -> bool:
+	return brain() is PlayerBrain or actor_id == &"player"
+
+
 ## [member motion_mode] with INHERIT resolved against the map's default.
 func effective_motion() -> MotionMode:
 	if motion_mode != MotionMode.INHERIT:
@@ -198,11 +208,38 @@ func facing() -> Vector3i:
 func set_facing(dir: Vector3i) -> void:
 	if dir == Vector3i.ZERO or dir == _facing:
 		return
+	var was := _facing
 	_facing = Space.quantise(Vector3(dir), facing_count)
+	if _facing == was:
+		return
 	var v := view()
 	if v != null:
 		v.set_facing(_facing)
 	facing_changed.emit(_facing)
+	EventBus.actor_turned.emit(actor_id, was, _facing)
+	if is_player():
+		EventBus.player_turned.emit(was, _facing)
+
+
+## A step was refused, on [param to]. The actor has not moved and is still on its own
+## cell. Both refusals - terrain and occupancy - come through here so there is one
+## place a bump is announced; see [signal EventBus.actor_blocked] for why a bump is
+## published but opens no round.
+func report_blocked(to: Vector3i) -> void:
+	var from := cell()
+	blocked.emit(to)
+	EventBus.actor_blocked.emit(actor_id, from, to)
+	if is_player():
+		EventBus.player_blocked.emit(from, to)
+
+
+## A step has settled: the sprite has caught up to the body on [param at]. The other
+## half of [signal step_committed] - see [signal EventBus.actor_settled].
+func report_settled(at: Vector3i) -> void:
+	arrived.emit(at)
+	EventBus.actor_settled.emit(actor_id, at)
+	if is_player():
+		EventBus.player_settled.emit(at)
 
 
 func is_moving() -> bool:

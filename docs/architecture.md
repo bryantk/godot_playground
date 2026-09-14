@@ -597,17 +597,74 @@ It stays a dumb signal hub with no state. Additions:
 
 ```gdscript
 signal command_finished(key: String)     # generic completion, mirrors dialogue_finished
-signal actor_stepped(actor_id: StringName, from: Vector3i, to: Vector3i)
 signal event_started(runner_id: String, exclusive: bool)
 signal event_finished(runner_id: String)
 signal map_changing(from_id: StringName, to_id: StringName)
 signal input_lock_changed(locked: bool)
+
+# What a grid actor did. Four moments, all triggers, all unconditional.
+signal actor_stepped(actor_id: StringName, from: Vector3i, to: Vector3i)
+signal actor_settled(actor_id: StringName, cell: Vector3i)
+signal actor_blocked(actor_id: StringName, from: Vector3i, to: Vector3i)
+signal actor_turned(actor_id: StringName, from_dir: Vector3i, to_dir: Vector3i)
+
+# The same four moments for the player alone, with no id to compare.
+signal player_stepped(from: Vector3i, to: Vector3i)
+signal player_settled(cell: Vector3i)
+signal player_blocked(from: Vector3i, to: Vector3i)
+signal player_turned(from_dir: Vector3i, to_dir: Vector3i)
 
 func wait_for_command(key: String) -> void   # same shape as the existing wait_for
 ```
 
 `dialogue_finished` stays as is; `say` already returns a key, so the `say` command needs
 no adapter.
+
+**Revised 2026-09-14: all four are triggers, and none is a clock.** The first version of
+this section had `actor_stepped` gated by a per-actor `publishes_pulse` flag and by
+`ModeStack.suppresses_pulse()` — the mechanism by which "does event-driven movement drive
+the monsters" (question 9) was enforced, at the emitter. Both are gone. `actor_stepped` now
+fires unconditionally, for every grid actor, on every step, and `cell_entered` — which used
+to exist purely to give traps an unconditional signal `actor_stepped` didn't provide — is
+deleted along with it, because `actor_stepped` now does that job itself.
+
+**The gating question did not disappear; it moved.** `EventBus` stays a dumb hub with no
+state, so it is no longer where "should this actually act" gets decided. That decision now
+belongs to whatever listens *for AI purposes* — a future `StepResponder` asks
+`ModeStack.rounds_active()` / `suppresses_pulse()` itself before reacting to a step, the same
+way a HUD, a footstep or a music cue was never gated in the first place and needed no change
+at all. One signal per moment; the consumer decides what the moment means to it, rather than
+the emitter deciding for every consumer at once.
+
+**The four, and what each is for:**
+
+- **`actor_stepped`** — the step committed. Fired once per cell entered, at commit, before
+  the visual has caught up. What lets a monster move *with* the player rather than a beat
+  behind, for whichever listener chooses to act on it.
+- **`actor_settled`** — the step's visual has caught up to the body: the sprite is on the
+  cell, any zone the actor stepped out of is now visually left too (`Actor.settle_areas`).
+  The "land-on-it" moment — a footfall, a camera nudge, the far side of a `wait_settle` join.
+- **`actor_blocked`** — the actor wanted a step and could not have it: the wall bump, from
+  either passability or occupancy. Opens no round (open-questions 7).
+- **`actor_turned`** — facing changed, whether as part of a step or a turn in place with no
+  step at all. Opens no round either way (open-questions 6).
+
+**The `player_*` half is shorthand, not a second mechanism** — the identical four moments
+with the id dropped, because most listeners only ever want the player and hand-rolling that
+filter thirty times means thirty copies of the player test. There is one copy:
+`Actor.is_player()`. Connect to the `actor_*` form or the `player_*` form for a given moment,
+never both, or a listener handles the player twice. Now that `actor_stepped` carries no
+gating of its own, `player_stepped` is exactly `actor_stepped` filtered — no divergence
+between the two forms is left to remember.
+
+**There are four shorthands, not five, and the missing one is the rule.** A
+`player_entered_cell` existed for an afternoon and was deleted: it fired at the same instant
+as `player_stepped`, under the same conditions, and differed only in carrying the destination
+without the origin. That is a payload preference, and a listener expresses one with an
+underscore — `func _on_player_stepped(_from: Vector3i, to: Vector3i)`, since Godot 4 refuses
+a callable with fewer parameters than the signal and drops the call at emit time. **One
+moment, one signal** — the rule this project applies to every one of these eight, including
+the ones added after this paragraph was written.
 
 ### 7.8 Input during events
 
@@ -735,18 +792,27 @@ directions** (game 1 is 4-way — §1), and `visual_offset`'s home (`ActorView` 
 1. **Terse command strings.** Keep `{"command": "mov n 2"}` as an accepted sugar form
    (§7.2), or drop it now that the graph editor is the primary authoring surface? Keeping
    it means an alias table and a second parse path to maintain.
-2. **Sub-graphs.** Should `call` run a whole other `.event.json` (common cutscene
-   fragments, shared shop logic), and if so, does the callee share the caller's context or
-   get its own?
-3. **`GameState` scope.** Flags and integer variables only, or typed variables with a
-   declared manifest so the graph editor can offer a dropdown instead of a text field?
+2. ~~**Sub-graphs.**~~ ✅ **Yes, own context, reachable through `parent_context`**
+   (2026-09-14). `call` runs a whole other `.event.json`; the callee gets its own context
+   rather than the caller's, but that context carries a `parent_context` key back to the
+   caller's, chaining across nested calls. solved-questions cluster 3, question 12.
+3. ~~**`GameState` scope.**~~ ✅ **The manifest** (2026-09-14), with bools and ints as the
+   common case a condition or command signature should assume by default; strings, floats,
+   arrays and dictionaries are declarable for the cases that need them. solved-questions
+   cluster 3, question 14.
 4. **Save format.** Does a save capture in-flight ambient runners, or are ambient events
    always restartable from the top? The second is much simpler and almost always enough.
+   **Kyle's 2026-09-14 tooling wishlist wants the harder version** — a save mid-step,
+   mid-command — noted in open-questions.md Cluster 6 rather than decided here, since
+   there is no `EventRunner` yet to capture. Revisit this recommendation once one exists.
 5. **`move_to` pathing.** Straight-line-then-stop, or A\* from the start? Recommend the
    former, with `path: "astar"` already in the schema so adding it later is not a format
    change. (The four-versus-eight half of this question is now settled — see §1.)
-6. **Camera ownership.** Does the camera follow the player by default with events
-   borrowing it, or is it always driven by whatever holds the exclusive slot?
+6. ~~**Camera ownership.**~~ ✅ **Follows the player by default; events borrow and return
+   via `CameraRig.lock()`** (2026-09-14) — plus a second, independent borrow: a temporary
+   bounds narrower than the map's own, via a `push_bounds()` / `pop_bounds()` not yet built
+   (`RoomCamera2D.bounds` is the map-wide floor it returns to). solved-questions cluster 2,
+   question 5.
 7. ~~**Who owns "input is locked", and what scope does `ActorRegistry` have?**~~ ✅ **Both
    answered in stage A** (open-questions 27 and 28): `ModeStack` arbitrates, and the registry
    lives on `MapContext`. The round gate runs only where `ModeStack.rounds_active()`, so a

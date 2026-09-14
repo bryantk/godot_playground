@@ -70,7 +70,7 @@ func applies_to(actor: Actor) -> bool:
 		return false
 	match affects:
 		Affects.PLAYER:
-			return actor.brain() is PlayerBrain or actor.actor_id == &"player"
+			return actor.is_player()
 		Affects.TARGET:
 			return actor.actor_id == target_id
 		_:

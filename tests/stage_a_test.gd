@@ -11,15 +11,34 @@ extends Node
 
 var _passed := 0
 var _failed := 0
-var _pulses: Array = []
-var _entered: Array = []
+var _steps: Array = []
+var _settles: Array = []
+var _turns: Array = []
+var _bumps: Array = []
+var _p_steps: Array = []
+var _p_settles: Array = []
+var _p_turns: Array = []
+var _p_bumps: Array = []
 
 
 func _ready() -> void:
 	EventBus.actor_stepped.connect(func (id: StringName, from: Vector3i, to: Vector3i) -> void:
-		_pulses.append([id, from, to]))
-	EventBus.cell_entered.connect(func (id: StringName, cell: Vector3i) -> void:
-		_entered.append([id, cell]))
+		_steps.append([id, from, to]))
+	EventBus.actor_settled.connect(func (id: StringName, cell: Vector3i) -> void:
+		_settles.append([id, cell]))
+	EventBus.actor_turned.connect(func (id: StringName, from: Vector3i, to: Vector3i) -> void:
+		_turns.append([id, from, to]))
+	EventBus.actor_blocked.connect(func (id: StringName, from: Vector3i, to: Vector3i) -> void:
+		_bumps.append([id, from, to]))
+
+	EventBus.player_stepped.connect(func (from: Vector3i, to: Vector3i) -> void:
+		_p_steps.append([from, to]))
+	EventBus.player_settled.connect(func (cell: Vector3i) -> void:
+		_p_settles.append(cell))
+	EventBus.player_turned.connect(func (from: Vector3i, to: Vector3i) -> void:
+		_p_turns.append([from, to]))
+	EventBus.player_blocked.connect(func (from: Vector3i, to: Vector3i) -> void:
+		_p_bumps.append([from, to]))
 
 	_run()
 
@@ -400,25 +419,40 @@ func _test_the_seam() -> void:
 	_ok(await _step(flat_actor, Vector3i(-1, 0, 0)), "and west again")
 	_eq(flat_actor.cell(), Vector3i(0, 0, 1), "in cell (0,0,1)")
 
-	_section("Step commit -- pulse and triggers together")
-	_pulses.clear()
-	_entered.clear()
+	_section("Step commit -- actor_stepped and actor_settled")
+	_steps.clear()
+	_settles.clear()
 	var player: Actor = flat.player
 	_ok(await _step(player, Vector3i(0, 0, -1)), "the player steps north")
-	_eq(_pulses.size(), 1, "one pulse fired")
-	_eq(_entered.size(), 1, "one cell trigger fired")
-	if _pulses.size() == 1 and _entered.size() == 1:
-		_eq(_pulses[0][2], _entered[0][1], "both name the same destination cell")
+	_eq(_steps.size(), 1, "actor_stepped fired once, at commit")
+	_eq(_settles.size(), 1, "actor_settled fired once, at settle")
+	if _steps.size() == 1 and _settles.size() == 1:
+		_eq(_steps[0][2], _settles[0][1], "both name the same destination cell")
 
-	# A cutscene suppresses the pulse but not the trigger -- the world still knows an
-	# actor entered a cell, the monsters just do not act on it.
-	_pulses.clear()
-	_entered.clear()
+	# actor_stepped is unconditional now - no per-actor flag, no mode check. A
+	# cutscene changes nothing about whether it fires; anything that must not react to
+	# one (a future StepResponder) asks ModeStack itself rather than relying on the bus
+	# to have already decided.
+	_steps.clear()
+	_settles.clear()
 	ModeStack.push(ModeStack.Mode.CUTSCENE)
 	_ok(await _step(player, Vector3i(0, 0, -1)), "the player steps during a cutscene")
-	_eq(_pulses.size(), 0, "no pulse during a cutscene")
-	_eq(_entered.size(), 1, "but the cell trigger still fires")
+	_eq(_steps.size(), 1, "actor_stepped still fires during a cutscene")
+	_eq(_settles.size(), 1, "and actor_settled still fires once it lands")
 	ModeStack.pop()
+
+	# Every grid actor, not only the player - the walker has no PlayerBrain and no
+	# special id, and still gets both signals. This is what retired the old
+	# publishes_pulse flag: there is no longer an actor whose steps are invisible to
+	# EventBus.
+	_steps.clear()
+	_settles.clear()
+	var walker: Actor = flat.actor
+	_ok(await _step(walker, Vector3i(0, 0, 1)), "a non-player actor steps")
+	_eq(_steps.size(), 1, "actor_stepped fires for it too")
+	_eq(_settles.size(), 1, "and actor_settled")
+
+	await _test_turn_and_bump(flat, player)
 
 	_section("Occupancy -- two actors cannot share a tile")
 	# The NPC sits at cell (3,0,0); walk the player into it.
@@ -433,6 +467,93 @@ func _test_the_seam() -> void:
 
 	flat.root.queue_free()
 	deep.root.queue_free()
+
+
+## Open-questions 6 and 7: turning in place and bumping a wall open no round, but neither
+## is silent. What is actually worth asserting is the *pair* - that the event fires, and
+## that the cell did not change - because the failure mode this guards against is someone
+## later making a bump commit a step to "make the signal easier to emit".
+##
+## The player shorthands ride along here: they are a filtered view of the same actor_*
+## moments, all four of them gated identically now that actor_stepped no longer has a
+## pulse flag to diverge on.
+func _test_turn_and_bump(map: Dictionary, player: Actor) -> void:
+	_section("Turn and bump -- published, but no round")
+
+	var ctx: MapContext = map.root_ctx
+	var before := player.cell()
+
+	_turns.clear()
+	_p_turns.clear()
+	_steps.clear()
+	player.set_facing(Vector3i(1, 0, 0))
+	_eq(_turns.size(), 1, "a turn in place publishes actor_turned")
+	_eq(_p_turns.size(), 1, "and player_turned, because this actor is the player")
+	if _turns.size() == 1:
+		_eq(_turns[0][2], Vector3i(1, 0, 0), "naming the new facing")
+	_eq(player.cell(), before, "and changes no cell")
+	_eq(_steps.size(), 0, "so no actor_stepped")
+
+	# Facing it already has is not a turn. Without this the signal fires every frame a
+	# brain re-asserts the same direction, which is most of them.
+	_turns.clear()
+	player.set_facing(Vector3i(1, 0, 0))
+	_eq(_turns.size(), 0, "re-facing the same way publishes nothing")
+
+	# The bump. A phantom blocker rather than a second Actor: Occupancy answers on ids,
+	# and what is under test is the refusal, not what is standing there.
+	var wall := player.cell() + Vector3i(1, 0, 0)
+	ctx.occupancy.place(&"blocker", wall)
+	_bumps.clear()
+	_p_bumps.clear()
+	_steps.clear()
+	var moved := player.motion().step(Vector3i(1, 0, 0))
+	_ok(not moved, "the step into an occupied cell is refused")
+	_eq(_bumps.size(), 1, "and publishes actor_blocked")
+	_eq(_p_bumps.size(), 1, "and player_blocked")
+	if _bumps.size() == 1:
+		_eq(_bumps[0][1], before, "from the cell the actor is still standing on")
+		_eq(_bumps[0][2], wall, "naming the cell that was refused")
+	_eq(player.cell(), before, "the bump moved nothing")
+	_eq(_steps.size(), 0, "a bump is no actor_stepped")
+	ctx.occupancy.release_actor(&"blocker")
+
+	_section("Turn and bump -- the player shorthands")
+
+	# Same moment, two signals, and the shorthand carries no id because that is the
+	# whole point of it.
+	_steps.clear()
+	_p_steps.clear()
+	_ok(await _step(player, Vector3i(0, 0, -1)), "the player steps north")
+	_eq(_p_steps.size(), 1, "player_stepped fired once")
+	if _p_steps.size() == 1 and _steps.size() == 1:
+		_eq(_p_steps[0][1], _steps[0][2], "and agrees with actor_stepped's destination")
+
+	# There used to be a divergence here - player_stepped ignoring pulse suppression
+	# while actor_stepped obeyed it. Both signals are unconditional now, so a cutscene
+	# changes nothing about either.
+	_steps.clear()
+	_p_steps.clear()
+	ModeStack.push(ModeStack.Mode.CUTSCENE)
+	_ok(await _step(player, Vector3i(0, 0, -1)), "the player steps during a cutscene")
+	_eq(_steps.size(), 1, "actor_stepped still fires during a cutscene")
+	_eq(_p_steps.size(), 1, "and so does player_stepped")
+	ModeStack.pop()
+
+	# An NPC is not the player, however loudly it moves - but it still gets actor_stepped
+	# and actor_turned, just not the player_* shorthand.
+	var npc: Actor = map.actor
+	_p_steps.clear()
+	_p_turns.clear()
+	_p_bumps.clear()
+	_steps.clear()
+	_turns.clear()
+	npc.set_facing(Vector3i(0, 0, -1))
+	_ok(await _step(npc, Vector3i(0, 0, -1)), "the walker steps and turns")
+	_eq(_turns.size(), 1, "actor_turned fires for the walker")
+	_eq(_steps.size(), 1, "actor_stepped fires for the walker")
+	_eq(_p_turns.size(), 0, "no player_turned for an NPC")
+	_eq(_p_steps.size(), 0, "no player_stepped for an NPC")
 
 
 ## A minimal map: a body, an Actor with an adapter, a grid controller and a view, plus
@@ -450,15 +571,18 @@ func _build_map(with_height: bool) -> Dictionary:
 	ctx.default_motion = Actor.MotionMode.GRID
 	root.add_child(ctx)
 
-	var walker := _build_actor(root, &"walker", with_height, Vector3i(0, 0, 0), ctx, false)
-	var player := _build_actor(root, &"player", with_height, Vector3i(6, 0, 6), ctx, true)
-	_build_actor(root, &"npc", with_height, Vector3i(3, 0, 0), ctx, false)
+	var walker := _build_actor(root, &"walker", with_height, Vector3i(0, 0, 0), ctx)
+	var player := _build_actor(root, &"player", with_height, Vector3i(6, 0, 6), ctx)
+	_build_actor(root, &"npc", with_height, Vector3i(3, 0, 0), ctx)
 
 	return {"root": root, "root_ctx": ctx, "actor": walker, "player": player}
 
 
+## Being the player is [method Actor.is_player] alone, decided by [param id] here (the
+## fallback path, with no [PlayerBrain] in this headless rig) - there is no longer a
+## per-motion flag to also set.
 func _build_actor(root: Node, id: StringName, with_height: bool, cell: Vector3i,
-		ctx: MapContext, pulses: bool) -> Actor:
+		ctx: MapContext) -> Actor:
 	var body: Node = Node3D.new() if with_height else Node2D.new()
 	body.name = str(id)
 	var centre := ctx.cell_centre(cell)
@@ -481,7 +605,6 @@ func _build_actor(root: Node, id: StringName, with_height: bool, cell: Vector3i,
 	var motion := GridMotion.new()
 	motion.name = "Motion"
 	motion.direction_count = 4
-	motion.publishes_pulse = pulses
 	actor.add_child(motion)
 
 	var view := ActorView.new()
