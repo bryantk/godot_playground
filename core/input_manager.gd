@@ -48,7 +48,7 @@ func _input(event: InputEvent) -> void:
 	if event.is_echo():
 		return
 
-	print("  ->%s %s" % [event.as_text(), "down" if event.is_pressed() else "up"])
+	#print("  ->%s %s" % [event.as_text(), "down" if event.is_pressed() else "up"])
 
 	if event is InputEventMouseButton:
 		return

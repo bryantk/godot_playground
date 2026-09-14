@@ -26,6 +26,20 @@ var _queue: Array[Vector3i] = []
 var _route_key: String = ""
 var _step_intent: Vector3i = Vector3i.ZERO
 
+## The step in flight, and how much of it is left, in cells: 1 at commit, 0 at settle.
+## The sprite's offset is this fraction of [member _step_back], so the remaining distance
+## is the state and the elapsed time is not - which is what lets the speed change mid-cell.
+var _step_from: Vector3i = Vector3i.ZERO
+var _step_to: Vector3i = Vector3i.ZERO
+var _step_back: Vector3 = Vector3.ZERO
+var _step_left: float = 0.0
+
+
+func _ready() -> void:
+	super()
+	# Only while a step is in flight. A map of standing NPCs should cost nothing.
+	set_process(false)
+
 
 func is_busy() -> bool:
 	return _moving or not _queue.is_empty()
@@ -52,8 +66,14 @@ func set_step_intent(dir: Vector3i) -> void:
 ##
 ## [param dir] of ZERO asks for the uncompensated duration, which is what a caller that
 ## just wants the nominal cadence means.
+##
+## Speed modifiers are included, so this is what a step in [param dir] would take right
+## now rather than what it would take on open ground. It is a prediction either way: the
+## step in flight is advanced frame by frame in [method _process] and re-reads the scale
+## every frame, so a modifier that arrives mid-cell changes the step this returned a
+## duration for.
 func step_duration(dir: Vector3i = Vector3i.ZERO) -> float:
-	var base := 1.0 / maxf(0.01, speed)
+	var base := 1.0 / maxf(0.01, speed * speed_scale(Vector3(dir)))
 	if dir == Vector3i.ZERO:
 		return base
 	var d := Vector3(dir)
@@ -167,36 +187,82 @@ func _commit_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> void:
 
 	# 4. Cell triggers, at the same moment, so a trap and a monster see one world.
 	EventBus.cell_entered.emit(_actor.actor_id, to)
+	_actor.step_committed.emit(from, to)
 
-	# 5. The visual is pushed back and tweens to zero. This is the only thing that
-	#    takes time, and its key is what wait_settle joins. Started last so that a
-	#    zero-duration view - a headless test, or a settled teleport - cannot settle
+	# 5. Zones, asked of the physics server now that the body is where it is going.
+	#    Synchronous on purpose: an overlap signal would arrive next physics frame,
+	#    which is after this step has already been given its speed. A SpeedModifier
+	#    registering here is registered before the first frame of the step is advanced,
+	#    so the step that enters the mud is itself slow.
+	_actor.update_areas(AreaZone.zones_at(_actor, to))
+
+	# 6. The visual is pushed back and walks to zero under _process. This is the only
+	#    thing that takes time, and its key is what wait_settle joins. Started last so
+	#    that a viewless actor - a headless test, or a settled teleport - cannot settle
 	#    the step before the pulse above has been published.
 	var view := _actor.view()
-	if view != null:
-		var back := ctx.cell_centre(from) - ctx.cell_centre(to)
-		var visual_key := view.apply_step_offset(back, step_duration(to - from))
-		if visual_key == "":
-			_settle()
-		else:
-			_await_visual(visual_key)
-	else:
-		_settle()
-
-
-func _await_visual(visual_key: String) -> void:
-	if visual_key == "":
+	if view == null:
 		_settle()
 		return
-	while true:
-		var finished: String = await EventBus.command_finished
-		if finished == visual_key:
-			break
-	_settle()
+
+	_step_from = from
+	_step_to = to
+	_step_back = ctx.cell_centre(from) - ctx.cell_centre(to)
+	_step_left = 1.0
+	view.set_step_offset(_step_back)
+	set_process(true)
+
+
+## The step in flight, advanced by distance rather than by elapsed time.
+##
+## [b]Why distance.[/b] The remaining fraction of a cell is the state; the speed is read
+## fresh every frame and only decides how much of it is spent this frame. A duration fixed
+## at commit - which is what a [Tween] is - cannot express an actor that slows down
+## halfway across a tile, so an actor stepping into mud would have finished that step at
+## its old speed and only slowed on the next one. This is also why [ActorView] no longer
+## owns the interpolation.
+func _process(delta: float) -> void:
+	if not _moving:
+		set_process(false)
+		return
+	if ModeStack.pauses_physics():
+		return
+
+	var d := Vector3(_step_to - _step_from)
+	var rate := maxf(0.0, speed) * speed_scale(d)
+	if d.length_squared() > 0.0:
+		# The same depth compensation the nominal duration uses, re-read each frame
+		# because the camera's yaw stop can change mid-step.
+		rate *= compensate(d).length() / d.length()
+	if rate <= 0.0:
+		# A scale of zero is an actor held in place mid-cell. Deliberate, and it stops
+		# here rather than being clamped to a crawl, because a zone that means "you
+		# cannot move" should mean it.
+		return
+
+	_step_left -= rate * delta
+	var view := _actor.view() if _actor != null else null
+
+	if _step_left <= 0.0:
+		_step_left = 0.0
+		if view != null:
+			view.set_step_offset(Vector3.ZERO)
+		_settle()
+		return
+
+	if view != null:
+		view.set_step_offset(_step_back * _step_left)
 
 
 func _settle() -> void:
 	_moving = false
+	set_process(false)
+
+	# The sprite is where the body is, so the zones the body left a step ago are now
+	# also visually left. This is the moment "completely exited" means.
+	if _actor != null:
+		_actor.settle_areas()
+
 	if _step_key != "":
 		var key := _step_key
 		_step_key = ""
@@ -257,7 +323,15 @@ func _line_to(target: Vector3i) -> Array[Vector3i]:
 	return out
 
 
+## Drop the step in flight and put the sprite on the body. The zones are re-asked rather
+## than carried over: a teleport can land anywhere, so the membership a half-finished step
+## was building is not evidence of anything.
 func _cancel_visual() -> void:
+	set_process(false)
+	_step_left = 0.0
 	var view := _actor.view() if _actor != null else null
 	if view != null:
 		view.cancel_step_offset()
+	if _actor != null:
+		_actor.update_areas(AreaZone.zones_at(_actor, _actor.cell()))
+		_actor.settle_areas()

@@ -47,11 +47,22 @@ func _check_brains(ctx: MapContext, player: Actor) -> void:
 
 	# The route walks itself with nobody touching the keyboard; the brainless one does
 	# not drift.
+	#
+	# Watched until it moves rather than sampled once after a fixed wait. A route is a
+	# loop of walks and waits, and the iso demo's longest wait is 1.5s - so a single
+	# sample taken 1.4s later can land wholly inside a wait and call a working patrol
+	# broken, which is exactly what it did. The window covers a whole cycle instead.
 	var was_routed := routed.cell()
 	var was_idle := idle.cell()
-	await get_tree().create_timer(1.4).timeout
-	_ok(routed.cell() != was_routed, "the routed NPC walked its list (%s -> %s)" % [
-		was_routed, routed.cell()])
+	var moved := false
+	var waited := 0.0
+	while waited < 5.0 and not moved:
+		await get_tree().create_timer(0.1).timeout
+		waited += 0.1
+		moved = routed.cell() != was_routed
+
+	_ok(moved, "the routed NPC walked its list (%s -> %s after %0.1fs)" % [
+		was_routed, routed.cell(), waited])
 	_ok(idle.cell() == was_idle, "the brainless NPC stayed put")
 
 
@@ -74,6 +85,55 @@ func _check_turn(player: Actor, dir_action: String) -> void:
 	await get_tree().process_frame
 
 
+## Every demo carries one example slow patch. What is checked here is the two ways an
+## authored zone fails [i]silently[/i] - both invisible in the editor, both leaving a shape
+## that simply never does anything:
+##
+## - a component parented so that it never found its zone, and
+## - an actor whose motion cannot reach the zone: grid actors resolve zones by a point
+##   query on [constant AreaZone.LAYER], free ones by the area's overlap signals, so a
+##   zone that is not monitorable is invisible to game 2 and one off the query layer is
+##   invisible to game 1.
+##
+## Whether the patch is in a sensible place, and whether the slowdown reads, is a thing to
+## be walked rather than asserted.
+func _check_zones(demo: Node, player: Actor) -> void:
+	var zones: Array[AreaZone] = []
+	_collect_zones(demo, zones)
+	_ok(not zones.is_empty(), "the demo has %d example zone(s)" % zones.size())
+
+	for zone in zones:
+		var area := zone.area()
+		_ok(area != null, "'%s' hangs off an Area2D/Area3D" % zone.name)
+		if area == null:
+			continue
+
+		_ok(int(area.get("collision_layer")) & AreaZone.LAYER != 0,
+			"'%s' is on the zone query layer" % zone.name)
+		_ok(bool(area.get("monitorable")), "'%s' is monitorable" % zone.name)
+
+		var components := 0
+		for node in area.get_children() + zone.get_children():
+			if node is AreaComponent:
+				components += 1
+				_ok((node as AreaComponent).zone() == zone,
+					"'%s' found its zone" % node.name)
+		_ok(components > 0, "'%s' carries %d component(s)" % [zone.name, components])
+
+	# The modifier must be able to answer for this demo's actor at all - a component that
+	# resolved nothing still returns 1.0 and would look identical to a zone with no
+	# modifier in it.
+	_ok(player.motion() != null and player.motion().speed_scale(Vector3(1, 0, 0)) > 0.0,
+		"the player's speed scale is answerable")
+
+
+func _collect_zones(node: Node, into: Array[AreaZone]) -> void:
+	if node is AreaZone:
+		into.append(node as AreaZone)
+	for child in node.get_children():
+		_collect_zones(child, into)
+
+
 func _check(path: String, label: String, walk: String, grid: bool) -> void:
 	print("  -- %s" % label)
 	var demo := (load(path) as PackedScene).instantiate()
@@ -91,13 +151,35 @@ func _check(path: String, label: String, walk: String, grid: bool) -> void:
 	var ctx := player.context()
 	_ok(ctx != null and ctx.has_actor(&"player"), "registered with the map context")
 
+	_check_zones(demo, player)
+
 	if grid:
 		_ok(player.effective_motion() == Actor.MotionMode.GRID,
 			"actor is INHERIT and the map resolves it to GRID")
 		_ok(ctx.occupancy.size() >= 1, "occupancy holds %d cells" % ctx.occupancy.size())
-		_ok(not Passability.can_enter(ctx, Vector3i(0, 0, 7), player)
-			or not Passability.can_enter(ctx, Vector3i(0, 0, 1), player),
-			"a border wall refuses entry (terrain data wired)")
+		var terrain := ctx.get_node_or_null(ctx.collision_node)
+		if terrain is GridMap:
+			_ok(not Passability.can_enter(ctx, Vector3i(0, 0, 7), player)
+				or not Passability.can_enter(ctx, Vector3i(0, 0, 1), player),
+				"a border wall refuses entry (terrain data wired)")
+		else:
+			# 2D collision is hand-painted. The count is reported rather than asserted:
+			# an unpainted map is open ground by design, so this cannot demand cells
+			# before anyone has painted them, but it does demand the layer be wired.
+			var layer := terrain as TileMapLayer
+			var painted: int = layer.get_used_cells().size() if layer != null else -1
+			_ok(painted >= 0, "a pathing layer is the collision node (%d cells painted)"
+				% painted)
+
+			# Whether any cell is painted is the author's business, but paint that
+			# refuses nothing is paint that is not wired up - a mask read back as OPEN
+			# everywhere would pass every other check in here silently.
+			var restricted := 0
+			for cell: Vector2i in layer.get_used_cells():
+				if Passability.directions(ctx, Space.as_v3i(cell)) != Passability.OPEN:
+					restricted += 1
+			_ok(painted == 0 or restricted > 0,
+				"%d painted cells refuse at least one side" % restricted)
 		await _check_brains(ctx, player)
 		await _check_turn(player, walk)
 

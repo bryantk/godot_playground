@@ -47,6 +47,10 @@ var _actor: Actor = null
 var _keys := 0
 var _view_basis: Basis = Basis.IDENTITY
 
+## Objects answering [code]scale_for(actor, dir) -> float[/code]. See
+## [method add_speed_provider].
+var _speed_providers: Array[Object] = []
+
 
 func _ready() -> void:
 	_actor = get_parent() as Actor
@@ -80,6 +84,46 @@ func set_view_basis(b: Basis) -> void:
 ## pushed a basis.
 func compensate(v: Vector3) -> Vector3:
 	return Space.compensate_depth(v, _view_basis, depth_compensation, max_depth_boost)
+
+
+# -- Speed modifiers ----------------------------------------------------------
+
+## Register something that scales this actor's speed while it lasts - a [SpeedModifier]
+## on a patch of mud, and later a status effect or an equipped item.
+##
+## [b]A provider, not a value, and that is the whole design.[/b] Nothing writes
+## [member speed], so nothing has to remember what it was and put it back: the modifier
+## is a thing that is asked, and removing it restores the actor by arithmetic rather than
+## by bookkeeping. Two consequences worth having: a route that sets its own speed mid-mud
+## is not clobbered when the mud ends, and a rule that depends on which way the actor is
+## facing can be answered honestly, because the question carries the direction.
+##
+## Providers are asked every frame, so a scale may change mid-cell.
+func add_speed_provider(p: Object) -> void:
+	if p != null and not _speed_providers.has(p):
+		_speed_providers.append(p)
+
+
+func remove_speed_provider(p: Object) -> void:
+	_speed_providers.erase(p)
+
+
+## Every provider's scale for a step in [param dir], multiplied together.
+##
+## Multiplicative rather than smallest-wins: two overlapping slow zones are slower than
+## either, which is what stacking mud on ice should do and what keeps the result
+## independent of the order the zones were entered in.
+func speed_scale(dir: Vector3) -> float:
+	var scale := 1.0
+	var stale := false
+	for p in _speed_providers:
+		if not is_instance_valid(p):
+			stale = true
+			continue
+		scale *= float(p.call("scale_for", _actor, dir))
+	if stale:
+		_speed_providers = _speed_providers.filter(is_instance_valid)
+	return maxf(0.0, scale)
 
 
 func _next_key(kind: String) -> String:

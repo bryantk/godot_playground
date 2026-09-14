@@ -5,7 +5,7 @@ class_name ActorView extends Node
 ##
 ## This exists because presentation is its own axis: game 2 is sprites in a 3D world,
 ## which neither the space axis nor the motion axis has anywhere to put. It is also
-## where the grid-step tween lands - [method apply_step_offset] rather than a
+## where the grid-step offset lands - [method set_step_offset] rather than a
 ## [SpaceAdapter] method - because the offset is a lie told to the eye, and keeping it
 ## off the adapter is what keeps the adapter thin.
 
@@ -13,24 +13,13 @@ class_name ActorView extends Node
 ## takes the first child, which is the normal arrangement.
 @export var visual_path: NodePath = NodePath()
 
-## How the step tween interpolates, and the default matters more than it looks.
-##
-## Easing out decelerates the sprite to a dead stop in the middle of every cell, so a
-## held direction reads as step-pause-step-pause rather than as walking - the steps are
-## back to back in time and still look separated, because the velocity hits zero at
-## each boundary. Constant velocity is what joins consecutive steps into continuous
-## motion, and it is what cell-stepping games have always done.
-##
-## Exported so a deliberate single step - a cutscene nudging an actor one tile - can
-## ease if that reads better there.
-@export var step_trans: Tween.TransitionType = Tween.TRANS_LINEAR
-@export var step_ease: Tween.EaseType = Tween.EASE_IN_OUT
-
 var _visual: Node = null
 var _offset: Vector3 = Vector3.ZERO
-var _tween: Tween = null
-var _keys := 0
 var _bound := false
+
+## Numbers the completion keys [method play] hands out. Subclasses use it; the step
+## offset no longer does, because it no longer finishes on its own.
+var _keys := 0
 
 
 ## Binding happens once, and [method _ready] must not redo it.
@@ -120,48 +109,31 @@ func play(_anim: StringName) -> String:
 	return ""
 
 
-# -- The step tween -----------------------------------------------------------
+# -- The step offset ----------------------------------------------------------
 
-## Push the visual back by [param back] and tween it to zero over [param duration].
-## The body has already snapped to the destination cell; this is the sprite catching
-## up.
+## How far behind its body the sprite currently is. Written every frame by
+## [GridMotion] while a step is in flight; the body has already snapped to the
+## destination cell, and this is the sprite catching up.
 ##
-## [param duration] is passed in rather than configured here because the controller
-## owns it: a fast monster taking two steps per pulse has to fit both inside roughly
-## one player step, so each action's time is derived from the step speed and the
-## actions taken this pulse. A view holding its own duration could disagree with that.
+## [b]The view does not own the clock.[/b] It used to: this was a [Tween] over a
+## duration handed in at commit. A tween's duration is fixed the moment it starts,
+## which made a speed change mid-cell impossible to express - an actor stepping onto
+## mud would finish the step at its old speed and only slow down on the next one. The
+## controller now advances the offset itself, at whatever speed the actor has [i]this
+## frame[/i], so a modifier that registers at commit slows the step that is entering
+## and one that unregisters mid-cell speeds up the rest of it.
 ##
-## Returns a completion key that resolves when the tween ends, which is what
-## [code]wait_settle[/code] joins on - or [code]""[/code] when nothing long-running
-## happened, since a key that has already fired is a key the caller can never catch.
-func apply_step_offset(back: Vector3, duration: float) -> String:
-	_offset = back
-	_write_offset()
-
-	if _tween != null and _tween.is_valid():
-		_tween.kill()
-
-	if duration <= 0.0 or not is_inside_tree():
-		_offset = Vector3.ZERO
-		_write_offset()
-		return ""
-
-	_keys += 1
-	var owner_name := str(get_parent().name) if get_parent() != null else "?"
-	var key := "view:%s:%d" % [owner_name, _keys]
-
-	_tween = create_tween()
-	_tween.tween_method(_set_offset, back, Vector3.ZERO, duration) \
-		.set_trans(step_trans).set_ease(step_ease)
-	_tween.finished.connect(func () -> void: EventBus.command_finished.emit(key))
-	return key
+## Nothing is interpolated here, so there is no easing to configure. Constant velocity
+## is what joins consecutive steps into continuous motion - a sprite that decelerated
+## to a stop in the middle of every cell reads as step-pause-step even when the steps
+## are back to back - and it is what cell-stepping games have always done.
+func set_step_offset(v: Vector3) -> void:
+	_set_offset(v)
 
 
 ## Drop the offset immediately - a cutscene that teleports an actor mid-step wants the
 ## sprite where the body is, not still sliding toward where it used to be going.
 func cancel_step_offset() -> void:
-	if _tween != null and _tween.is_valid():
-		_tween.kill()
 	_offset = Vector3.ZERO
 	_write_offset()
 

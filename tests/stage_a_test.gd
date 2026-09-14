@@ -36,6 +36,7 @@ func _run() -> void:
 	_test_mode_stack()
 	_test_pixel_pitch()
 	_test_profiles()
+	_test_pathing()
 	await _test_the_seam()
 
 	print("")
@@ -210,9 +211,9 @@ func _test_mode_stack() -> void:
 
 	ModeStack.push(ModeStack.Mode.CUTSCENE)
 	_ok(ModeStack.suppresses_pulse(), "a cutscene suppresses the pulse")
-	# The whole point of question 27: the watchdog must not run here, or it
-	# force-unlocks input while a runner is legitimately waiting on the player.
-	_ok(not ModeStack.rounds_active(), "a cutscene has no rounds, so no watchdog")
+	# The whole point of question 27: no round gate may run here, or it holds a step
+	# against a runner that is legitimately waiting on the player.
+	_ok(not ModeStack.rounds_active(), "a cutscene has no rounds, so no gate")
 
 	ModeStack.push(ModeStack.Mode.BATTLE)
 	_ok(ModeStack.keeps_map_loaded(), "battle keeps the field map resident")
@@ -498,3 +499,79 @@ func _near(got: float, want: float, what: String) -> void:
 	else:
 		_failed += 1
 		print("    FAIL  %s  (got %.4f, want %.4f)" % [what, got, want])
+
+
+# -- Pathing ------------------------------------------------------------------
+
+## Mask -> where that tile sits in Pathing.png, so a test can paint by meaning rather
+## than by atlas coordinate. Mirrors the custom data in jrpg_pathing.tres, and the two
+## disagreeing is itself something worth catching.
+const PATHING_TILES := {
+	0: Vector2i(0, 0), 6: Vector2i(1, 0), 14: Vector2i(2, 0), 12: Vector2i(3, 0),
+	5: Vector2i(0, 1), 7: Vector2i(1, 1), 15: Vector2i(2, 1), 13: Vector2i(3, 1),
+	10: Vector2i(0, 2), 3: Vector2i(1, 2), 11: Vector2i(2, 2), 9: Vector2i(3, 2),
+	8: Vector2i(0, 3), 1: Vector2i(1, 3), 4: Vector2i(2, 3), 2: Vector2i(3, 3),
+}
+
+const N := Passability.NORTH
+const E := Passability.EAST
+const S := Passability.SOUTH
+const W := Passability.WEST
+
+
+func _test_pathing() -> void:
+	_section("Passability -- the painted direction mask")
+
+	var root := Node2D.new()
+	var ctx := MapContext.new()
+	ctx.name = "MapContext"
+	ctx.cell_size = Vector3(16, 0, 16)
+	ctx.collision_node = ^"../Pathing"
+	root.add_child(ctx)
+
+	var layer := TileMapLayer.new()
+	layer.name = "Pathing"
+	layer.tile_set = load("res://games/jrpg/jrpg_pathing.tres")
+	root.add_child(layer)
+
+	var a := Vector3i(0, 0, 0)
+	var b := Vector3i(1, 0, 0)   # east of a
+	var c := Vector3i(0, 0, -1)  # north of a
+
+	# The atlas says what this test assumes it says.
+	_eq(PATHING_TILES.size(), 16, "every mask has exactly one tile")
+	_paint(layer, a, E | S)
+	_eq(Passability.directions(ctx, a), E | S, "a painted cell reads its mask back")
+
+	# Unpainted is open, which is what makes a half-painted map walkable.
+	_eq(Passability.directions(ctx, b), Passability.OPEN, "an unpainted cell is open")
+	_ok(Passability.allows_step(ctx, b, Vector3i(2, 0, 0)), "open to open is allowed")
+
+	# One side painted is enough: b was never touched, but a has no north flag.
+	_ok(not Passability.allows_step(ctx, a, c), "no north flag blocks the step north")
+	_ok(not Passability.allows_step(ctx, c, a), "and blocks it coming back the other way")
+	_ok(Passability.allows_step(ctx, a, b), "a's east flag and b's unpainted west agree")
+
+	# The target's own paint refuses it from that side.
+	_paint(layer, b, E | S)
+	_ok(not Passability.allows_step(ctx, a, b), "b has no west flag, so b refuses entry")
+	_paint(layer, b, E | W)
+	_ok(Passability.allows_step(ctx, a, b), "repainted with a west flag, b lets it in")
+
+	# A cell with nothing open is a wall from every side, including to a query that is
+	# not a step at all.
+	_paint(layer, b, 0)
+	_ok(not Passability.allows_step(ctx, a, b), "a blank tile is a wall")
+	_ok(not Passability.allows_step(ctx, Vector3i(9, 0, 9), b), "and to a distant query too")
+	_ok(Passability.allows_step(ctx, a, Vector3i(9, 0, 9)),
+		"a distant unpainted cell is still enterable")
+
+	# No layer at all: open ground, which is what a bare test scene relies on.
+	ctx.collision_node = NodePath()
+	_eq(Passability.directions(ctx, a), Passability.OPEN, "no pathing layer reads as open")
+
+	root.free()
+
+
+func _paint(layer: TileMapLayer, cell: Vector3i, mask: int) -> void:
+	layer.set_cell(Space.as_v2i(cell), 0, PATHING_TILES[mask])

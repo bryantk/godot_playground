@@ -7,11 +7,37 @@ class_name Passability
 ## physics-driven objects honest - a pushed crate, a door body, a temporary barrier -
 ## without making them author tile data. Free-movement actors skip 1 and 2 entirely
 ## and let physics do its job.
+##
+## [b]2D terrain is a hand-painted direction mask; 3D terrain is geometry.[/b] A 2D map
+## carries a [TileMapLayer] of pathing tiles, one per walkable cell, each saying which of
+## its four sides may be crossed - see [method directions]. A 3D map lets its colliders
+## and its [GridMap] answer. The split is deliberate: painting a tile per cell is how a
+## Lufia-style map is authored, and modelling a collider per doorway is how a 3D one is.
 
 ## Tile custom-data layer names read from a [TileMapLayer] or [GridMap]. Kept here so
 ## the strings are written once and the map author has one spelling to match.
-const DATA_PASSABLE := "passable"
+const DATA_PATHING := "pathing"
 const DATA_HEIGHT := "height"
+
+## Which sides of a cell may be crossed, as bit flags on the pathing tile. Binary
+## 1 / 10 / 100 / 1000, so a painted tile reads as a nibble.
+const NORTH := 1
+const EAST := 2
+const SOUTH := 4
+const WEST := 8
+
+## An unpainted cell. A map with no pathing layer at all is open ground, which is what
+## makes a bare test scene usable and what lets a map be painted a room at a time.
+const OPEN := NORTH | EAST | SOUTH | WEST
+
+## Cell deltas, in the order the flags are numbered. North is -Z, matching "up" on the
+## stick and the facing an actor spawns with.
+const STEPS: Array[Vector3i] = [
+	Vector3i(0, 0, -1),
+	Vector3i(1, 0, 0),
+	Vector3i(0, 0, 1),
+	Vector3i(-1, 0, 0),
+]
 
 
 static func can_enter(ctx: MapContext, cell: Vector3i, actor: Actor) -> bool:
@@ -24,7 +50,11 @@ static func can_enter(ctx: MapContext, cell: Vector3i, actor: Actor) -> bool:
 		push_warning("Passability: cell %s has a non-zero Y on flat map '%s'." % [cell, ctx.map_id])
 		return false
 
-	if not _terrain_allows(ctx, cell):
+	# The actor's own cell is the origin. Taken from the actor rather than passed in
+	# because every caller already asks "can *this actor* enter", and a directional rule
+	# needs to know which side it would be crossing from.
+	var from := actor.cell() if actor != null else cell
+	if not _terrain_allows(ctx, from, cell):
 		return false
 
 	if actor != null and actor.solid and not ctx.occupancy.is_free_for(cell, actor.actor_id):
@@ -33,23 +63,89 @@ static func can_enter(ctx: MapContext, cell: Vector3i, actor: Actor) -> bool:
 	return not _physics_blocks(ctx, cell, actor)
 
 
-## 1. Static terrain. [TileMapLayer] custom data in 2D, [GridMap] cell metadata or a
-## shape probe in 3D. A map with no data layer at all is open ground, which is what
-## makes a bare test scene usable.
-static func _terrain_allows(ctx: MapContext, cell: Vector3i) -> bool:
+## The sides of [param cell] that may be crossed, as [constant NORTH] etc. combined.
+##
+## An unpainted cell is [constant OPEN]: no pathing layer, no tile in it, or a tile that
+## carries no pathing data all read as open ground. Painting is therefore purely
+## subtractive, and a half-painted map is walkable everywhere it has not been touched
+## rather than walled off everywhere it has.
+static func directions(ctx: MapContext, cell: Vector3i) -> int:
+	if ctx == null or ctx.collision_node.is_empty():
+		return OPEN
+	var layer := ctx.get_node_or_null(ctx.collision_node) as TileMapLayer
+	if layer == null:
+		return OPEN
+
+	var tile_data: TileData = layer.get_cell_tile_data(Space.as_v2i(cell))
+	if tile_data == null:
+		return OPEN
+	var mask: Variant = tile_data.get_custom_data(DATA_PATHING)
+	return OPEN if mask == null else int(mask)
+
+
+## Is the one-cell step from [param from] to [param to] allowed by the paint?
+##
+## [b]Both cells have to agree, and that is the whole rule.[/b] The cell being left must
+## permit crossing the side it is leaving by, and the cell being entered must permit
+## crossing the side it is entered by - "the actor can move into the target cell, and the
+## target cell can move into the actor's".
+##
+## What that buys is that [b]a boundary painted from either side holds[/b]. Painting the
+## wall's own tile without its south flag blocks the step up into it even though the
+## floor tile below was never touched, so a map can be walled by painting only the walls
+## or only the floor, whichever is fewer tiles, and the two agree where they meet.
+##
+## The rule is therefore symmetric by construction: the same two flags are consulted in
+## both directions, so this scheme cannot express a ledge you may drop off but not climb.
+## That is what the event override is for when it arrives.
+##
+## A step that is not one cardinal cell - a diagonal, a teleport, a query about some
+## distant cell - has no side to cross, so it only asks whether the destination is
+## enterable at all. A cell painted with no flags is a wall.
+static func allows_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> bool:
+	var delta := to - from
+	var dir := STEPS.find(delta)
+	if dir < 0:
+		return directions(ctx, to) != 0
+
+	var out_flag := 1 << dir
+	var back_flag := 1 << ((dir + 2) % 4)
+	return (directions(ctx, from) & out_flag) != 0 \
+		and (directions(ctx, to) & back_flag) != 0
+
+
+## The cardinal directions [param dir] is heading in, as [constant NORTH] etc. combined.
+##
+## One cardinal for an axis-aligned direction, two for a diagonal, none for standing
+## still. The flags do double duty - a side of a cell in [method allows_step], a heading
+## here - because they are the same four directions and having them spelled twice is how
+## the two drift apart.
+static func cardinals(dir: Vector3) -> int:
+	var mask := 0
+	if dir.x > 0.0001:
+		mask |= EAST
+	elif dir.x < -0.0001:
+		mask |= WEST
+	if dir.z > 0.0001:
+		mask |= SOUTH
+	elif dir.z < -0.0001:
+		mask |= NORTH
+	return mask
+
+
+## 1. Static terrain. The hand-painted pathing layer in 2D; the [GridMap]'s own cells in
+## 3D, until 3D moves over to colliders entirely. A map with no data layer is open
+## ground.
+static func _terrain_allows(ctx: MapContext, from: Vector3i, to: Vector3i) -> bool:
 	if ctx.collision_node.is_empty():
 		return true
 	var layer := ctx.get_node_or_null(ctx.collision_node)
 
 	if layer is TileMapLayer:
-		var tile_data: TileData = (layer as TileMapLayer).get_cell_tile_data(Space.as_v2i(cell))
-		if tile_data == null:
-			return true
-		var passable: Variant = tile_data.get_custom_data(DATA_PASSABLE)
-		return true if passable == null else bool(passable)
+		return allows_step(ctx, from, to)
 
 	if layer is GridMap:
-		return (layer as GridMap).get_cell_item(cell) == GridMap.INVALID_CELL_ITEM
+		return (layer as GridMap).get_cell_item(to) == GridMap.INVALID_CELL_ITEM
 
 	return true
 

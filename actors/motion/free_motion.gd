@@ -113,7 +113,14 @@ func _physics_process(delta: float) -> void:
 
 	# Compensated after the speed multiply and before acceleration, so acceleration
 	# stays in honest world units and only the velocity it is chasing is stretched.
-	var wanted := compensate(desired * speed)
+	#
+	# Zone modifiers go in with the speed rather than into the velocity afterwards, so
+	# that walking into mud decelerates over the acceleration ramp instead of dropping
+	# the actor's speed in one frame. They are asked with the heading, so a zone that
+	# only slows northward movement answers a free actor the same way it answers a grid
+	# one - Passability.cardinals resolves a diagonal to the two cardinals it lies
+	# between.
+	var wanted := compensate(desired * speed * speed_scale(desired))
 	_velocity.x = move_toward(_velocity.x, wanted.x, acceleration * delta)
 	_velocity.z = move_toward(_velocity.z, wanted.z, acceleration * delta)
 	_velocity.y -= gravity * delta

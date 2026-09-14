@@ -1,0 +1,44 @@
+[gd_resource type="TileSet" format=3 uid="uid://6via8glhbs70"]
+
+[ext_resource type="Texture2D" uid="uid://cdnifl5pw8u42" path="res://resources/Pathing.png" id="1_pathing"]
+
+[sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_pathing"]
+texture = ExtResource("1_pathing")
+texture_region_size = Vector2i(32, 32)
+0:0/0 = 0
+1:0/0 = 0
+1:0/0/custom_data_0 = 6
+2:0/0 = 0
+2:0/0/custom_data_0 = 14
+3:0/0 = 0
+3:0/0/custom_data_0 = 12
+0:1/0 = 0
+0:1/0/custom_data_0 = 5
+1:1/0 = 0
+1:1/0/custom_data_0 = 7
+2:1/0 = 0
+2:1/0/custom_data_0 = 15
+3:1/0 = 0
+3:1/0/custom_data_0 = 13
+0:2/0 = 0
+0:2/0/custom_data_0 = 10
+1:2/0 = 0
+1:2/0/custom_data_0 = 3
+2:2/0 = 0
+2:2/0/custom_data_0 = 11
+3:2/0 = 0
+3:2/0/custom_data_0 = 9
+0:3/0 = 0
+0:3/0/custom_data_0 = 8
+1:3/0 = 0
+1:3/0/custom_data_0 = 1
+2:3/0 = 0
+2:3/0/custom_data_0 = 4
+3:3/0 = 0
+3:3/0/custom_data_0 = 2
+
+[resource]
+tile_size = Vector2i(32, 32)
+custom_data_layer_0/name = "pathing"
+custom_data_layer_0/type = 2
+sources/0 = SubResource("TileSetAtlasSource_pathing")

@@ -67,6 +67,17 @@ func body_test_move(_from: Vector3, _motion: Vector3) -> bool:
 	return false
 
 
+## Every zone collider covering [param world], on [constant AreaZone.LAYER].
+##
+## Here rather than above the adapter because a point query is one of the few things that
+## genuinely cannot be computed from [Vector3]s: the 2D and 3D physics servers take
+## different parameter objects and answer from different worlds. It is also synchronous,
+## which is the whole reason [GridMotion] can ask at commit and act on the answer in the
+## same frame.
+func areas_at(_world: Vector3) -> Array[Node]:
+	return []
+
+
 ## Applies [param velocity] for one frame and returns the motion actually achieved,
 ## so a caller can tell a blocked slide from a clean one without touching physics.
 func move_and_slide(_velocity: Vector3, _delta: float) -> Vector3:

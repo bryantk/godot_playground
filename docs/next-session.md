@@ -31,6 +31,33 @@ godot --headless --path . res://tests/demo_scenes_test.tscn
 It loads each demo, walks the player, and checks the nodes the demo scripts reach by
 `@onready` path still exist — which is the failure a rename in the editor causes.
 
+**Areas entered and exited landed 2026-09-13** — `core/areas/`, architecture.md §6.1,
+decisions 30–33. An `AreaZone` under an `Area2D`/`Area3D` reports four moments
+(entered / arrived / leaving / exited); `AreaComponent` children act on them;
+`SpeedModifier` is the first. Grid actors resolve zones by a **synchronous point query at
+commit**, not by overlap signals, which is what lets the step *entering* a slow tile be the
+slow one.
+
+```
+godot --headless --path . res://tests/areas_test.tscn
+```
+
+**Each demo carries one example patch**, marked in translucent blue so it can be seen as
+well as felt: jrpg cells 11–12 / 5–6 (north+south, ×0.8), and an east–west strip at
+x 3–6, z 7 in both iso demos (×0.5). `demo_scenes_test` checks the two ways an authored
+zone fails silently — a component that never found its zone, and a shape off the query
+layer or not monitorable.
+
+Two things to know before touching movement:
+
+- **The grid step's `Tween` is gone.** `GridMotion._process` walks the sprite offset to
+  zero, keeping remaining *distance*, so speed can change mid-cell.
+  `ActorView.apply_step_offset` is now `set_step_offset`, and `step_trans` / `step_ease`
+  are deleted.
+- **`demo_scenes_test` had a phase-dependent assertion** — it sampled the routed NPC's cell
+  once, 1.4 s later, against a route whose longest `wait` is 1.5 s, so a working patrol
+  could read as broken. It now watches for movement over a window covering a whole cycle.
+
 **Player and NPC are one prefab** as of 2026-09-12. Each game has a single actor scene —
 `actor_jrpg.tscn`, `actor_isoish.tscn`, `actor_isoish_grid.tscn` — and every placement of
 it is a data container with no opinion about what it does. A `Brain` child supplies that:
@@ -49,25 +76,53 @@ with `run` — a grid game never runs and a free game never turns) decides on th
 direction arrives. A tap-versus-hold grace made the first frames of every press ambiguous:
 the step had to be delayed by the grace or retroactively cancelled by a turn.
 
+**2D collision is hand-painted** as of 2026-09-12. `TileSet` custom data went from a
+`passable` bool to a `pathing` int: the direction mask painted from
+`resources/Pathing.png`, one tile per cell, N/E/S/W as 1/10/100/1000. A step asks both
+cells — the one being left and the one being entered — so painting either side of a
+boundary is enough. Unpainted reads as open, which is why `jrpg_demo` currently has no
+blocking at all. architecture.md §6 has the rule; `stage_a_test` covers it.
+
 Nothing 🔴 is outstanding. Questions 20, 21, 27 and 28 were answered by building.
+
+**Cluster 9 was decided on 2026-09-13 and is not built** — open-questions 34–37. It is the
+next block of engine work, and it touches the three files everything else stands on:
+
+- [ ] **`Occupancy` holds a list per cell**, and blocking becomes a predicate over it (34).
+      Every actor is recorded, through or not, so interact can find a through NPC.
+      `commit`'s collision rule gains one word — *blocking* — and swap and push chains are
+      otherwise untouched. Stacked blockers stop being an error.
+- [ ] **`solid` splits into `through_terrain` and `through_actors`** (35), each symmetric.
+      The second already half-exists by accident; the first is new and is game 2's.
+- [ ] **`Passability.floor_y()` plus a climb limit** (36) — `y` stops being an input to a
+      step. Closes the hole where any Δy step skips the both-cells-agree rule, and retires
+      the "occupied `GridMap` cell is a wall" gap listed in §3 below.
+- [ ] **Falling, as repeated one-cell steps, under `max_fall_cells`** (37) — 0 makes ledges
+      walls, >10 permits anything. Depth is measured *before* the step off commits, so an
+      over-limit drop is refused rather than stranding the actor mid-air.
+
+**Ladders are deliberately not built** — event or terrain property is undecided, and it adds
+an axis to the pathing data, so it wants settling before the JRPG map is painted.
 
 ---
 
-## 1. Answer five questions first
+## 1. Answer four questions first
 
 Stage B needs these, and answering them first makes it one pass instead of two. Every one
-has a recommendation on file, so "yes" to all five is a complete answer.
+has a recommendation on file, so "yes" to all four is a complete answer.
 
 | # | Question | Recommendation |
 | --- | --- | --- |
 | 11 | Is monster AI authored as event graphs? | Yes, with routes carrying the common cases |
 | 6 | Does turning in place open a round? | No — it changes no cell |
 | 7 | Does bumping a wall open a round? | No, plus an explicit "wait one step" input |
-| 8 | Round watchdog timeout | 2s. Safe to add now that 27 is answered |
 | 9 | Does scripted player movement pulse? | No — opt-in `pulse: true` on move commands |
 
 11 is the one worth actual thought: it sets how much of stage C must be right before game 1
-is playable. The other four are gameplay levers.
+is playable. The other three are gameplay levers.
+
+**Question 8 — the round watchdog — was cut on 2026-09-13.** Nothing force-closes a round;
+the gate closes on its completion keys alone. Do not build one back in.
 
 ---
 
@@ -79,16 +134,18 @@ In order, because each puts the one before it under load:
       Resolution is **actor-at-a-time**: each responder drains its credit fully before the
       next acts, iterating `MapContext.actors()` for the stable order.
 - [ ] **`RoundGate`** — opens on a committed step, joins over completion keys, closes when
-      all resolve, holds `InputIntent.step` only. Consults `ModeStack.rounds_active()`; the
-      watchdog must not run outside it (that is question 27's whole point).
-- [ ] **The watchdog** — force-close, unlock, and log the actor and command that failed to
-      complete. Converts the most likely "my game froze" bug into a log line.
+      all resolve, holds `InputIntent.step` only, and runs only where
+      `ModeStack.rounds_active()`. With question 8 cut there is no timeout underneath it, so
+      **the join is the only thing that closes a round**: every command that can take the
+      gate must resolve its key on every path out, including the ones that fail or get
+      cancelled. That is the invariant to test hardest.
 - [ ] **`push`** — the test case for transactional occupancy. Block chains, a block shoved
       into a monster, and a block pushed over a hole. `Occupancy.commit` already takes the
       multi-cell set; this is the caller it was built for.
-- [ ] **A real 2D map** — `TileMapLayer` with a `passable` custom data layer, wired to
-      `MapContext.collision_node`, so `Passability` step 1 is exercised against real data
-      rather than the open-ground fallback.
+- [ ] **Paint the JRPG map** — the `Pathing` layer exists, is wired to
+      `MapContext.collision_node` and is empty, so that map is open ground and its walls are
+      currently scenery. Painting it is a job for the tile editor; `1` in the demo shows the
+      overlay. Until then `Passability` step 1 is exercised only by the headless tests.
 - [ ] **Extend the headless harness** — drive "step north, step north, step east" through the
       round gate and assert exact final cells. A round is a discrete awaitable unit, which is
       what makes this cheap; `tests/stage_a_test.gd` has the `_step` / `_settled` helpers

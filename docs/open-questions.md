@@ -108,8 +108,9 @@ a format change. Now tracked as architecture.md §12.5.
 
 27. ~~Who owns "input is locked"?~~ ✅ **`ModeStack`**, built in stage A rather than F. Each
     mode declares whether it pulses, pauses physics, keeps the map loaded and **has rounds**;
-    the watchdog only runs where `rounds_active()`, so a cutscene entered mid-round can no
-    longer have its input force-unlocked two seconds later. `InputManager` gained the
+    the round gate only holds where `rounds_active()`, so a cutscene entered mid-round no
+    longer has a gate running underneath it. (The force-unlock this was also protecting
+    against is moot since 8 was cut — there is nothing to force-unlock.) `InputManager` gained the
     `push_target` / `pop_target` stack underneath it. See [core/mode_stack.gd](../core/mode_stack.gd).
 28. ~~`ActorRegistry` scope.~~ ✅ **On `MapContext`**, beside `Occupancy` — no autoload. Ids
     stay map-unique with no collision, two maps can be resident while battle keeps the field
@@ -128,9 +129,13 @@ The remaining questions in this cluster are unchanged:
 7. **Does bumping a wall open a round?** (two-games.md §5.1) **Recommend no**, plus an
    explicit "wait one step" input, so passing time is a choice rather than a wall-bumping
    trick.
-8. **Round watchdog timeout** (two-games.md §3.1) — what maximum round duration
-   force-closes the gate and logs? **Recommend 2s**, generously above any legitimate action.
-   Note this is only safe once 27 is answered.
+8. ~~Round watchdog timeout~~ ✅ **Cut, 2026-09-13 — there is no watchdog.** The question was
+   "what maximum round duration force-closes the gate", and the answer is that nothing does.
+   `RoundGate` closes when its completion keys resolve and that is the only thing that closes
+   it; `GameProfile.round_watchdog_seconds` is deleted. What this gives up is the log line a
+   never-closing round would have produced — a round that hangs now hangs, and is diagnosed
+   by finding the command that never completed rather than by being told which one it was.
+   The gate's join is the thing to keep honest.
 9. **Does scripted player movement pulse?** (two-games.md §5.1) **Recommend no** — pulses
    suppressed outside `Field` mode, with an opt-in `pulse: true` on move commands. Another
    consumer of `ModeStack`.
@@ -255,6 +260,135 @@ revised after them.
 
 ---
 
+## Cluster 8 — Areas entered and exited ✅
+
+*Asked and answered 2026-09-13, then built. See architecture.md §6.1.*
+
+30. ~~Are areas colliders or painted tile data?~~ ✅ **Colliders, queried rather than
+    listened to.** The shape is an `Area2D` / `Area3D`; how a crossing is detected follows
+    the **motion, not the space** — free motion uses the area's own `body_entered`, grid
+    motion (in either space) uses a synchronous point query at the destination cell centre,
+    at commit.
+
+    This **contradicts architecture.md §7.6 as written**, which said "no raycast or `Area`
+    involved" and treated colliders as a 3D-only affordance. That claim is now marked wrong
+    in place. The reason the query has to be synchronous: an overlap signal arrives the
+    *next* physics frame, by which time the step it was meant to slow already has its speed.
+
+    Two smaller corrections came with it: **a cell holds many things, not one** — many
+    events and many zones may sit on a tile and all fire — and a 3D grid query carries the
+    cell's Y, because that game has floors.
+
+31. ~~When does a speed change apply, and what restores it?~~ ✅ **At the commit of the step
+    that enters, and nothing restores it.** A `SpeedModifier` is a **provider**, not a
+    value: entering registers it with the actor's `MotionController`, leaving unregisters
+    it, and in between the controller asks it for a scale every frame with the direction
+    being travelled. Nothing writes `speed`, so there is no base to put back and a route's
+    own speed change cannot be clobbered when a zone ends. Overlapping zones **multiply**.
+
+    **Consequence, and the largest change this made:** the grid step's `Tween` is gone.
+    `GridMotion` now walks the sprite's offset to zero in `_process`, keeping **remaining
+    distance** rather than elapsed time, because a tween's duration is fixed when it starts
+    and could not express slowing down halfway across a tile. `ActorView.apply_step_offset`
+    became `set_step_offset`, and `step_trans` / `step_ease` were deleted — nothing is
+    interpolated any more, which was already the only defensible setting.
+
+32. ~~What do the four direction bools mean, and where do they live?~~ ✅ **The actor's
+    heading, re-evaluated per step, on the component rather than the zone.** A staircase is
+    slow to climb and ordinary to descend, and an actor that turns round inside the zone is
+    re-evaluated on its next step rather than being latched at entry. All four unchecked
+    means every direction, matching "an unpainted cell is open ground". `Passability.cardinals`
+    resolves a heading to one or two flags, so a diagonal and an analog stick ask the same
+    question a grid step does.
+
+    Left open: whether a diagonal under 8-way movement should need **any** of its cardinals
+    checked or **all** of them. Exported as `match_mode`, defaulting to ANY; it is a feel
+    call and costs one line to flip.
+
+33. ~~What counts as having exited?~~ ✅ **The visual settle, not the commit that left.**
+    Four signals, because the body and the sprite disagree for the length of a step:
+    `actor_entered` and `actor_leaving` at commit, `actor_arrived` and `actor_exited` at
+    settle. A zone keeps an actor until `actor_exited`, which is also what lets a modifier
+    apply to the step carrying the actor out — the default for `SpeedModifier` is origin
+    **and** destination.
+
+    Cross-map signalling is deliberately **not** here: a zone talks to the actor and to its
+    own components only. Anything that needs to reach `EventBus` will be a separate
+    component that does exactly that, rather than a flag on the zone.
+
+---
+
+## Cluster 9 — Sharing a cell, and the third dimension ✅
+
+*Asked and answered 2026-09-13. **Decided, not yet built** — unlike cluster 8, no code
+below this line exists. `Occupancy`, `Passability` and `GridMotion` all change.*
+
+34. ~~How many actors may hold one cell?~~ ✅ **Zero to many. `Occupancy` maps a cell to a
+    list, and blocking becomes a predicate over that list.** `_cells` goes from
+    `Dictionary[Vector3i, StringName]` to a list per cell, `at()` grows a plural, and
+    **every actor is recorded whether or not it blocks** — which is the point. Today a
+    non-blocking actor is absent from the table entirely, so "what is at
+    `player.cell() + facing()`" cannot find it and a through NPC is unaddressable by
+    interact. Presence and blocking are now two questions, not one flag.
+
+    **`commit`'s rule survives with one word inserted.** It was "a claim on a cell held by
+    an actor that is not taking part is refused"; it becomes "…held by a **blocking** actor
+    that is not taking part". Swaps and push chains are unaffected, because the reason they
+    work — every participant appears as a claimant — is untouched.
+
+    **Stacked blockers are legal, because they are intentional.** Two non-through actors on
+    one tile is what a teleport, a forced spawn or an event placement produces, and the
+    model can now represent it, so it is not an error: a *voluntary step* into a blocking
+    holder is still refused, but a forced placement stacks and the actors walk off normally.
+    `Actor._claim_spawn_cell`'s `push_error` on an occupied spawn therefore goes away.
+
+35. ~~What does "through" mean?~~ ✅ **Two independent flags, each symmetric.**
+    `through_terrain` and `through_actors` replace `solid`. Symmetric means through-actors
+    ignores others *and* is ignored by them — one flag, both directions, no ghost-you-can-
+    bump-into case.
+
+    Half of this already existed by accident: `_terrain_allows` runs *before* the occupancy
+    check, so today's `solid = false` actor is still stopped by walls — it is already
+    through-actors-only. What is genuinely new is `through_terrain`, which game 2 wants and
+    game 1 has no use for.
+
+36. ~~How does a grid actor change elevation?~~ ✅ **`y` stops being an input to a step.**
+    The mover asks for a cardinal **XZ** step; a new `Passability.floor_y(ctx, column)`
+    answers what the floor of that column is; a per-actor **climb limit** decides whether
+    that is a walk, a climb or a refusal. Stairs and ramps become art plus a height answer,
+    not a movement special case — and nothing has to enumerate diagonal-in-elevation steps.
+
+    **This fixes a silent hole.** `Passability.STEPS` holds four cardinals at `y = 0`, so a
+    step with any Δy is not found in it and `allows_step` falls through to its non-cardinal
+    branch, which only asks `directions(to) != 0`. The both-cells-must-agree rule is skipped
+    entirely. Stairs built on the current code would appear to work while enforcing nothing.
+
+    `floor_y` is also what retires the known gap where `_terrain_allows` treats any occupied
+    `GridMap` cell as a wall — right for a walls-only layer, backwards for a floor.
+
+37. ~~What happens at a ledge?~~ ✅ **You fall, as repeated one-cell steps, up to an exposed
+    limit.** Each cell of the descent is its own committed step, so triggers fire on the way
+    down and monsters see each one. The limit is a number, not a bool:
+    **`max_fall_cells` — 0 means ledges are walls** (game 1's answer), 1 permits a one-cell
+    drop, and anything over 10 permits any fall at all.
+
+    **The depth is measured before the step off the ledge commits.** A three-cell drop under
+    a limit of two is refused *entirely* rather than falling two and stranding the actor in
+    mid-air — lookahead for the refusal, stepwise for the execution.
+
+    **This retires the event override `Passability` anticipated.** Its docstring notes that
+    the symmetric both-sides rule "cannot express a ledge you may drop off but not climb.
+    That is what the event override is for when it arrives." It is not needed: a climb limit
+    and a fall limit are two different numbers, so down-3 is a fall and up-3 is unclimbable
+    out of ordinary arithmetic.
+
+**Still open:** whether a **ladder** is an authored event (a graph that plays a climb and
+teleports — full control, one event per ladder) or a terrain property (a column flagged
+climbable, so vertical movement is just movement). Not being built either way until decided.
+It adds an axis to the pathing data, so it wants settling **before the JRPG map is painted**.
+
+---
+
 ## Cluster 6 — Editor tooling ⚪
 
 *Blocks: the route gizmo work, which is late in stage B.*
@@ -305,8 +439,8 @@ need:
 1. **Question 11** — is monster AI authored as graphs? Sets how much of stage C must be
    right before game 1 is playable, though routes make it a smaller bet than it looked.
    Needed before stage B's monster.
-2. **Questions 6, 7, 8, 9** — what opens and closes a round, and the watchdog number. All of
-   stage B's step pulse. 27's answer means the watchdog is now safe to add.
+2. **Questions 6, 7, 9** — what opens and closes a round. All of stage B's step pulse.
+   (8 is cut: no watchdog.)
 3. **Question 5** — camera ownership, for the rigs already stubbed in stage A.
 4. **Cluster 4** (15, 16, 18, 19) — the authoring format, before stage C's parser.
 

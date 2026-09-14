@@ -44,6 +44,26 @@ func body_test_move(from: Vector3, motion: Vector3) -> bool:
 	return _char.test_move(xf, Space.as_v2(motion))
 
 
+func areas_at(world: Vector3) -> Array[Node]:
+	var out: Array[Node] = []
+	if _body == null or not _body.is_inside_tree():
+		return out
+
+	var params := PhysicsPointQueryParameters2D.new()
+	params.position = Space.as_v2(world)
+	params.collide_with_areas = true
+	params.collide_with_bodies = false
+	params.collision_mask = AreaZone.LAYER
+
+	# Cell centres, never cell corners, so a point on a shared edge is never the question
+	# being asked and the answer cannot depend on which side of a boundary rounds first.
+	for hit in _body.get_world_2d().direct_space_state.intersect_point(params, 32):
+		var collider: Node = hit.get("collider")
+		if collider != null:
+			out.append(collider)
+	return out
+
+
 func move_and_slide(velocity: Vector3, _delta: float) -> Vector3:
 	if _char == null:
 		return Vector3.ZERO

@@ -52,11 +52,6 @@ enum Capability {
 ## squash instead. Horizontal stays [member texels_per_unit].
 @export var texels_per_unit_vertical: int = 14
 
-## Maximum round duration before the gate is force-closed and the offending actor
-## logged. Generously above any legitimate action. Only consulted in a mode that has
-## rounds - see [method ModeStack.rounds_active].
-@export var round_watchdog_seconds: float = 2.0
-
 # -- The four axes ------------------------------------------------------------
 #
 # Named rather than merely documented, so the axis table is executable and

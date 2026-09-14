@@ -36,8 +36,8 @@ What is genuinely missing:
 
 - **A step pulse and its round gate.** One new trigger source (`player moved`), a signal to
   carry it, per-actor state for speed classes, and an input gate that holds
-  `InputIntent.step` until the round's blocking actions complete — plus a watchdog so a
-  round that never closes cannot soft-lock the game. A feature, not a layer. §3.1
+  `InputIntent.step` until the round's blocking actions complete. A feature, not a layer.
+  (The watchdog this bullet used to call for was cut on 2026-09-13 — open-questions 8.) §3.1
 - **Transactional occupancy.** Not for turn ordering — for push chains and for the batch of
   monsters that all respond to the same pulse in the same frame. §3.2
 - **Presentation as its own axis.** Game 2 is sprites in a 3D world. The plan has no place
@@ -106,7 +106,6 @@ enum Capability {
 @export var modes: Array[StringName]            # §3.8
 @export var default_cell_size: Vector3          # MapContext may override
 @export var texels_per_unit: int = 16           # §3.6
-@export var round_watchdog_seconds: float = 2.0
 
 # The four axes of §2, named rather than merely documented — decided 2026-09-08.
 @export var motion_script: Script               # GridMotion | FreeMotion
@@ -276,11 +275,15 @@ round duration *is* the game's input latency.
 
 **A round that never closes locks the player out permanently.** Under lockstep this would
 have been a frozen tick; here it is a soft-locked game, which is worse because everything
-else keeps animating and it looks like a control bug rather than a hang. This needs a
-**watchdog**: a maximum round duration (a second or two — generously above any legitimate
-action) that force-closes the round, unlocks input, and pushes an error naming the actor and
-the command that failed to complete. Cheap to add now, and it converts the single most
-likely "my game froze" bug into a log line.
+else keeps animating and it looks like a control bug rather than a hang. This section used
+to answer that with a **watchdog** — a maximum round duration that force-closes the round,
+unlocks input and logs the offending command. ✅ **Cut 2026-09-13 (open-questions 8): there
+is no watchdog**, and `GameProfile.round_watchdog_seconds` is deleted. The consequence is
+accepted deliberately: a round that never closes stays open, and the diagnosis is finding
+the command that never resolved its key rather than being told which one it was. What
+replaces the safety net is the join itself — **every command that can hold the gate must
+resolve its completion key on every path out, including failure and cancellation** — which
+is where the testing effort goes instead.
 
 **Gate the step, not the input.** Locking all input during a round would feel dreadful.
 Recommend only `InputIntent.step` is gated; menu, cancel, and interact stay live. This is
@@ -347,7 +350,7 @@ class_name ActorView extends Node
 func set_facing(dir: Vector3i, camera_yaw: float) -> void
 func play(anim: StringName) -> String             # returns a completion key
 func set_visible(v: bool) -> void
-func apply_step_offset(offset: Vector3) -> void   # the grid tween lands here
+func set_step_offset(offset: Vector3) -> void     # the grid step offset lands here
 ```
 
 - `SpriteView2D` — `AnimatedSprite2D`, 4 directions (§2), Y-sorted by the 2D engine.
@@ -356,7 +359,8 @@ func apply_step_offset(offset: Vector3) -> void   # the grid tween lands here
   yaw stops that reduces to integer frame arithmetic (§2). Also the layer that rounds the
   transform to whole texels (§3.6).
 `visual_offset` from `SpaceAdapter` belongs here rather than on the adapter, as
-`apply_step_offset`. **Decided** — architecture.md §4 records the adapter no longer carrying
+`set_step_offset` (renamed from `apply_step_offset` when the step tween became a
+`GridMotion`-driven clock — architecture.md §4, open-questions 31). **Decided** — architecture.md §4 records the adapter no longer carrying
 it, which makes the adapter thinner, the goal architecture.md §11 already names.
 
 ### 3.4 Camera rigs
@@ -574,13 +578,13 @@ should both become consumers of this rather than parallel mechanisms. Two overla
 "who has control" systems is a predictable source of bugs, and it is much cheaper to unify
 them before either exists.
 
-**And the round gate is a third one.** §3.1 gates `InputIntent.step` with its own watchdog,
-independently of both. Today that is a live defect rather than a tidiness concern: the player
-steps onto a cell, the round opens, an `EnterCell` trigger takes the exclusive slot and puts
-up dialogue, and two seconds later the round watchdog force-closes the round, unlocks
-`InputIntent.step` and logs an error naming a command that is legitimately waiting on the
-player. Whichever way it is resolved, the watchdog must not run while an exclusive runner
-holds control. `ModeStack` is the obvious arbiter — unresolved, §5 Q9.
+**And the round gate is a third one.** §3.1 gates `InputIntent.step` independently of both.
+As originally filed this was a live defect: the player steps onto a cell, the round opens, an
+`EnterCell` trigger takes the exclusive slot and puts up dialogue, and two seconds later the
+round watchdog force-closes the round, unlocks `InputIntent.step` and logs an error naming a
+command that is legitimately waiting on the player. ✅ Resolved twice over —
+`ModeStack.rounds_active()` means no gate runs under a cutscene (open-questions 27), and the
+watchdog half no longer exists at all (open-questions 8, cut 2026-09-13).
 
 Battle *itself* is a subsystem neither document touches. Flagging the boundary is enough for
 now; the thing to avoid is letting battle reach into map internals.
@@ -736,12 +740,12 @@ would otherwise only show up as a puzzle that quietly stopped being solvable.
    mix in any case. The simplification this buys — no map declares which presentations it
    supports, `MapContext` needs no profile-compatibility field, and no "view two ways" mode
    has to exist. **A map belongs to exactly one profile.**
-9. **Who owns "input is locked"?** The round gate and watchdog (§3.1), the input target stack
-   (§3.5) and the exclusive slot (architecture.md §7.5) are three independent control
-   mechanisms, and the watchdog currently force-unlocks input during an exclusive event.
-   §3.8 has the failure in full. `ModeStack` is the natural arbiter. Related:
-   `ActorRegistry`'s scope, now that Battle keeps the field map resident — see
-   architecture.md §12.7.
+9. ~~**Who owns "input is locked"?**~~ ✅ **`ModeStack`** — built in stage A; this is
+   open-questions 27. The round gate (§3.1), the input target stack (§3.5) and the exclusive
+   slot (architecture.md §7.5) were three independent control mechanisms; `ModeStack`
+   arbitrates, and the gate runs only where `rounds_active()`. The watchdog that made this
+   urgent is itself cut (open-questions 8). `ActorRegistry` went to `MapContext`
+   (open-questions 28).
 
 ---
 

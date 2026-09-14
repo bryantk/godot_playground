@@ -258,17 +258,26 @@ already uses — the caller awaits it or ignores it.
 3. On success, build a change set — release `from`, reserve `dest` — and apply it with a
    single `Occupancy.commit(changes)`. Then **set the body's world position to the
    destination cell centre immediately**.
-4. Push the visual child back by `-delta` via `ActorView.apply_step_offset` and tween it to
-   zero over `step_duration`, **linearly**.
-5. Emit `arrived` when the tween ends, resolving the step's completion key.
+4. Ask the physics server which `AreaZone`s cover the destination and hand them to the
+   actor (§6.1). Synchronous, so a zone that changes the actor's speed has changed it
+   before step 5 spends a single frame.
+5. Push the visual child back by `-delta` via `ActorView.set_step_offset`, and walk that
+   offset to zero in `GridMotion._process` at the actor's **current** speed.
+6. Emit `arrived` when the offset reaches zero, resolving the step's completion key.
 
-Step 4 says linearly rather than "to taste", because the taste turns out to be forced.
-An eased step decelerates the sprite to a dead stop in the middle of every cell, so a held
-direction reads as step-pause-step-pause even when the steps are back to back in time —
-the velocity hits zero at each boundary and the eye reads that as a stop, not as walking.
-Constant velocity is what joins consecutive steps into continuous motion. `ActorView`
-exports `step_trans`/`step_ease` so a deliberate one-tile nudge in a cutscene can still
-ease, but the default is linear and continuous movement depends on it.
+Step 5 is a hand-rolled clock rather than a `Tween`, and **the state it keeps is the
+remaining distance, not the elapsed time**. A tween's duration is fixed when it starts, so
+an actor stepping onto mud would have finished that step at its old speed and only slowed
+on the next one — which is precisely the case `SpeedModifier` exists to serve. Re-reading
+the speed every frame also means a modifier that arrives or leaves mid-cell takes effect
+mid-cell. `ActorView` therefore no longer owns the interpolation, and its
+`step_trans`/`step_ease` exports are gone with it.
+
+Nothing is interpolated, which was already the only defensible choice: an eased step
+decelerates the sprite to a dead stop in the middle of every cell, so a held direction
+reads as step-pause-step-pause even when the steps are back to back in time — the velocity
+hits zero at each boundary and the eye reads that as a stop, not as walking. Constant
+velocity is what joins consecutive steps into continuous motion.
 
 Step 5 has a matching constraint: the next step has to commit **inside** the settle, not a
 frame later. Whatever drives the actor hands `GridMotion` a `set_step_intent(dir)` each
@@ -316,8 +325,8 @@ Two sources, both consulted, in cost order:
 class_name Passability
 
 static func can_enter(ctx: MapContext, cell: Vector3i, actor: Actor) -> bool:
-    # 1. Static terrain: TileMapLayer custom data ("passable", "height") in 2D;
-    #    GridMap cell metadata or a collision-shape probe in 3D.
+    # 1. Static terrain: a hand-painted direction mask in 2D; GridMap cells or
+    #    colliders in 3D.
     # 2. Occupancy: is a solid actor already holding this cell?
     # 3. Physics: SpaceAdapter.body_test_move for anything neither of the above knows
     #    about — a pushed crate, a door body, a temporary barrier.
@@ -327,9 +336,90 @@ Steps 1 and 2 are cheap dictionary/tile lookups and reject most moves. Step 3 is
 escape hatch that keeps physics-driven objects honest without making them author tile
 data. Free-movement actors skip 1 and 2 entirely and let physics do its job.
 
+### 2D terrain is painted; 3D terrain is modelled
+
+The two spaces answer step 1 differently, and deliberately.
+
+**2D**: a `Pathing` `TileMapLayer` sits beside the art layers, one tile per cell, drawn
+from `resources/Pathing.png` — a 4×4 atlas of every combination of open sides. Each tile
+carries its combination as an int in the `pathing` custom data layer:
+
+| | | |
+| --- | --- | --- |
+| `N = 1` | `E = 10` | binary, so a painted tile reads as a nibble |
+| `S = 100` | `W = 1000` | |
+
+A step from `a` to `b` is allowed when **`a` is open on the side it leaves by and `b` is
+open on the side it is entered by**. Both cells are asked, so a boundary painted from
+either side holds — a map can be walled by painting only the wall tiles or only the floor
+tiles, whichever is fewer, and the two agree where they meet. The rule is symmetric by
+construction and so cannot express a one-way ledge; that is what the event override is
+for. An unpainted cell, a missing tile and a missing layer all read as open, which makes
+painting subtractive and a half-painted map walkable rather than sealed.
+
+**3D**: Godot's own colliders, plus the `GridMap`'s occupied cells while that is still
+the walls layer. No painting.
+
+The layer is hidden at runtime; the JRPG demo toggles it on `1` so what was painted can
+be read back off the map.
+
 `Occupancy` is a per-map `Dictionary[Vector3i, StringName]` on `MapContext`. It is
 reserved at step start (see above), which is what stops two NPCs walking into the same
 tile on the same frame.
+
+### 6.1 Areas — entered and exited
+
+Passability answers *may I*; an area answers *where am I*. An `AreaZone` is a `Node` under
+an `Area2D` or an `Area3D` — the same arrangement `Actor` uses under a body, so one script
+serves both spaces — and it reports actors crossing its collider.
+
+**The collider is the authored shape; it is not always what detects the crossing.** Which
+path is used follows the **motion, not the space**:
+
+| Motion | How a crossing is detected |
+| --- | --- |
+| `FreeMotion` | the area's own `body_entered` / `body_exited` |
+| `GridMotion`, in either space | a point query at the destination cell centre, at commit |
+
+A grid actor never travels through a shape — it snaps from cell centre to cell centre — so
+there is nothing for an overlap signal to observe at the right moment. Worse, an overlap
+signal arrives on the *next* physics frame, which is after the step it was supposed to
+change has already been given its speed. The query is synchronous and lands inside the
+commit, which is what makes "slow the step that is entering" expressible at all. In 3D the
+query carries the cell's Y, so a zone on an upper storey does not answer for the floor
+below.
+
+**Four moments**, because for the length of a step the body and the sprite disagree:
+
+```
+actor_entered   commit of the step that lands inside     body in
+actor_arrived   that step's sprite settles inside        visually in
+actor_leaving   commit of the step that lands outside    body out
+actor_exited    that step's sprite settles outside       visually out
+```
+
+`actor_exited` is the one that means *wholly* out, and a zone keeps an actor until then —
+which is also what lets a modifier apply to the step carrying the actor out of it. Under
+free motion there is no lagging sprite, so entered/arrived fire together, as do
+leaving/exited.
+
+**The zone decides nothing.** `AreaComponent` children are what act: one component per
+behaviour, so a tile that slows you, plays a sound and fires an event is three components
+on one shape. Every actor gets the zone's signals; each component carries its own
+`affects` filter (all / player / a named target).
+
+`SpeedModifier` is the first one, and it is a **provider, not a value**: entering registers
+it with the actor's `MotionController`, leaving unregisters it, and in between the
+controller asks it for a scale every frame, handing it the direction being travelled.
+Nothing writes `speed`, so there is no base value to restore and a route's own speed change
+cannot be clobbered by a zone ending. Scales from overlapping zones **multiply**. Direction
+is the actor's heading resolved to cardinals by `Passability.cardinals` — one or two flags,
+so a diagonal or an analog stick asks the same question a grid step does — and leaving all
+four unchecked means every direction, the same way an unpainted pathing cell is open.
+
+```
+godot --headless --path . res://tests/areas_test.tscn
+```
 
 ---
 
@@ -470,11 +560,21 @@ class_name EventSource extends Node   # a Node again, so it works in both spaces
 @export var once: bool = false
 ```
 
-Interact triggers are resolved by asking the map "what `EventSource` is at
+Interact triggers are resolved by asking the map "what is at
 `player.cell() + player.facing()`?" — a dictionary lookup on `MapContext`, identical in
-both spaces, no raycast or `Area` involved. `EnterCell` is checked by `Occupancy` when a
-reservation lands. Free-movement maps additionally allow an `Area3D` to forward to an
-`EventSource` for shapes that are not cell-aligned.
+both spaces. `EnterCell` is checked by `Occupancy` when a reservation lands.
+
+> **Two corrections, 2026-09-13.** This section used to say "no raycast or `Area`
+> involved", and to speak of *the* event at a cell.
+>
+> - **Raycasts are used in 2D**, and by grid movement generally. A point query at the
+>   destination cell centre is how `AreaZone` membership is resolved at commit (§6.1); it
+>   is synchronous, which an overlap signal is not, and that is the whole reason it is a
+>   query rather than a signal. The original rule was written as though colliders were a
+>   3D-only affordance.
+> - **A cell holds many things, not one.** Many events and many zones may sit on one tile
+>   and all of them fire. `MapContext._events_by_cell` was already an `Array` per cell, so
+>   the table was right and only the prose was wrong.
 
 ### 7.7 What `EventBus` gains
 
@@ -512,7 +612,11 @@ core/
   space_2d.gd              Space2D
   space_3d.gd              Space3D
   map_context.gd           MapContext, occupancy, cell/world conversion
-  passability.gd           Passability (static)
+  passability.gd           Passability (static) — terrain, and cardinals()
+  areas/
+    area_zone.gd           AreaZone — entered/arrived/leaving/exited (§6.1)
+    area_component.gd      AreaComponent base — what a zone actually does
+    speed_modifier.gd      SpeedModifier — per-direction speed scaling
   game_state.gd            autoload: flags, variables, party
   game_profile.gd          GameProfile Resource — spec in two-games.md §2.1
   mode_stack.gd            autoload: Field | Cutscene | Battle | Menu  (stage A, §12.7)
@@ -628,9 +732,8 @@ directions** (game 1 is 4-way — §1), and `visual_offset`'s home (`ActorView` 
    change. (The four-versus-eight half of this question is now settled — see §1.)
 6. **Camera ownership.** Does the camera follow the player by default with events
    borrowing it, or is it always driven by whatever holds the exclusive slot?
-7. **Who owns "input is locked", and what scope does `ActorRegistry` have?** These are one
-   question now that game 1 has a separate battle scene (two-games.md §3.8). The round
-   watchdog (two-games.md §3.1) and the exclusive runner's input lock are independent
-   mechanisms today, so a 2s cutscene triggered mid-round gets its input force-unlocked and
-   a spurious error logged. `ModeStack` is the natural arbiter and moves into stage A;
-   `MapContext` is the natural home for the registry. Both deferred pending a decision.
+7. ~~**Who owns "input is locked", and what scope does `ActorRegistry` have?**~~ ✅ **Both
+   answered in stage A** (open-questions 27 and 28): `ModeStack` arbitrates, and the registry
+   lives on `MapContext`. The round gate runs only where `ModeStack.rounds_active()`, so a
+   cutscene triggered mid-round has no gate underneath it. The round watchdog that framed
+   this question was cut on 2026-09-13 (open-questions 8) — nothing force-closes a round.

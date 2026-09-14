@@ -91,6 +91,9 @@ func _ready() -> void:
 
 	_resolve_target()
 
+	if Engine.is_editor_hint():
+		return
+
 	# Detached from the parent's transform, and this is the difference between working
 	# and not.
 	#
@@ -106,9 +109,6 @@ func _ready() -> void:
 	# commits steps in its own _process, and the rig writes sprite transforms in its.
 	# Sampling before either would be a frame behind whatever the eye is about to see.
 	process_priority = 100
-
-	if Engine.is_editor_hint():
-		return
 
 	# The body's own collider sits directly above this node, and the ray starts a little
 	# way up inside it. Ray queries ignore hits from inside a shape by default, but only
@@ -160,6 +160,7 @@ func _physics_process(_delta: float) -> void:
 func _process(_delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
+
 	if not _grounded:
 		visible = false
 		return

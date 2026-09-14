@@ -6,13 +6,9 @@
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_q3yxm"]
 texture = ExtResource("1_101j1")
 0:0/0 = 0
-0:0/0/custom_data_0 = true
 1:0/0 = 0
-1:0/0/custom_data_0 = true
 0:1/0 = 0
-0:1/0/custom_data_0 = true
 1:1/0 = 0
-1:1/0/custom_data_0 = true
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_52t61"]
 texture = ExtResource("2_ik3ji")
@@ -22,7 +18,5 @@ texture = ExtResource("2_ik3ji")
 1:1/0 = 0
 
 [resource]
-custom_data_layer_0/name = "passable"
-custom_data_layer_0/type = 1
 sources/0 = SubResource("TileSetAtlasSource_q3yxm")
 sources/1 = SubResource("TileSetAtlasSource_52t61")
