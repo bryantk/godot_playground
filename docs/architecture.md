@@ -261,7 +261,7 @@ already uses — the caller awaits it or ignores it.
    single `Occupancy.commit(changes)`. Then **set the body's world position to the
    destination cell centre immediately**.
 4. Ask the physics server which `AreaZone`s cover the destination and hand them to the
-   actor (§6.1). Synchronous, so a zone that changes the actor's speed has changed it
+   actor (§6.2). Synchronous, so a zone that changes the actor's speed has changed it
    before step 5 spends a single frame.
 5. Push the visual child back by `-delta` via `ActorView.set_step_offset`, and walk that
    offset to zero in `GridMotion._process` at the actor's **current** speed.
@@ -382,7 +382,98 @@ be read back off the map.
 reserved at step start (see above), which is what stops two NPCs walking into the same
 tile on the same frame.
 
-### 6.1 Areas — entered and exited
+### 6.1 Height — ramps, stairs, ladders and falling
+
+**3D grid only** (open-questions 36–38, built 2026-09-14). A map that sets
+`MapContext.floor_node` — a `GridMap` of walkable cells, distinct from `collision_node`'s
+walls — hands its step resolution to [`Terrain`](../core/terrain.gd). A map that does not,
+which is every 2D map and every flat 3D one, behaves exactly as it did before any of this
+existed: `to = from + dir`, Y untouched. `FreeMotion` never asks; it has real gravity
+already and none of this may reach it.
+
+**The GridMap is the authority on levels, the mesh on looks.** A cell's presence says where
+the ground is, its mesh-library **item name** says what kind (`ramp`, `stairs`, anything else
+is flat floor), and its **cell orientation** says which way it rises. One rotatable item per
+kind is the whole authoring story, and it is exact where raycasting a mesh for surface
+continuity would need a tolerance to tune. Godot 4's `MeshLibrary` has no custom-data table
+the way `TileSet` does, which is why the name carries the kind.
+
+**Ladders get their own layer** (`MapContext.ladder_node`), because a ladder is an *overlay*
+on a cell rather than a kind of ground. A GridMap cell holds exactly one item, so a ladder
+sharing the floor layer evicts whatever was there — most visibly the tile at its own foot,
+leaving the player standing on a rung where a floor should be. On its own layer a cell can be
+floor **and** ladder, or wall and ladder, and the ladder is drawn over both. Climbing keys off
+that layer; standing, walking and falling still key off the floor. So an actor at the foot of
+a ladder is on solid ground and walks off in any direction normally — pressing into the wall
+is the one move the ladder *adds*. Only an actor hanging on a rung over air is restricted to
+the ladder's own moves.
+
+**A ladder is mounted and dismounted from either end of its axis, at either height.** Both
+halves of that matter, and getting either wrong strands the player:
+
+- **Either end.** Walking into a ladder from the ground below goes the way it is climbed;
+  stepping onto it from the ledge above goes the opposite way. Only accepting the first
+  worked for a ladder tucked under its ledge and dropped the player straight past one that
+  was not. Perpendicular is still refused — you cannot walk onto the side of a ladder.
+- **Either height.** The floor beside the last rung may be one cell *up* from it (the rungs
+  stop under the ledge) or *level* with it (the rungs run up flush with the top surface).
+  Both are how someone would build it, so both dismount.
+
+**A `ladder` item found on the floor layer reads as `VOID`, not floor.** It belongs on the
+ladder layer and a cell there is a leftover from before that layer existed — but "anything
+that is not a ramp is floor" turned such a leftover into an invisible platform. The rung then
+counted as ground, which switched off the guard keeping a hanging actor on its ladder, and
+pressing a perpendicular direction walked the actor off the rung into open air. VOID is both
+the safe answer and the true one: there is no ground there.
+
+`Terrain.resolve_step()` is the entire rule set, in the order it is tried:
+
+| From → into | Result |
+| --- | --- |
+| on a ladder | climb (into the wall), descend (away), or dismount at either end |
+| off a ramp, the way it rises | up one |
+| into a ladder, from its mounted side | mount it |
+| ground straight ahead | across, no change of Y |
+| onto a ramp rising back at us | down one |
+| onto a ladder's top rung, over its edge | down one, on the ladder |
+| nothing there | fall, if the floor below is within `max_fall_cells` |
+
+**There is no climb tolerance.** The only way up is a ramp or a ladder, so a bare one-cell
+lip is a wall from below and a drop from above — the asymmetry §6's painted 2D mask is
+structurally unable to express, since it consults the same two flags in both directions.
+
+**A ramp's logical cell is its lower end**, so stepping on is a level step and the climb
+happens on the way off. The sprite is lifted half a cell (`Terrain.RAMP_RISE`) to stand on
+the slope instead of inside it — the one place the logical and visible answers disagree by
+design, and the reason `GridMotion` interpolates between *surfaces* rather than cell centres.
+
+**Falling is repeated one-cell steps**, literally: each cell of a drop goes through
+`_commit_step` like any other step and publishes its own `actor_stepped` / `actor_settled`,
+so a monster watching the player fall sees every cell of it. The depth is measured **before
+the step off the ledge commits**, which is what lets an over-limit drop be refused instead of
+stranding the actor mid-air. `MapContext.max_fall_cells` defaults to 1; 0 makes every ledge a
+wall. Releasing a ladder (`jump`) ignores the limit **and the delay below** — both exist for
+a fall nobody asked for, and letting go is the one fall that was asked for.
+
+**A fall announces itself before it happens**, which is the hook for choreographing one.
+`Actor.falling(from, to)` — with `EventBus.actor_falling` / `player_falling` beside it —
+fires once per fall, naming the cell the actor is standing on nothing in and the cell it will
+land on, *before* anything drops. `GridMotion.fall_delay` is the window that opens after it:
+seconds this actor hangs before the drop begins, **per actor** because it is characterisation
+rather than physics — how far anything may fall is the map's business, how long *this* actor
+dangles first is the actor's. It defaults to 0, which is the same-frame behaviour falling had
+before the hook existed. A hanging actor is still `is_busy()`, so no round closes underneath
+one, and `cancel()` clears the hang along with the fall.
+
+The signal announces; it cannot yet **replace** the fall — the default drop still follows.
+Taking it over is the next step, and this signature is the one that hook will use.
+
+**Physics stands down on a height map.** `Passability` skips its step 3 wherever `Terrain`
+governs, because the floor slabs and the ramp meshes are themselves colliders and would read
+a legitimate climb as walking into a wall. The cost: a pushable crate on such a map has to be
+an actor in `Occupancy`, not a bare body.
+
+### 6.2 Areas — entered and exited
 
 Passability answers *may I*; an area answers *where am I*. An `AreaZone` is a `Node` under
 an `Area2D` or an `Area3D` — the same arrangement `Actor` uses under a body, so one script
@@ -583,7 +674,7 @@ both spaces. `EnterCell` is checked by `Occupancy` when a reservation lands.
 > involved", and to speak of *the* event at a cell.
 >
 > - **Raycasts are used in 2D**, and by grid movement generally. A point query at the
->   destination cell centre is how `AreaZone` membership is resolved at commit (§6.1); it
+>   destination cell centre is how `AreaZone` membership is resolved at commit (§6.2); it
 >   is synchronous, which an overlap signal is not, and that is the whole reason it is a
 >   query rather than a signal. The original rule was written as though colliders were a
 >   3D-only affordance.
@@ -602,17 +693,20 @@ signal event_finished(runner_id: String)
 signal map_changing(from_id: StringName, to_id: StringName)
 signal input_lock_changed(locked: bool)
 
-# What a grid actor did. Four moments, all triggers, all unconditional.
+# What a grid actor did. All triggers, all unconditional. actor_falling is the only one
+# that fires *before* the thing it names, which is what makes it a hook (§6.1).
 signal actor_stepped(actor_id: StringName, from: Vector3i, to: Vector3i)
 signal actor_settled(actor_id: StringName, cell: Vector3i)
 signal actor_blocked(actor_id: StringName, from: Vector3i, to: Vector3i)
 signal actor_turned(actor_id: StringName, from_dir: Vector3i, to_dir: Vector3i)
+signal actor_falling(actor_id: StringName, from: Vector3i, to: Vector3i)
 
-# The same four moments for the player alone, with no id to compare.
+# The same moments for the player alone, with no id to compare.
 signal player_stepped(from: Vector3i, to: Vector3i)
 signal player_settled(cell: Vector3i)
 signal player_blocked(from: Vector3i, to: Vector3i)
 signal player_turned(from_dir: Vector3i, to_dir: Vector3i)
+signal player_falling(from: Vector3i, to: Vector3i)
 
 func wait_for_command(key: String) -> void   # same shape as the existing wait_for
 ```
@@ -686,7 +780,7 @@ core/
   map_context.gd           MapContext, occupancy, cell/world conversion
   passability.gd           Passability (static) — terrain, and cardinals()
   areas/
-    area_zone.gd           AreaZone — entered/arrived/leaving/exited (§6.1)
+    area_zone.gd           AreaZone — entered/arrived/leaving/exited (§6.2)
     area_component.gd      AreaComponent base — what a zone actually does
     speed_modifier.gd      SpeedModifier — per-direction speed scaling
   game_state.gd            autoload: flags, variables, party

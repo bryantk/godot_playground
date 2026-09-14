@@ -107,6 +107,16 @@ signal actor_blocked(actor_id: StringName, from: Vector3i, to: Vector3i)
 @warning_ignore("unused_signal")
 signal actor_turned(actor_id: StringName, from_dir: Vector3i, to_dir: Vector3i)
 
+## A fall is about to start: the actor is on nothing at [param from] and will land on
+## [param to]. 3D grid maps only - see [Terrain].
+##
+## [b]Fired before the drop and before [member GridMotion.fall_delay] is waited out[/b],
+## which is what turns that delay into a window a listener can use: play the hang, pull
+## the camera back, start the sound. The actor still falls on its own afterwards; this
+## announces a fall rather than asking permission for one.
+@warning_ignore("unused_signal")
+signal actor_falling(actor_id: StringName, from: Vector3i, to: Vector3i)
+
 
 # -- The player's four ---------------------------------------------------------------
 #
@@ -139,6 +149,10 @@ signal player_blocked(from: Vector3i, to: Vector3i)
 ## The player's facing changed. See [signal actor_turned].
 @warning_ignore("unused_signal")
 signal player_turned(from_dir: Vector3i, to_dir: Vector3i)
+
+## The player is about to fall. See [signal actor_falling].
+@warning_ignore("unused_signal")
+signal player_falling(from: Vector3i, to: Vector3i)
 
 @warning_ignore("unused_signal")
 signal event_started(runner_id: String, exclusive: bool)

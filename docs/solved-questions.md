@@ -144,7 +144,7 @@ revised after them.
 
 ## Cluster 8 — Areas entered and exited ✅
 
-*Asked and answered 2026-09-13, then built. See architecture.md §6.1.*
+*Asked and answered 2026-09-13, then built. See architecture.md §6.2.*
 
 30. ~~Are areas colliders or painted tile data?~~ ✅ **Colliders, queried rather than
     listened to.** The shape is an `Area2D` / `Area3D`; how a crossing is detected follows
@@ -271,11 +271,34 @@ yet written. `Occupancy`, `Passability`, `Actor` and `GridMotion` all change.*
     every reason to have one), and it is the reason a through-terrain actor cannot simply
     reuse the ladder rules.
 
+> **Built 2026-09-14, and 36 was revised while building it.** [core/terrain.gd](../core/terrain.gd)
+> implements 36, 37 and 38; `tests/height_test.gd` covers them with 90 assertions across
+> three elevations. **Read the two revisions below before the prose in 36**, which is kept
+> because its *reasoning* still holds even where its mechanism does not.
+>
+> - **The floor is a `GridMap`, not a raycast against the mesh.** 36 specified inferring
+>   stairs and ramps from surface continuity, sampled at the shared edge. What shipped is
+>   `MapContext.floor_node`: a cell's presence says where ground is, its mesh-library item
+>   *name* says what kind, and its cell *orientation* says which way it rises. Chosen
+>   because it is exact where continuity sampling is approximate — no tolerance to tune, no
+>   physics needed, deterministic in a headless test, and authored in the GridMap editor
+>   with one rotatable item per kind. The mesh is still consulted for exactly one thing, and
+>   it is a presentation question: how high to draw the sprite on a slope.
+> - **A ramp's logical cell is its lower end.** Stepping onto a ramp is a level step and the
+>   climb happens on the way *off* it, with the sprite lifted half a cell
+>   (`Terrain.RAMP_RISE`) so it stands on the slope rather than inside it. This is the one
+>   place the logical answer and the visible one disagree on purpose.
+>
+> The rule set that resulted is in `Terrain.resolve_step`, in the order it is tried. One
+> rule was missing from every version of this design until the test found it: **stepping
+> down onto a ladder's top rung**, the exact reverse of the dismount — without it a player
+> who climbs out at the top and turns around cannot get back on.
+
 36. ~~How does a grid actor change elevation?~~ ✅ **`y` stops being an input to a step, and
     upward movement is authored, never tolerated. There is no climb limit.** The mover asks
-    for a cardinal **XZ** step; a new `Passability.floor_y(ctx, column)` answers what the
-    floor of that column is; the step is permitted when the floors **match**. A Δy of +1 is
-    permitted **only where the map provides a connection** — a stair, a ramp or a ladder.
+    for a cardinal **XZ** step; the map answers what the floor of that column is; the step is
+    permitted when the floors **match**. A Δy of +1 is permitted **only where the map
+    provides a connection** — a stair, a ramp or a ladder.
 
     **A one-tile cliff and a one-tile stair are the same height and are not the same thing.**
     No actor scales the cliff, at any stat, ever; the stair is traversable because the

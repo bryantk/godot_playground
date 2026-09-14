@@ -32,6 +32,42 @@ signal actor_unregistered(actor_id: StringName)
 ## makes a bare test scene usable.
 @export var collision_node: NodePath = NodePath()
 
+## The [GridMap] of walkable cells, for a 3D map with stairs, ramps or ladders. Its
+## cells are actor cells one for one: a cell at grid Y means ground whose surface is
+## exactly that Y, which is the same thing [method cell_centre] returns.
+##
+## [b]Distinct from [member collision_node], which is the walls.[/b] One says where you
+## may not go, the other says where the ground is, and a map can have either, both or
+## neither. Empty - which is every 2D map and every flat 3D one - means [Terrain] does
+## not govern and a step keeps its own Y, exactly as it did before height existed.
+##
+## Only meaningful with [member supports_height]. See [Terrain].
+@export var floor_node: NodePath = NodePath()
+
+## The [GridMap] of ladder cells, if the map has any.
+##
+## [b]Its own layer because a ladder is an overlay, not a kind of ground.[/b] A GridMap
+## cell holds exactly one item, so a ladder sharing [member floor_node] would evict
+## whatever was there - the floor at its foot, most obviously, leaving the player
+## standing on a rung where a tile should be. On its own layer a cell can be floor
+## [i]and[/i] ladder, or wall and ladder, and the ladder is drawn over both.
+##
+## Climbing rules key off this layer; standing, walking and falling still key off
+## [member floor_node]. See [method Terrain.resolve_step].
+@export var ladder_node: NodePath = NodePath()
+
+## How far a grid actor may fall from one step, in cells. **0 makes every ledge a wall**
+## and a large value permits anything.
+##
+## The default is deliberately small. A map that has not thought about falling should
+## not silently let the player walk off a four-storey drop, and one cell is the height
+## a person steps down without it reading as a fall at all. Deeper drops are a design
+## choice a map makes on purpose.
+##
+## Releasing a ladder ignores this entirely (open-questions 38) - the limit is there to
+## stop accidents, and letting go is not one.
+@export var max_fall_cells: int = 1
+
 var occupancy := Occupancy.new()
 
 ## The rig looking at this map, registered by [CameraRig] on ready.

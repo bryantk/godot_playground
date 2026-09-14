@@ -72,6 +72,18 @@ static func can_enter(ctx: MapContext, cell: Vector3i, actor: Actor) -> bool:
 	if actor != null and actor.through_terrain:
 		return true
 
+	# A map that declares a floor GridMap has said where its ground is, and said it
+	# exactly. Asking physics to second-guess that does not add an escape hatch, it
+	# takes one away: the floor slabs and the ramp and stair meshes are themselves
+	# colliders, so a legitimate climb onto a ramp reads as walking into it.
+	#
+	# The cost is real and worth naming - a pushable crate or a swinging door on a
+	# height map is not caught here, and has to be an actor in [Occupancy] instead of a
+	# bare body. Step 2 is where such a thing belongs anyway; step 3 was always the
+	# hatch for what nothing had modelled.
+	if Terrain.governs(ctx):
+		return true
+
 	return not _physics_blocks(ctx, cell, actor)
 
 
@@ -109,7 +121,9 @@ static func directions(ctx: MapContext, cell: Vector3i) -> int:
 ##
 ## The rule is therefore symmetric by construction: the same two flags are consulted in
 ## both directions, so this scheme cannot express a ledge you may drop off but not climb.
-## That is what the event override is for when it arrives.
+## [b]Height is what expresses that[/b], and only in 3D: [method Terrain.resolve_step]
+## has no climb tolerance and a fall limit, so a ledge is a drop from above and a wall
+## from below without anything being painted twice. A 2D map still cannot say it.
 ##
 ## A step that is not one cardinal cell - a diagonal, a teleport, a query about some
 ## distant cell - has no side to cross, so it only asks whether the destination is
@@ -146,8 +160,14 @@ static func cardinals(dir: Vector3) -> int:
 
 
 ## 1. Static terrain. The hand-painted pathing layer in 2D; the [GridMap]'s own cells in
-## 3D, until 3D moves over to colliders entirely. A map with no data layer is open
-## ground.
+## 3D. A map with no data layer is open ground.
+##
+## [b]An occupied cell of the 3D layer is a wall[/b], which is right because
+## [member MapContext.collision_node] is the [i]wall[/i] layer. Ground is a different
+## question with a different node - [member MapContext.floor_node], read by [Terrain] -
+## so the two never have to disagree about what an occupied cell means. Pointing
+## `collision_node` at a floor GridMap would still be backwards; point `floor_node` at it
+## instead.
 static func _terrain_allows(ctx: MapContext, from: Vector3i, to: Vector3i) -> bool:
 	if ctx.collision_node.is_empty():
 		return true

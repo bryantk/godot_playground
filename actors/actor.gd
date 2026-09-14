@@ -50,6 +50,19 @@ signal arrived(cell: Vector3i)
 signal blocked(cell: Vector3i)
 signal facing_changed(dir: Vector3i)
 
+## A fall is about to start: the actor is standing on nothing at [param from] and will
+## come to rest on [param to]. The depth is [code]from.y - to.y[/code].
+##
+## [b]Fired before the drop, not during it[/b], and before
+## [member GridMotion.fall_delay] is waited out - which is what makes that delay a window
+## to do something in. A listener gets told where the actor is, where it is going and how
+## long it has, and can play the hang, swing the camera or start a sound over the top of
+## the default drop.
+##
+## It cannot yet [i]replace[/i] the fall - the actor still drops on its own afterwards.
+## Taking it over is the next step, and this signature is the one that hook will use.
+signal falling(from: Vector3i, to: Vector3i)
+
 var _ctx: MapContext = null
 var _adapter: SpaceAdapter = null
 var _motion: MotionController = null
@@ -240,6 +253,16 @@ func report_settled(at: Vector3i) -> void:
 	EventBus.actor_settled.emit(actor_id, at)
 	if is_player():
 		EventBus.player_settled.emit(at)
+
+
+## A fall is about to start, ending on [param to]. See [signal falling] for what a
+## listener can do with it and when it arrives.
+func report_falling(to: Vector3i) -> void:
+	var from := cell()
+	falling.emit(from, to)
+	EventBus.actor_falling.emit(actor_id, from, to)
+	if is_player():
+		EventBus.player_falling.emit(from, to)
 
 
 func is_moving() -> bool:

@@ -32,7 +32,7 @@ godot --headless --path . res://tests/demo_scenes_test.tscn
 It loads each demo, walks the player, and checks the nodes the demo scripts reach by
 `@onready` path still exist — which is the failure a rename in the editor causes.
 
-**Areas entered and exited landed 2026-09-13** — `core/areas/`, architecture.md §6.1,
+**Areas entered and exited landed 2026-09-13** — `core/areas/`, architecture.md §6.2,
 decisions 30–33. An `AreaZone` under an `Area2D`/`Area3D` reports four moments
 (entered / arrived / leaving / exited); `AreaComponent` children act on them;
 `SpeedModifier` is the first. Grid actors resolve zones by a **synchronous point query at
@@ -88,7 +88,8 @@ Nothing 🔴 is outstanding. Questions 20, 21, 27 and 28 were answered by buildi
 
 **Cluster 9 was decided on 2026-09-13** — questions 34–38, now in
 [solved-questions.md](solved-questions.md) with the rest of the answers.
-**34 and 35 are built and green** (205 stage A assertions); 36–38 are not written.
+**All five are built and green** as of 2026-09-14: 34 and 35 in `stage_a_test` (232
+assertions), 36–38 in `height_test` (90).
 
 **Two scopes, and they split the list in half.** 34 and 35 are **every grid game, in either
 space** — `Occupancy` is what all grid movement commits through. 36, 37 and 38 are **grid
@@ -110,21 +111,108 @@ jumping, and none of the vertical half may reach it.
 
 ### Grid movement in 3D only
 
-- [ ] **`Passability.floor_y()`, sampled at the shared edge** (36) — `y` stops being an input
-      to a step. **No climb tolerance:** a one-tile cliff is impassable upward. Stairs and
-      ramps are **inferred from the mesh**, nothing is painted, and the discriminator is that
-      a ramp's surface is *continuous across the boundary* while a cliff's is not — so the
-      query samples the edge midpoint, not just the two cell centres. Closes the hole where
-      any Δy step skips the both-cells-agree rule, and retires the "occupied `GridMap` cell
-      is a wall" gap listed in §3 below.
-- [ ] **Falling, as repeated one-cell steps, under `max_fall_cells`** (37) — 0 makes ledges
-      walls, >10 permits anything. Depth is measured *before* the step off commits, so an
-      over-limit drop is refused rather than stranding the actor mid-air.
-- [ ] **Ladders as terrain** (38) — a column flagged with the side it is mounted on. Walking
-      into that side climbs a cell, walking away descends one. **`jump` is the release**
-      (dead in a grid game today) and it **ignores `max_fall_cells`**, because letting go is
-      deliberate. The top dismounts automatically, so a ladder top must have floor beside it
-      — a validator check, not a discovery.
+**Built 2026-09-14** — [core/terrain.gd](../core/terrain.gd), with 90 assertions in
+`tests/height_test.gd`:
+
+```
+godot --headless --path . res://tests/height_test.tscn
+```
+
+- [x] **Ramps and stairs** (36) — `Y` stops being an input to a step:
+      `Terrain.resolve_step()` decides where a direction actually lands. **No climb
+      tolerance** — the only way up is a ramp or a ladder, so a bare one-cell lip is a wall
+      from below and a drop from above, which is the asymmetry 2D's painted mask could never
+      express. **Stairs and ramps are the same rule and differ only in art**; the item name
+      picks which mesh, `Terrain` reads both as `RAMP`.
+- [x] **Falling** (37) — literally repeated one-cell steps, paid out from `_settle()`, each
+      publishing its own `actor_stepped` / `actor_settled`. Depth is measured *before* the
+      step off the ledge commits, so an over-limit drop is refused rather than stranding the
+      actor. `MapContext.max_fall_cells` defaults to **1**, and 0 makes every ledge a wall.
+- [x] **The fall hook** — `Actor.falling(from, to)` (plus `EventBus.actor_falling` /
+      `player_falling`) fires **once per fall, before anything drops**, naming where the
+      actor is and where it will land. `GridMotion.fall_delay` is the window it opens:
+      per-actor seconds of hang before the drop starts, defaulting to 0 so nothing changes
+      until it is set. A hanging actor is still `is_busy()`, and `cancel()` clears the hang
+      with the fall. **A ladder release skips the delay** — the hang is for a fall nobody
+      asked for. **It announces, it does not yet intercept** — the default drop still
+      follows. Taking the fall over is the next step and will reuse this signature.
+- [x] **Ladders** (38) — a column of `ladder` cells **on their own GridMap layer**
+      (`MapContext.ladder_node`), oriented toward the wall they are mounted against. Pressing
+      into the wall climbs, away descends, both ends dismount, and sideways off a rung is
+      refused. **`jump` is the release** and ignores `max_fall_cells`.
+      **The separate layer is load-bearing, not tidiness**: a GridMap cell holds one item, so
+      a ladder on the floor layer evicts the tile at its own foot. On its own layer a cell is
+      floor *and* ladder — an actor at the foot stands on solid ground and walks off in any
+      direction, and the ladder only *adds* the move into the wall. Only an actor hanging on
+      a rung over air is restricted to the ladder's moves.
+      **Both ways a ladder gets built are supported**, and the first pass only handled one:
+      the top rung may sit a cell *under* the ledge or *level* with the top surface, and the
+      ladder is mounted from either end of its axis. Assuming the tucked-under layout meant
+      a flush ladder matched no rule at all — walking off the ledge toward it fell past it,
+      and climbing it stranded the actor on the top rung with no way off.
+
+**Ladders took three passes to work in a real map, and the third bug is the one to remember**
+— all three looked identical from inside the game ("the player falls instead of grabbing the
+ladder") and had nothing to do with each other:
+
+1. **The ladder shared the floor layer**, so it evicted the tile at its own foot. Fixed by
+   giving ladders their own GridMap (`ladder_node`).
+2. **Only one build of a ladder was understood** — top rung tucked under the ledge, mounted
+   from below. Fixed by accepting either height and either end of the axis.
+3. **A leftover `ladder` cell in the *floor* layer read as solid ground.** This is the
+   subtle one, and it is what was actually wrong with `isoish_grid_demo`. After moving a
+   ladder onto its own layer, the original cell stays behind in the floor layer unless it is
+   deleted, and `_kind_of_item`'s "anything that is not a ramp is floor" turned that leftover
+   into an invisible platform. The rung then counted as ground, which switched off the guard
+   keeping a hanging actor on its ladder — so pressing a perpendicular direction walked the
+   actor off the rung into open air, and `max_fall_cells = 5` let it fall.
+   `Terrain._kind_of_item` now reads a `ladder`-named item on the floor layer as **VOID**.
+
+- [ ] **A validator for the leftover case.** VOID is the right runtime answer but a silent
+      one. A ladder cell sitting in the floor layer is always a mistake and the author should
+      be told, alongside the ladder-top check below.
+
+**Two revisions to 36 worth knowing, both decided with Kyle on 2026-09-14:**
+
+- **The floor is a `GridMap`, not a raycast.** 36 said stairs and ramps would be *inferred
+  from the mesh* with a continuity test at the shared edge. They are not: `MapContext`
+  gained a **`floor_node`**, and a cell's presence says where the ground is while its item
+  name says what kind. Deterministic, cheap, needs no physics, works headless, and it means
+  no continuity tolerance to tune. The mesh is still consulted for one thing — how high to
+  draw the sprite on a slope.
+- **A ramp's cell is its lower end.** Stepping onto a ramp is a level step; the climb happens
+  on the way *off* it. The sprite is lifted `Terrain.RAMP_RISE` (half a cell) so it stands on
+  the slope rather than in it, which is the one place the visual and the logical answer
+  deliberately disagree.
+
+**Still open from this work:**
+
+- [ ] **A ladder-top validator** (38 called for it) — a ladder whose top has no floor beside
+      it reads in-game as a ladder you cannot leave. The dismount rule handles it correctly;
+      nothing warns the author.
+- [ ] **Intercepting a fall, not just watching one.** `Actor.falling` and `fall_delay` give a
+      listener the news and a window; they do not let it *take over*. The shape this wants is
+      a listener claiming the fall — the default drop stands down, the listener moves the
+      actor and says when it has landed. Needs a way to hand back "I've got this" that a
+      signal alone cannot carry, which is the design question, not the plumbing.
+- [ ] **Demo geometry.** `tools/make_height_items.tscn` has written placeholder `ramp`,
+      `stairs` and `ladder` items (6, 7, 8) into `pixel_blocks.tres`, and
+      `tools/make_block_variants.tscn` three capped-off `block_1` variants (9, 10, 11) with
+      no top and one, two or three wall faces. Placing them, pointing
+      `MapContext.floor_node` at the Floor GridMap and adding a **Ladders** GridMap for
+      `ladder_node` is editor work. The art is placeholder primitives until real meshes
+      exist — they borrow existing materials so they are textured, but the UV mapping is
+      arbitrary and ignores §3.6's texel density.
+
+**Two things worth knowing if you regenerate the placeholders:**
+
+- **Winding decides which way a face points**, and Godot reads it as
+  `(v0 - v2).cross(v0 - v1)`. The first ramp had every face inverted — the slope rendered
+  from underneath — and was missing both triangular sides, because the two it called sides
+  were both the tall north end.
+- **`SurfaceTool` smooths by default.** It welds matching vertices on commit and averages
+  their normals, which lit the wedge as if it were rounded and turned the stairs into one
+  soft lump. `set_smooth_group(-1)` before adding vertices is what makes them flat.
 
 ---
 
@@ -252,10 +340,24 @@ In order, because each puts the one before it under load:
 Honest list of what stage A stubs or simplifies, so none of it is discovered instead of
 decided:
 
-- **`Passability._terrain_allows` treats any occupied `GridMap` cell as impassable.** Right
-  for a walls-only data layer, which is what the iso-ish grid demo uses and the first thing
-  to exercise this branch at all. Still backwards for a `GridMap` used as a *floor*, where
-  occupied means walkable — that case needs real cell metadata and no map has it yet.
+- ~~**`Passability._terrain_allows` treats any occupied `GridMap` cell as impassable.**~~
+  **Retired 2026-09-14** by separating the two questions rather than teaching one node to
+  answer both. `collision_node` is the *wall* layer and occupied still means impassable
+  there, which is correct; ground is `floor_node`, read by `Terrain`, where occupied means
+  walkable. Neither has to guess which kind of layer it is looking at.
+- **Physics is not consulted on a map with a `floor_node`.** `Passability` skips step 3
+  there, because the floor slabs and the ramp and stair meshes are themselves colliders and
+  a legitimate climb onto a ramp otherwise reads as walking into it. The cost is real: a
+  pushable crate or a swinging door on a height map has to be an actor in `Occupancy`
+  rather than a bare body.
+- **A fall onto an occupied cell stops in the air above it.** The landing is refused by
+  occupancy like any other step, the remaining depth is cleared, and the actor is left
+  standing on nothing. Deliberate — the alternative is a pending fall nothing will ever pay
+  out, which counts as busy and would hang a round forever. Visible and recoverable beats
+  unclosable, but nothing re-triggers the fall when the blocker moves away.
+- **Nothing falls except by stepping.** An actor spawned or teleported into mid-air stays
+  there; gravity is a consequence of a step, not a background force. Fine today, worth
+  knowing before an event drops someone down a shaft.
 - **`ActorFactory` is written but never exercised.** Nothing constructs actors from a profile
   yet; the test builds them by hand. First real map will be its first caller.
 - **`CameraRig.focus_of` is what a rig must follow, not `Actor.world_position`.** The body is

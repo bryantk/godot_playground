@@ -14,9 +14,35 @@ class_name GridMotion extends MotionController
 ## silences it; a listener that only wants some actors' steps filters them itself. The
 ## land-on-it feel is [signal EventBus.actor_settled] / [code]wait_settle[/code] joining
 ## the key this returns, not a flag on the trigger.
+##
+## [b]Height, on a 3D map that declares a floor [GridMap].[/b] [Terrain] decides where a
+## step in a direction actually lands - up a ramp, onto a ladder, off a ledge - so [code]
+## Y[/code] stops being something the caller supplies and becomes something the map
+## answers. A fall is then a chain of ordinary one-cell steps downward, paid out from
+## [method _settle], with its depth fixed before the step off the ledge committed.
+## [b]None of it reaches a flat map or [FreeMotion][/b]: without a floor GridMap
+## [method Terrain.resolve_step] returns [code]from + dir[/code] and every expression
+## here collapses to the one it was before height existed.
 
 ## How many world directions a step may take. 4 for game 1.
 @export_range(4, 8, 4) var direction_count: int = 4
+
+## Seconds this actor hangs in the air before a fall starts.
+##
+## [b]Per actor, because it is characterisation rather than physics.[/b] How far anything
+## may fall is the map's business ([member MapContext.max_fall_cells]); how long *this*
+## actor dangles first is a property of the actor - a heavy thing drops at once, a light
+## one hovers, and the player probably wants a beat the monsters do not get.
+##
+## [b]It is also the choreography window.[/b] [signal Actor.falling] fires when the fall
+## is announced, [i]before[/i] this is waited out, so a listener is told where the actor
+## is, where it will land and how long it has to do something about it. At the default of
+## zero the fall starts in the same frame the step off the ledge settles, which is what it
+## did before this existed.
+##
+## Counted in [method _process] rather than by a [Timer] so it pauses with the rest of
+## physics and dies with [method cancel].
+@export_range(0.0, 2.0, 0.05, "or_greater") var fall_delay: float = 0.0
 
 var _moving: bool = false
 var _step_key: String = ""
@@ -32,6 +58,26 @@ var _step_to: Vector3i = Vector3i.ZERO
 var _step_back: Vector3 = Vector3.ZERO
 var _step_left: float = 0.0
 
+## Where the sprite sits when it has caught up, which is the cell centre for everything
+## except a ramp - a ramp's logical cell is its lower end, so standing on one leaves the
+## body half a cell below the surface the eye can see (see [constant Terrain.RAMP_RISE]).
+##
+## Zero on every flat map, which is what makes this invisible to game 1: the offset walks
+## from [member _step_back] to this rather than to zero, and on a flat map the two
+## expressions are the same one.
+var _rest: Vector3 = Vector3.ZERO
+
+## Cells still to fall, paid out one step at a time from [method _settle]
+## (open-questions 37). The depth was measured before the step that started the fall
+## committed, so this only ever counts down.
+var _falling: int = 0
+
+## Seconds left of [member fall_delay] before the drop begins, and whether this fall has
+## already been announced. The flag is what keeps [signal Actor.falling] and the hang to
+## the *start* of a fall rather than repeating them for every cell of it.
+var _fall_wait: float = 0.0
+var _fall_begun: bool = false
+
 
 func _ready() -> void:
 	super()
@@ -39,8 +85,11 @@ func _ready() -> void:
 	set_process(false)
 
 
+## A falling actor is busy, and so is one still hanging before a fall. Without this the
+## round would close mid-drop and a brain could steer an actor through the air, which is
+## neither what a round means nor what falling looks like.
 func is_busy() -> bool:
-	return _moving or not _queue.is_empty()
+	return _moving or _falling > 0 or _fall_wait > 0.0 or not _queue.is_empty()
 
 
 ## The direction to take the instant the current step settles, or ZERO for none.
@@ -103,12 +152,28 @@ func step(dir: Vector3i) -> bool:
 		return false
 
 	var from := _actor.cell()
-	var to := from + d
 
-	if not Passability.can_enter(ctx, to, _actor):
+	# Where a step in this direction actually lands. On a flat map that is from + d and
+	# always has been; on a height map [Terrain] resolves ramps, ladders and ledges, and
+	# tells us how far the actor falls afterwards.
+	#
+	# A through-terrain actor is the exception and owns its own Y (open-questions 35), so
+	# it neither climbs nor falls and its step is the flat one.
+	var plan: Dictionary
+	if _actor.through_terrain:
+		plan = {"ok": true, "cell": from + d, "fall": 0, "on_ladder": false}
+	else:
+		plan = Terrain.resolve_step(ctx, from, d, ctx.max_fall_cells)
+
+	var to: Vector3i = plan["cell"]
+	if not plan["ok"] or not Passability.can_enter(ctx, to, _actor):
 		_actor.report_blocked(to)
 		return false
 
+	# Set before committing, not after: a viewless actor settles synchronously inside
+	# _commit_step, and _settle is where the fall is paid out.
+	_falling = int(plan["fall"])
+	_fall_begun = false
 	_commit_step(ctx, from, to)
 	return true
 
@@ -153,6 +218,12 @@ func cancel() -> void:
 	# take one more step in whatever direction was last held.
 	_step_intent = Vector3i.ZERO
 	_moving = false
+	# A cancelled fall stops where it is, hang included. A cutscene that seizes an actor
+	# mid-drop has said where it wants that actor, and finishing the fall underneath it
+	# would move the actor out from under the thing that just took control.
+	_falling = 0
+	_fall_wait = 0.0
+	_fall_begun = false
 	_cancel_visual()
 	if _route_key != "":
 		var key := _route_key
@@ -160,7 +231,25 @@ func cancel() -> void:
 		EventBus.command_finished.emit(key)
 
 
+## Dead in a grid game, with one exception: [b]on a ladder, jump is the release[/b]
+## (open-questions 38). The actor lets go and falls the whole way,
+## [member MapContext.max_fall_cells] notwithstanding - the limit is there so a player
+## does not walk off a lethal ledge by accident, and letting go of a ladder is the
+## opposite of an accident.
 func jump(_strength: float) -> String:
+	var ctx := context()
+	if ctx != null and _actor != null and not is_busy() \
+			and Terrain.has_ladder(ctx, _actor.cell()):
+		var drop := Terrain.drop_from_ladder(ctx, _actor.cell())
+		if drop > 0:
+			_falling = drop
+			_fall_begun = false
+			# Announced like any other fall, but never delayed. fall_delay is the hang
+			# an actor does after walking off something by accident; letting go of a
+			# ladder is the one fall that was asked for, and it drops at once.
+			_begin_fall(ctx, false)
+		return ""
+
 	push_warning("GridMotion('%s'): jump needs free motion." % _actor.actor_id if _actor != null else "?")
 	return ""
 
@@ -176,6 +265,13 @@ func _commit_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> void:
 	# phasing actor's claim is simply never refused. Gating the call on the flag would
 	# lose the through actor from the cell it is standing on.
 	if not ctx.occupancy.commit_step(_actor.actor_id, from, to):
+		# A fall whose landing cell is taken stops in the air above it rather than
+		# continuing into someone. Clearing the remaining depth is what makes that a
+		# stop and not a hang: a pending fall counts as busy (see is_busy), and nothing
+		# would ever pay it out from here, so a round joining on this actor would never
+		# close. The actor is left standing on air, which is visible and recoverable -
+		# an unclosable round is neither.
+		_falling = 0
 		_actor.report_blocked(to)
 		return
 
@@ -204,10 +300,12 @@ func _commit_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> void:
 	#    so the step that enters the mud is itself slow.
 	_actor.update_areas(AreaZone.zones_at(_actor, to))
 
-	# 5. The visual is pushed back and walks to zero under _process. This is the only
-	#    thing that takes time, and its key is what wait_settle joins. Started last so
-	#    that a viewless actor - a headless test, or a settled teleport - cannot settle
-	#    the step before actor_stepped above has been published.
+	# 5. The visual is pushed back and walks to its resting offset under _process. This
+	#    is the only thing that takes time, and its key is what wait_settle joins.
+	#    Started last so that a viewless actor - a headless test, or a settled teleport -
+	#    cannot settle the step before actor_stepped above has been published.
+	_rest = Vector3(0.0, Terrain.surface_offset(ctx, to), 0.0)
+
 	var view := _actor.view()
 	if view == null:
 		_settle()
@@ -215,10 +313,51 @@ func _commit_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> void:
 
 	_step_from = from
 	_step_to = to
-	_step_back = ctx.cell_centre(from) - ctx.cell_centre(to)
+	# Between the two *surfaces*, not the two cell centres. They are the same thing
+	# everywhere except a ramp, whose cell is its lower end - so on a ramp this is what
+	# makes the sprite travel up the slope instead of along the floor under it and then
+	# pop.
+	_step_back = _surface_of(ctx, from) - _surface_of(ctx, to)
 	_step_left = 1.0
-	view.set_step_offset(_step_back)
+	view.set_step_offset(_rest + _step_back)
 	set_process(true)
+
+
+## Where the sprite stands on [param cell], in world units - the cell centre plus
+## whatever the terrain there lifts it by. One expression for flat ground and ramps,
+## because on flat ground the lift is zero.
+func _surface_of(ctx: MapContext, cell: Vector3i) -> Vector3:
+	return ctx.cell_centre(cell) + Vector3(0.0, Terrain.surface_offset(ctx, cell), 0.0)
+
+
+## Announces a fall and starts it, after [member fall_delay] if this actor has one.
+##
+## Called once per fall rather than once per cell: the announcement and the hang belong
+## to the fall, and repeating them every cell would turn a long drop into a stutter.
+##
+## [param delayed] false skips [member fall_delay] and drops immediately. That is what
+## letting go of a ladder does - the hang is for an actor that walked off something
+## without meaning to, and a release is the one fall nobody is surprised by.
+func _begin_fall(ctx: MapContext, delayed: bool = true) -> void:
+	_fall_begun = true
+	_actor.report_falling(_actor.cell() - Vector3i(0, _falling, 0))
+
+	if delayed and fall_delay > 0.0:
+		_fall_wait = fall_delay
+		set_process(true)
+		return
+
+	_fall_one(ctx)
+
+
+## One cell of a fall, as an ordinary step straight down. Ordinary on purpose: it goes
+## through [method _commit_step] like every other step, so it commits occupancy, moves
+## the body, publishes the same signals and takes the same time to look at. "Falling is
+## repeated one-cell steps" (open-questions 37) is meant literally.
+func _fall_one(ctx: MapContext) -> void:
+	_falling -= 1
+	var at := _actor.cell()
+	_commit_step(ctx, at, at - Vector3i(0, 1, 0))
 
 
 ## The step in flight, advanced by distance rather than by elapsed time.
@@ -230,13 +369,35 @@ func _commit_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> void:
 ## its old speed and only slowed on the next one. This is also why [ActorView] no longer
 ## owns the interpolation.
 func _process(delta: float) -> void:
-	if not _moving:
-		set_process(false)
-		return
+	# Checked before anything else, so a paused game pauses the hang before a fall as
+	# well as the step in flight.
 	if ModeStack.pauses_physics():
 		return
 
-	var d := Vector3(_step_to - _step_from)
+	# The hang. Counted here rather than with a Timer for the same reason the step is:
+	# one clock, which pauses and cancels with everything else this controller owns.
+	if _fall_wait > 0.0:
+		_fall_wait -= delta
+		if _fall_wait > 0.0:
+			return
+		_fall_wait = 0.0
+		var falling_ctx := context()
+		if falling_ctx == null:
+			_falling = 0
+			set_process(false)
+			return
+		_fall_one(falling_ctx)
+		return
+
+	if not _moving:
+		set_process(false)
+		return
+
+	# Flattened, because a step crosses exactly one cell horizontally whatever it does
+	# vertically. Without this a climb reads as sqrt(2) cells and takes half again as
+	# long as the flat step beside it, and a fall - which is horizontally zero - would
+	# divide by zero in the compensation below.
+	var d := Space.flatten(Vector3(_step_to - _step_from))
 	var rate := maxf(0.0, speed) * speed_scale(d)
 	if d.length_squared() > 0.0:
 		# The same depth compensation the nominal duration uses, re-read each frame
@@ -254,12 +415,12 @@ func _process(delta: float) -> void:
 	if _step_left <= 0.0:
 		_step_left = 0.0
 		if view != null:
-			view.set_step_offset(Vector3.ZERO)
+			view.set_step_offset(_rest)
 		_settle()
 		return
 
 	if view != null:
-		view.set_step_offset(_step_back * _step_left)
+		view.set_step_offset(_rest + _step_back * _step_left)
 
 
 func _settle() -> void:
@@ -280,6 +441,24 @@ func _settle() -> void:
 	# to have happened rather than racing it.
 	if _actor != null:
 		_actor.report_settled(_actor.cell())
+
+	# The next cell of a fall, before anything else may act. A fall is a chain of
+	# ordinary one-cell steps (open-questions 37), so each drop publishes its own
+	# actor_stepped and actor_settled and a monster watching the player fall sees every
+	# cell of it - but nothing else gets a turn until the actor is on the ground, which
+	# is what is_busy() reporting a fall as busy is for.
+	#
+	# The depth was fixed before the step off the ledge committed, so this only counts
+	# down: it cannot discover a deeper hole partway and strand the actor mid-air.
+	if _falling > 0 and _actor != null:
+		var ctx := context()
+		if ctx != null:
+			if _fall_begun:
+				_fall_one(ctx)
+			else:
+				_begin_fall(ctx)
+			return
+		_falling = 0
 
 	# A route in progress owns the actor, so it wins over whatever is holding a
 	# direction - otherwise player input would steer an actor mid-cutscene.
@@ -342,7 +521,15 @@ func _cancel_visual() -> void:
 	_step_left = 0.0
 	var view := _actor.view() if _actor != null else null
 	if view != null:
+		# Cleared and then re-seated, rather than simply cleared. On a ramp the resting
+		# offset is not zero, so a teleport onto one that left the offset at zero would
+		# drop the sprite through the slope it is standing on.
 		view.cancel_step_offset()
+		var ctx := context()
+		if ctx != null and _actor != null:
+			_rest = Vector3(0.0, Terrain.surface_offset(ctx, _actor.cell()), 0.0)
+			if _rest != Vector3.ZERO:
+				view.set_step_offset(_rest)
 	if _actor != null:
 		_actor.update_areas(AreaZone.zones_at(_actor, _actor.cell()))
 		_actor.settle_areas()
