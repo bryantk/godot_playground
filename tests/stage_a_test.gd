@@ -124,62 +124,110 @@ func _test_occupancy() -> void:
 	var b := StringName("b")
 	var rock := StringName("rock")
 
-	_ok(occ.reserve(a, Vector3i(0, 0, 0)), "reserve an empty cell")
-	_eq(occ.at(Vector3i(0, 0, 0)), a, "cell reports its holder")
+	occ.place(a, Vector3i(0, 0, 0))
+	_eq(occ.actors_at(Vector3i(0, 0, 0)), [a] as Array[StringName], "cell reports who is on it")
 	_ok(occ.commit_step(a, Vector3i(0, 0, 0), Vector3i(1, 0, 0)), "step to an empty cell")
-	_ok(occ.is_free(Vector3i(0, 0, 0)), "the old cell is released")
+	_ok(occ.is_empty(Vector3i(0, 0, 0)), "the old cell is released")
 
 	# A claim against a holder who is not taking part is refused. This is the case
 	# that has to fail, or two NPCs share a tile.
-	_ok(occ.reserve(rock, Vector3i(2, 0, 0)), "a stationary actor holds a cell")
+	occ.place(rock, Vector3i(2, 0, 0))
 	_ok(not occ.commit_step(a, Vector3i(1, 0, 0), Vector3i(2, 0, 0)), "cannot step onto a stationary actor")
-	_eq(occ.at(Vector3i(1, 0, 0)), a, "a refused commit changes nothing")
-	_eq(occ.at(Vector3i(2, 0, 0)), rock, "and leaves the holder alone")
+	_eq(occ.actors_at(Vector3i(1, 0, 0)), [a] as Array[StringName], "a refused commit changes nothing")
+	_eq(occ.actors_at(Vector3i(2, 0, 0)), [rock] as Array[StringName], "and leaves the holder alone")
 
 	# A swap: both destinations are occupied, and it must still succeed. This is what
 	# reserve-as-you-go cannot express.
 	occ.clear()
-	_ok(occ.reserve(a, Vector3i(0, 0, 0)) and occ.reserve(b, Vector3i(1, 0, 0)), "two neighbours")
+	occ.place(a, Vector3i(0, 0, 0))
+	occ.place(b, Vector3i(1, 0, 0))
 	_ok(occ.commit_swap(a, Vector3i(0, 0, 0), b, Vector3i(1, 0, 0)), "neighbours may trade cells")
-	_eq(occ.at(Vector3i(0, 0, 0)), b, "b took a's cell")
-	_eq(occ.at(Vector3i(1, 0, 0)), a, "a took b's cell")
+	_eq(occ.actors_at(Vector3i(0, 0, 0)), [b] as Array[StringName], "b took a's cell")
+	_eq(occ.actors_at(Vector3i(1, 0, 0)), [a] as Array[StringName], "a took b's cell")
 
 	# A push chain: pusher and every block in one commit. All of it or none.
 	occ.clear()
 	var b1 := StringName("b1")
 	var b2 := StringName("b2")
-	occ.reserve(a, Vector3i(0, 0, 0))
-	occ.reserve(b1, Vector3i(1, 0, 0))
-	occ.reserve(b2, Vector3i(2, 0, 0))
+	occ.place(a, Vector3i(0, 0, 0))
+	occ.place(b1, Vector3i(1, 0, 0))
+	occ.place(b2, Vector3i(2, 0, 0))
 
 	var chain: Dictionary[Vector3i, StringName] = {}
 	chain[Vector3i(1, 0, 0)] = a
 	chain[Vector3i(2, 0, 0)] = b1
 	chain[Vector3i(3, 0, 0)] = b2
 	_ok(occ.commit(chain), "a two-block push chain commits")
-	_eq(occ.at(Vector3i(1, 0, 0)), a, "pusher advanced")
-	_eq(occ.at(Vector3i(3, 0, 0)), b2, "far block advanced")
-	_ok(occ.is_free(Vector3i(0, 0, 0)), "pusher's old cell freed")
+	_eq(occ.actors_at(Vector3i(1, 0, 0)), [a] as Array[StringName], "pusher advanced")
+	_eq(occ.actors_at(Vector3i(3, 0, 0)), [b2] as Array[StringName], "far block advanced")
+	_ok(occ.is_empty(Vector3i(0, 0, 0)), "pusher's old cell freed")
 
 	# The same chain into a wall of one stationary actor: nothing moves.
 	occ.clear()
-	occ.reserve(a, Vector3i(0, 0, 0))
-	occ.reserve(b1, Vector3i(1, 0, 0))
-	occ.reserve(rock, Vector3i(2, 0, 0))
+	occ.place(a, Vector3i(0, 0, 0))
+	occ.place(b1, Vector3i(1, 0, 0))
+	occ.place(rock, Vector3i(2, 0, 0))
 
 	var blocked_chain: Dictionary[Vector3i, StringName] = {}
 	blocked_chain[Vector3i(1, 0, 0)] = a
 	blocked_chain[Vector3i(2, 0, 0)] = b1
 	_ok(not occ.commit(blocked_chain), "a chain into a stationary actor is refused")
-	_eq(occ.at(Vector3i(0, 0, 0)), a, "pusher did not move")
-	_eq(occ.at(Vector3i(1, 0, 0)), b1, "block did not move -- no half-applied chain")
+	_eq(occ.actors_at(Vector3i(0, 0, 0)), [a] as Array[StringName], "pusher did not move")
+	_eq(occ.actors_at(Vector3i(1, 0, 0)), [b1] as Array[StringName], "block did not move -- no half-applied chain")
+
+	_section("Occupancy -- zero to many on a cell")
+
+	# A through actor is recorded like anyone else. That is the whole point: absent from
+	# the table, it could not be found by interact or by a cell trigger.
+	var cell := Vector3i(4, 0, 4)
+	occ.clear()
+	var ghost := StringName("ghost")
+	occ.set_phasing(ghost, true)
+	occ.place(rock, cell)
+	occ.place(ghost, cell)
+	_eq(occ.actors_at(cell), [rock, ghost] as Array[StringName], "both are recorded, in arrival order")
+	_eq(occ.blockers_at(cell), [rock] as Array[StringName], "only the solid one blocks")
+	_ok(not occ.is_empty(cell), "the cell is not empty")
+	_ok(not occ.is_clear(cell), "and not clear, because the rock is there")
+	_eq(occ.size(), 1, "two actors on one cell is still one occupied cell")
+
+	# Symmetric, both halves. The ghost walks into a blocker; a walker walks into a cell
+	# holding only the ghost.
+	occ.clear()
+	occ.set_phasing(ghost, true)
+	occ.place(rock, cell)
+	_ok(occ.commit_step(ghost, Vector3i(4, 0, 5), cell), "a through actor steps onto a blocker")
+	occ.clear()
+	occ.set_phasing(ghost, true)
+	occ.place(ghost, cell)
+	_ok(occ.is_clear(cell), "a cell holding only a through actor is clear")
+	_ok(occ.commit_step(a, Vector3i(4, 0, 5), cell), "and anyone may step onto it")
+	_eq(occ.actors_at(cell), [ghost, a] as Array[StringName], "both end up standing there")
+
+	# Forced placement stacks blockers, and they walk off normally afterwards. This is
+	# what a teleport, a spawn or an event placement produces (open-questions 34).
+	occ.clear()
+	occ.place(a, cell)
+	occ.place(b, cell)
+	_eq(occ.blockers_at(cell), [a, b] as Array[StringName], "a forced placement stacks two blockers")
+	_ok(occ.commit_step(a, cell, Vector3i(4, 0, 5)), "and a stacked actor steps off normally")
+	_eq(occ.actors_at(cell), [b] as Array[StringName], "leaving the other behind")
+	_ok(not occ.commit_step(a, Vector3i(4, 0, 5), cell), "but may not voluntarily step back in")
 
 	_section("Occupancy -- housekeeping")
 	occ.clear()
-	occ.reserve(a, Vector3i(5, 0, 5))
+	occ.place(a, Vector3i(5, 0, 5))
 	occ.release_actor(a)
-	_ok(occ.is_free(Vector3i(5, 0, 5)), "a departing actor stops blocking its cell")
+	_ok(occ.is_empty(Vector3i(5, 0, 5)), "a departing actor stops blocking its cell")
 	_ok(occ.commit_step(a, Vector3i(9, 0, 9), Vector3i(9, 0, 9)), "a step to the same cell is a no-op")
+
+	# A departing phaser forgets it was phasing, or an id reused by a later actor would
+	# inherit a flag nobody set.
+	occ.clear()
+	occ.set_phasing(ghost, true)
+	occ.place(ghost, cell)
+	occ.release_actor(ghost)
+	_ok(not occ.phases(ghost), "releasing an actor clears its phasing flag")
 
 
 # -- MapContext ---------------------------------------------------------------
@@ -375,7 +423,8 @@ func _test_the_seam() -> void:
 	_section("Occupancy -- two actors cannot share a tile")
 	# The NPC sits at cell (3,0,0); walk the player into it.
 	var npc_cell := Vector3i(3, 0, 0)
-	_eq(flat.root_ctx.occupancy.at(npc_cell), StringName("npc"), "the NPC holds its spawn cell")
+	_eq(flat.root_ctx.occupancy.actors_at(npc_cell), [StringName("npc")] as Array[StringName],
+		"the NPC holds its spawn cell")
 	var before := flat_actor.cell()
 	flat_actor.motion().move_to(npc_cell)
 	await get_tree().process_frame
@@ -565,6 +614,31 @@ func _test_pathing() -> void:
 	_ok(not Passability.allows_step(ctx, Vector3i(9, 0, 9), b), "and to a distant query too")
 	_ok(Passability.allows_step(ctx, a, Vector3i(9, 0, 9)),
 		"a distant unpainted cell is still enterable")
+
+	_section("Passability -- the two through flags")
+
+	# b is still painted blank, so it is a wall to anyone who reads terrain. These
+	# actors are never put in the tree, so they never register and cell() is the origin
+	# -- which is cell a, the cell each step below is taken from.
+	var walker := Actor.new()
+	walker.actor_id = &"walker"
+	var phaser := Actor.new()
+	phaser.actor_id = &"phaser"
+	phaser.through_terrain = true
+
+	_ok(not Passability.can_enter(ctx, b, walker), "a wall stops an ordinary actor")
+	_ok(Passability.can_enter(ctx, b, phaser), "through_terrain walks into the wall")
+
+	# through_actors is Occupancy's question, not this file's -- but can_enter is where
+	# the two meet, so the seam is worth one assertion from each side.
+	ctx.occupancy.place(&"rock", c)
+	_ok(not Passability.can_enter(ctx, c, walker), "a blocker stops an ordinary actor")
+	_ok(not Passability.can_enter(ctx, c, phaser), "and stops a through_terrain actor too")
+	ctx.occupancy.set_phasing(&"phaser", true)
+	_ok(Passability.can_enter(ctx, c, phaser), "through_actors is what walks past it")
+
+	walker.free()
+	phaser.free()
 
 	# No layer at all: open ground, which is what a bare test scene relies on.
 	ctx.collision_node = NodePath()

@@ -6,7 +6,8 @@ that the seams do not yet cover, and which of those settled decisions the game l
 back in play.
 
 > See also [event-pages.md](event-pages.md) for the multi-page event format and routes, and
-> [open-questions.md](open-questions.md) for every unresolved decision in one place.
+> [open-questions.md](open-questions.md) for every unresolved decision in one place, with
+> the answered ones in [solved-questions.md](solved-questions.md).
 
 Written 2026-09-07, revised the same day (see §6). The two targets:
 

@@ -126,7 +126,9 @@ func move_to(cell: Vector3i, opts: Dictionary = {}) -> String:
 		# wants this; keeping it here means one code path sets position.
 		var ctx := context()
 		if ctx != null:
-			ctx.occupancy.commit_step(_actor.actor_id, _actor.cell(), cell)
+			# place(), not commit_step(): a teleport is a statement, so it lands on an
+			# occupied cell rather than silently failing to move (open-questions 34).
+			ctx.occupancy.place(_actor.actor_id, cell)
 			adapter().set_world_position(ctx.cell_centre(cell))
 			_cancel_visual()
 		return ""
@@ -168,7 +170,10 @@ func _commit_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> void:
 	# 1. Occupancy, transactionally - even though this is two changes and could have
 	#    been two writes. Push needs the multi-cell form, and if the ordinary step did
 	#    not already use it, push would be a rewrite.
-	if _actor.solid and not ctx.occupancy.commit_step(_actor.actor_id, from, to):
+	# Every grid actor commits, through or not - the table records presence, and a
+	# phasing actor's claim is simply never refused. Gating the call on the flag would
+	# lose the through actor from the cell it is standing on.
+	if not ctx.occupancy.commit_step(_actor.actor_id, from, to):
 		_actor.blocked.emit(to)
 		return
 

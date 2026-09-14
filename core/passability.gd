@@ -13,6 +13,12 @@ class_name Passability
 ## its four sides may be crossed - see [method directions]. A 3D map lets its colliders
 ## and its [GridMap] answer. The split is deliberate: painting a tile per cell is how a
 ## Lufia-style map is authored, and modelling a collider per doorway is how a 3D one is.
+##
+## [b]The two through flags each switch off one step.[/b] [member Actor.through_terrain]
+## skips 1 and 3 - both are terrain, one painted and one modelled, and skipping only the
+## first would let physics re-impose the wall. [member Actor.through_actors] is not tested
+## here at all: it is [Occupancy]'s to know, because blocking is symmetric and both halves
+## of it belong to the same table.
 
 ## Tile custom-data layer names read from a [TileMapLayer] or [GridMap]. Kept here so
 ## the strings are written once and the map author has one spelling to match.
@@ -54,11 +60,17 @@ static func can_enter(ctx: MapContext, cell: Vector3i, actor: Actor) -> bool:
 	# because every caller already asks "can *this actor* enter", and a directional rule
 	# needs to know which side it would be crossing from.
 	var from := actor.cell() if actor != null else cell
-	if not _terrain_allows(ctx, from, cell):
+	if (actor == null or not actor.through_terrain) and not _terrain_allows(ctx, from, cell):
 		return false
 
-	if actor != null and actor.solid and not ctx.occupancy.is_free_for(cell, actor.actor_id):
+	if actor != null and not ctx.occupancy.is_free_for(cell, actor.actor_id):
 		return false
+
+	# Physics is terrain too, so an actor that walks through walls walks through the
+	# colliders that represent them. Without this the escape hatch would quietly
+	# re-impose what step 1 was just told to ignore.
+	if actor != null and actor.through_terrain:
+		return true
 
 	return not _physics_blocks(ctx, cell, actor)
 

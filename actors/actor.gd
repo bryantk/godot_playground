@@ -18,9 +18,19 @@ enum MotionMode { INHERIT, GRID, FREE }
 ## event that names it ambiguous, so [MapContext] refuses the second.
 @export var actor_id: StringName = &""
 
-## Does this actor take an occupancy slot? Decorations and bodiless region triggers
-## do not.
-@export var solid: bool = true
+## Walks through other actors, and is walked through by them.
+##
+## [b]Symmetric on purpose[/b] (open-questions 35): one flag, both directions. It does
+## not mean "absent from [Occupancy]" - a phasing actor is still recorded on its cell, or
+## interact could not find it and a through NPC would be unaddressable.
+@export var through_actors: bool = false
+
+## Ignores terrain: the painted pathing mask in 2D, the colliders and [GridMap] in 3D.
+##
+## [b]Nothing moves this actor vertically.[/b] No floor holds it up and no ledge drops it,
+## so it is the one actor whose [code]y[/code] is an input rather than a lookup, and the
+## only way to change its height is an explicit command. See open-questions 35 and 36.
+@export var through_terrain: bool = false
 
 @export var motion_mode: MotionMode = MotionMode.INHERIT
 
@@ -80,13 +90,21 @@ func _resolve_parts() -> void:
 		_brain = _find_child_of_type("Brain") as Brain
 
 
-## A solid grid actor claims the cell it spawned in, so two NPCs authored onto the
-## same tile fail loudly at load rather than at first step.
+## A grid actor takes its spawn cell, and declares how it blocks while it is there.
+##
+## Free actors own no cells, so they are absent from [Occupancy] entirely - that is what
+## [member through_actors] is [i]not[/i] for, and why the flag is registered here rather
+## than standing in for "is in the table".
+##
+## A spawn is a [method Occupancy.place]: it cannot fail. Two blockers authored onto one
+## tile used to be an error, and is now presumed intentional (open-questions 34) - the
+## same thing a teleport or an event placement produces, and they walk off normally
+## because only a voluntary step is refused.
 func _claim_spawn_cell() -> void:
-	if _ctx == null or not solid or effective_motion() != MotionMode.GRID:
+	if _ctx == null or effective_motion() != MotionMode.GRID:
 		return
-	if not _ctx.occupancy.reserve(actor_id, cell()):
-		push_error("Actor '%s' spawned on an occupied cell %s." % [actor_id, cell()])
+	_ctx.occupancy.set_phasing(actor_id, through_actors)
+	_ctx.occupancy.place(actor_id, cell())
 
 
 ## The zones an actor is standing in the moment it spawns.

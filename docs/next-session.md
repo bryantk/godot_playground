@@ -1,7 +1,8 @@
 # Next session — where to pick up
 
 Written 2026-09-08 at the end of the stage A session. This is the work queue;
-[open-questions.md](open-questions.md) is still the decision record.
+[open-questions.md](open-questions.md) is what is still undecided, and
+[solved-questions.md](solved-questions.md) is the decision record.
 
 ---
 
@@ -85,8 +86,9 @@ blocking at all. architecture.md §6 has the rule; `stage_a_test` covers it.
 
 Nothing 🔴 is outstanding. Questions 20, 21, 27 and 28 were answered by building.
 
-**Cluster 9 was decided on 2026-09-13 and is not built** — open-questions 34–38. It is the
-next block of engine work, and it touches the three files everything else stands on.
+**Cluster 9 was decided on 2026-09-13** — questions 34–38, now in
+[solved-questions.md](solved-questions.md) with the rest of the answers.
+**34 and 35 are built and green** (205 stage A assertions); 36–38 are not written.
 
 **Two scopes, and they split the list in half.** 34 and 35 are **every grid game, in either
 space** — `Occupancy` is what all grid movement commits through. 36, 37 and 38 are **grid
@@ -94,16 +96,17 @@ movement in 3D only**, gated on `effective_motion() == GRID` *and*
 `MapContext.supports_height`. Not "3D": `FreeMotion` is 3D and already has real gravity and
 jumping, and none of the vertical half may reach it.
 
-### Every grid game
+### Every grid game — done 2026-09-13
 
-- [ ] **`Occupancy` holds a list per cell**, and blocking becomes a predicate over it (34).
-      Every actor is recorded, through or not, so interact can find a through NPC.
-      `commit`'s collision rule gains one word — *blocking* — and swap and push chains are
-      otherwise untouched. Stacked blockers stop being an error.
-- [ ] **`solid` splits into `through_terrain` and `through_actors`** (35), each symmetric.
-      The second already half-exists by accident; the first is new and is game 2's. A
-      through-terrain actor **does not fall** and owns its own `y`, so it needs explicit
-      height commands — the one actor the rest of this block does not govern.
+- [x] **`Occupancy` holds a list per cell**, and blocking is a predicate over it (34).
+      `at()` became `actors_at` / `blockers_at`, `is_free` became `is_empty` / `is_clear`,
+      and `place()` is the forced path that `commit()` is not — a teleport used to call
+      `commit_step` and silently fail to move onto a held cell.
+- [x] **`solid` split into `through_terrain` and `through_actors`** (35). Note
+      `through_terrain` switches off **two** of `Passability`'s three steps: physics is the
+      modelled half of terrain, so skipping only the paint lets `body_test_move` put the
+      wall back. A through-terrain actor **does not fall** and owns its own `y`, so it needs
+      explicit height commands — the one actor the rest of this block does not govern.
 
 ### Grid movement in 3D only
 

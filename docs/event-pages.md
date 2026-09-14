@@ -10,7 +10,8 @@ to be authored visually rather than typed.
 It supersedes architecture.md §7.1 (document shape) and §7.6 (triggers).
 [slime_a.event.json](events/slime_a.event.json) is the worked example; the other four files
 in [docs/events/](events/) are single-page shorthand, still valid under §2.1.
-[open-questions.md](open-questions.md) collects what is still undecided here and elsewhere.
+[open-questions.md](open-questions.md) collects what is still undecided here and elsewhere;
+[solved-questions.md](solved-questions.md) keeps the answers.
 
 ---
 

@@ -15,7 +15,8 @@ JSON node graphs that the graph editor already understands.
 > - [event-pages.md](event-pages.md) — multi-page events, conditions, and routes.
 >   **Supersedes §7.1 and §7.6 below.**
 > - [open-questions.md](open-questions.md) — every unresolved decision across all three,
->   grouped by when it is needed.
+>   grouped by when it is needed, and [solved-questions.md](solved-questions.md) — the
+>   answered ones, kept with their reasoning.
 
 ---
 
@@ -178,7 +179,8 @@ a 3D map `(1, 1, 1)` m without either knowing about the other's units.
 class_name Actor extends Node
 
 @export var actor_id: StringName        # map-unique: "player", "npc_guard"
-@export var solid: bool = true          # takes an occupancy slot
+@export var through_actors: bool        # walks through actors, and is walked through
+@export var through_terrain: bool       # ignores the paint, the colliders and gravity
 @export var motion_mode: MotionMode     # Inherit | Grid | Free
 
 signal arrived(cell: Vector3i)
@@ -326,15 +328,28 @@ class_name Passability
 
 static func can_enter(ctx: MapContext, cell: Vector3i, actor: Actor) -> bool:
     # 1. Static terrain: a hand-painted direction mask in 2D; GridMap cells or
-    #    colliders in 3D.
-    # 2. Occupancy: is a solid actor already holding this cell?
+    #    colliders in 3D.                                    — skipped by through_terrain
+    # 2. Occupancy: is a *blocking* actor already standing here?
+    #                                                        — skipped by through_actors
     # 3. Physics: SpaceAdapter.body_test_move for anything neither of the above knows
     #    about — a pushed crate, a door body, a temporary barrier.
+    #                                                        — skipped by through_terrain
 ```
 
 Steps 1 and 2 are cheap dictionary/tile lookups and reject most moves. Step 3 is the
 escape hatch that keeps physics-driven objects honest without making them author tile
 data. Free-movement actors skip 1 and 2 entirely and let physics do its job.
+
+**`through_terrain` skips 1 and 3, not just 1.** Both are terrain — one painted, one
+modelled — so switching off only the first leaves physics to re-impose the wall the flag
+was told to ignore. **`through_actors` is not tested here at all**: blocking is symmetric,
+so both halves of it live in `Occupancy` (open-questions 35).
+
+**A cell holds zero to many actors.** `Occupancy` maps a cell to a *list*, and blocking is
+a predicate over it — `actors_at` is what an interact or a trigger reads, `blockers_at` is
+what a step reads. A through actor is still recorded, which is exactly why: absent from the
+table it could not be found at all. Forced placement (`place`) stacks and cannot be
+refused; only a voluntary step consults `is_free_for` (open-questions 34).
 
 ### 2D terrain is painted; 3D terrain is modelled
 
