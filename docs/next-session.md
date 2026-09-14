@@ -85,24 +85,43 @@ blocking at all. architecture.md §6 has the rule; `stage_a_test` covers it.
 
 Nothing 🔴 is outstanding. Questions 20, 21, 27 and 28 were answered by building.
 
-**Cluster 9 was decided on 2026-09-13 and is not built** — open-questions 34–37. It is the
-next block of engine work, and it touches the three files everything else stands on:
+**Cluster 9 was decided on 2026-09-13 and is not built** — open-questions 34–38. It is the
+next block of engine work, and it touches the three files everything else stands on.
+
+**Two scopes, and they split the list in half.** 34 and 35 are **every grid game, in either
+space** — `Occupancy` is what all grid movement commits through. 36, 37 and 38 are **grid
+movement in 3D only**, gated on `effective_motion() == GRID` *and*
+`MapContext.supports_height`. Not "3D": `FreeMotion` is 3D and already has real gravity and
+jumping, and none of the vertical half may reach it.
+
+### Every grid game
 
 - [ ] **`Occupancy` holds a list per cell**, and blocking becomes a predicate over it (34).
       Every actor is recorded, through or not, so interact can find a through NPC.
       `commit`'s collision rule gains one word — *blocking* — and swap and push chains are
       otherwise untouched. Stacked blockers stop being an error.
 - [ ] **`solid` splits into `through_terrain` and `through_actors`** (35), each symmetric.
-      The second already half-exists by accident; the first is new and is game 2's.
-- [ ] **`Passability.floor_y()` plus a climb limit** (36) — `y` stops being an input to a
-      step. Closes the hole where any Δy step skips the both-cells-agree rule, and retires
-      the "occupied `GridMap` cell is a wall" gap listed in §3 below.
+      The second already half-exists by accident; the first is new and is game 2's. A
+      through-terrain actor **does not fall** and owns its own `y`, so it needs explicit
+      height commands — the one actor the rest of this block does not govern.
+
+### Grid movement in 3D only
+
+- [ ] **`Passability.floor_y()`, sampled at the shared edge** (36) — `y` stops being an input
+      to a step. **No climb tolerance:** a one-tile cliff is impassable upward. Stairs and
+      ramps are **inferred from the mesh**, nothing is painted, and the discriminator is that
+      a ramp's surface is *continuous across the boundary* while a cliff's is not — so the
+      query samples the edge midpoint, not just the two cell centres. Closes the hole where
+      any Δy step skips the both-cells-agree rule, and retires the "occupied `GridMap` cell
+      is a wall" gap listed in §3 below.
 - [ ] **Falling, as repeated one-cell steps, under `max_fall_cells`** (37) — 0 makes ledges
       walls, >10 permits anything. Depth is measured *before* the step off commits, so an
       over-limit drop is refused rather than stranding the actor mid-air.
-
-**Ladders are deliberately not built** — event or terrain property is undecided, and it adds
-an axis to the pathing data, so it wants settling before the JRPG map is painted.
+- [ ] **Ladders as terrain** (38) — a column flagged with the side it is mounted on. Walking
+      into that side climbs a cell, walking away descends one. **`jump` is the release**
+      (dead in a grid game today) and it **ignores `max_fall_cells`**, because letting go is
+      deliberate. The top dismounts automatically, so a ladder top must have floor beside it
+      — a validator check, not a discovery.
 
 ---
 

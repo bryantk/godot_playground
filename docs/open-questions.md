@@ -323,6 +323,24 @@ revised after them.
 *Asked and answered 2026-09-13. **Decided, not yet built** — unlike cluster 8, no code
 below this line exists. `Occupancy`, `Passability` and `GridMotion` all change.*
 
+**This cluster has two scopes, and they are not the same scope.**
+
+- **34 and 35 — sharing a cell, and through — are every grid game, in either space.**
+  `Occupancy` is what all grid movement commits through, so the list-per-cell change and the
+  through split land in game 1 exactly as they land in the iso grid game.
+- **36, 37 and 38 — stairs, falling and ladders — are grid movement in 3D only.** The gate is
+  `effective_motion() == GRID` **and** `MapContext.supports_height`, not the space and not the
+  profile. Being 3D is not the condition: `FreeMotion` is 3D too and already has *real*
+  gravity and jumping ([free_motion.gd](../actors/motion/free_motion.gd) — `gravity`,
+  `jump_strength`, `_velocity.y`, landing resolving the jump key). None of 36–38 may reach it.
+  The iso **free** demo and the iso **grid** demo sit in the same space and take different
+  halves of this cluster, which is precisely the seam that would rot if the rule were
+  written as "3D".
+
+  A useful check on that gate: `jump` is free to be the ladder release (38) *because*
+  `GridMotion.jump` is dead while `FreeMotion.jump` is the real thing. One action, two
+  meanings, split on exactly the same line as the rest of the cluster.
+
 34. ~~How many actors may hold one cell?~~ ✅ **Zero to many. `Occupancy` maps a cell to a
     list, and blocking becomes a predicate over that list.** `_cells` goes from
     `Dictionary[Vector3i, StringName]` to a list per cell, `at()` grows a plural, and
@@ -352,11 +370,49 @@ below this line exists. `Occupancy`, `Passability` and `GridMotion` all change.*
     through-actors-only. What is genuinely new is `through_terrain`, which game 2 wants and
     game 1 has no use for.
 
-36. ~~How does a grid actor change elevation?~~ ✅ **`y` stops being an input to a step.**
-    The mover asks for a cardinal **XZ** step; a new `Passability.floor_y(ctx, column)`
-    answers what the floor of that column is; a per-actor **climb limit** decides whether
-    that is a walk, a climb or a refusal. Stairs and ramps become art plus a height answer,
-    not a movement special case — and nothing has to enumerate diagonal-in-elevation steps.
+    **`through_terrain` does not fall** — where falling exists at all, which is grid movement
+    in 3D. It skips terrain collision and may walk through a wall, but no floor pulls it down,
+    so it is the **one actor for which `y` is an input again**. It needs explicit commands to
+    change height,
+    because nothing in the world will change it on its behalf. That makes a vertical-movement
+    command a requirement of stage C's registry rather than a nicety (36 otherwise removes
+    every reason to have one), and it is the reason a through-terrain actor cannot simply
+    reuse the ladder rules.
+
+36. ~~How does a grid actor change elevation?~~ ✅ **`y` stops being an input to a step, and
+    upward movement is authored, never tolerated. There is no climb limit.** The mover asks
+    for a cardinal **XZ** step; a new `Passability.floor_y(ctx, column)` answers what the
+    floor of that column is; the step is permitted when the floors **match**. A Δy of +1 is
+    permitted **only where the map provides a connection** — a stair, a ramp or a ladder.
+
+    **A one-tile cliff and a one-tile stair are the same height and are not the same thing.**
+    No actor scales the cliff, at any stat, ever; the stair is traversable because the
+    geometry makes it so. The upward rule is geometry, not a number — which is why there is
+    nothing to tune and nothing to get wrong per actor. Downward is the only direction with a
+    number on it, and that is 37.
+
+    **Stairs and ramps are inferred from the mesh. Nothing is painted, and 2D needs none of
+    this** — game 1 is flat, so this belongs to grid movement in 3D and nothing else (see the
+    scope note at the top of this cluster). A modelled ramp simply works.
+
+    **What separates a ramp from a cliff geometrically: the surface is continuous across the
+    shared edge.** That is the test `floor_y` has to support — sample the walkable surface at
+    the **midpoint of the boundary** between the two cells, not just at their centres. On a
+    ramp the edge sample agrees with both cell surfaces; at a cliff it agrees with one and
+    differs from the other by the full drop. So "is this step a walk, a rise, or a fall" is
+    one query about continuity rather than a classification of tiles.
+
+    Two wrinkles this creates, both worth knowing before the first ramp is modelled:
+
+    - **A decorative slope must not be walkable, and the collision layer is what says so.**
+      The query asks the *walkable* layer, so geometry that is scenery is simply not on it.
+      This is the authoring discipline that replaces the paint.
+    - **Surface heights are continuous; cells are integers.** A two-cell ramp rising one unit
+      puts a column's surface at a fractional height. The resolution is the invariant this
+      codebase already holds: **the cell stays integer and authoritative, the view takes the
+      sampled surface height.** Occupancy, triggers and events never see a fraction; only the
+      sprite does. Cell `y` therefore matters only where floors genuinely stack — a bridge
+      over ground — and not for a ramp at all.
 
     **This fixes a silent hole.** `Passability.STEPS` holds four cardinals at `y = 0`, so a
     step with any Δy is not found in it and `allows_step` falls through to its non-cardinal
@@ -378,14 +434,31 @@ below this line exists. `Occupancy`, `Passability` and `GridMotion` all change.*
 
     **This retires the event override `Passability` anticipated.** Its docstring notes that
     the symmetric both-sides rule "cannot express a ledge you may drop off but not climb.
-    That is what the event override is for when it arrives." It is not needed: a climb limit
-    and a fall limit are two different numbers, so down-3 is a fall and up-3 is unclimbable
-    out of ordinary arithmetic.
+    That is what the event override is for when it arrives." It is not needed, and for a
+    better reason than the one first filed here: **up and down are not one rule with two
+    numbers.** Up is authored geometry (36) and down is a permitted distance (this). The
+    asymmetry is structural, not arithmetic.
 
-**Still open:** whether a **ladder** is an authored event (a graph that plays a climb and
-teleports — full control, one event per ladder) or a terrain property (a column flagged
-climbable, so vertical movement is just movement). Not being built either way until decided.
-It adds an axis to the pathing data, so it wants settling **before the JRPG map is painted**.
+38. ~~Are ladders events or terrain?~~ ✅ **Terrain, flagged like everything else, with the
+    facing doing the work.** A ladder column carries a facing — the side it is mounted on.
+    Walking **into** that direction climbs one cell; walking **away** from it descends one.
+    No graph, no per-ladder authoring, and every ladder in the game behaves identically.
+
+    **Release is `jump`.** `GridMotion.jump` currently does nothing but warn that jump needs
+    free motion — the action is already bound and dead in a grid game, so letting go costs no
+    new binding in either profile. Same trick as `turn_in_place` sharing Shift with `run`.
+
+    **Release ignores `max_fall_cells`.** Letting go is a deliberate act, so it drops however
+    far the column goes. This keeps the limit meaning exactly one thing — *may this actor
+    walk off a ledge* — which is what lets game 1 set it to 0 and still have working ladders.
+
+    **The top dismounts automatically:** climbing into the top cell steps the actor onto the
+    floor above in the same motion, so there is no press that appears to do nothing. The
+    consequence is an authoring rule — **the top of a ladder must have floor beside it** —
+    and that is exactly the kind of thing the map validator should check rather than discover.
+
+    A ladder is therefore the one vertical connection driven by *held direction* rather than
+    by crossing geometry, and the only one that is flagged rather than inferred (36).
 
 ---
 
