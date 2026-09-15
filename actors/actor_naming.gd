@@ -9,36 +9,46 @@ class_name ActorNaming
 ## guards both called [code]""[/code] look identical in the inspector, and the second one
 ## to load is the one that fails.
 ##
+## [b]Generated ids are plain numbers[/b] - [code]1[/code], [code]2[/code],
+## [code]3[/code] - because that is what most actors need: a handle that is unique and
+## short, written [code]@1[/code] in a command. An actor that earns a real name gets one
+## typed by hand ([code]player[/code], [code]north_door[/code]), and this never
+## overwrites it.
+##
 ## [b]Two halves, deliberately.[/b] The id is data the game reads; the node name is for
 ## the person looking at the scene tree. Assigning one without the other is what makes a
 ## map where the inspector and the tree disagree about which guard is which, so
 ## [method assign] always does both.
 ##
 ## [b]Idempotent.[/b] Re-running over a map that has already been named changes nothing
-## and stacks no suffixes - [code]Guard__event_3[/code] does not become
-## [code]Guard__event_3__event_3[/code]. That matters because this is meant to be wired to
-## an editor button, and a button that punishes a second click is a button nobody trusts.
+## and stacks no suffixes - [code]Event__3[/code] does not become [code]Event__3__3[/code].
+## That matters because this is meant to be wired to an editor button, and a button that
+## punishes a second click is a button nobody trusts.
 ##
 ## Static and UI-free, so an [code]@tool[/code] script in the editor and a test in a
 ## headless run reach it the same way.
 
-## What a generated id is called before its number. Ids read [code]event_3[/code], which
-## is the [code]@event_3[/code] term form minus its sigil (question 40).
-const DEFAULT_PREFIX := "event"
+## What separates a node's name from the id appended to it.
+##
+## Doubled so it cannot be confused with the single underscores inside a name that
+## already has them - [code]north_door__4[/code] is unambiguous about where the id
+## starts, where [code]north_door_4[/code] would not be.
+const SEPARATOR := "__"
 
-## Characters Godot refuses in a node name. A prefix carrying one of these would produce
-## a node whose name silently does not match the id inside it.
-const ILLEGAL_IN_NAMES := [".", ":", "@", "/", "\"", "%"]
+## Generated ids start here and count up. One rather than zero because these are read and
+## typed by a person, and the third actor placed being [code]3[/code] is the whole appeal
+## of numbering them at all.
+const FIRST_ID := 1
 
 ## The one actor whose node is named [i]for[/i] its id rather than after it.
 ##
-## Every other actor reads [code]Guard__event_3[/code], because the number is the only
-## thing telling two guards apart. There is exactly one player, its id is the one an
-## author types from memory, and [code]Player__player[/code] says the same word twice for
-## no gain - so the player's node is simply [code]Player[/code].
+## Every other actor reads [code]Event__3[/code], because the number is the only thing
+## telling two of them apart. There is exactly one player, its id is the one an author
+## types from memory, and [code]Player__player[/code] says the same word twice for no
+## gain - so the player's node is simply [code]Player[/code].
 ##
-## It is also the name the three demo scenes already use, so this is the rule matching
-## what a hand-authored map does rather than imposing something new on it.
+## It is also the name the three demo scenes already use, so this matches what a
+## hand-authored map does rather than imposing something new on it.
 const PLAYER_ID := &"player"
 const PLAYER_NODE_NAME := "Player"
 
@@ -51,7 +61,6 @@ const PLAYER_NODE_NAME := "Player"
 ## an actor whose id is [code]Player[/code], because ids themselves are matched exactly.
 static func is_player_id(id: StringName) -> bool:
 	return String(id).to_lower() == String(PLAYER_ID)
-
 
 
 # -- Reading a map -------------------------------------------------------------
@@ -76,8 +85,7 @@ static func _collect(node: Node, into: Array[Actor]) -> void:
 		_collect(child, into)
 
 
-## How many actors are placed under [param root]. This is the count a new id is numbered
-## from.
+## How many actors are placed under [param root].
 static func count(root: Node) -> int:
 	return actors_under(root).size()
 
@@ -95,51 +103,29 @@ static func existing_ids(root: Node) -> Dictionary:
 
 # -- Generating an id ----------------------------------------------------------
 
-## The next free id under [param root].
+## The lowest free number under [param root], as a [StringName].
 ##
-## [b]Numbering starts at the number of ids already handed out, then counts up until the
-## id is free.[/b]
+## [b]It fills gaps rather than counting past the end.[/b] With 1, 2 and 4 in use the
+## next id is 3, because an author reading a map expects the numbers to be the small
+## contiguous set they look like, and a map edited for an hour should not be numbered
+## into the forties.
 ##
-## [b]Ids already handed out, not actors placed[/b] - the distinction is the whole
-## correctness of this. A freshly placed map of three unnamed actors has three actors and
-## zero ids, and wants [code]event_0[/code], [code]event_1[/code], [code]event_2[/code].
-## Counting actors instead would number them 3, 4, 5, because the actor being named is
-## itself in the count - every id in a new map would be off by the number of actors in it.
-##
-## Then the search upward, which is what keeps it correct after a deletion: with
-## [code]event_0[/code] and [code]event_2[/code] in use, the count is 2 and
-## [code]event_2[/code] is taken, so the next free one is [code]event_3[/code]. Without
-## the search that id would be handed out twice and [method MapContext.register] would
-## refuse the second at runtime - an authoring mistake that only shows up on load.
-static func next_id(root: Node, prefix: String = DEFAULT_PREFIX) -> StringName:
-	var taken := existing_ids(root)
-	return next_id_avoiding(taken, taken.size(), prefix)
+## [b]The cost, stated rather than discovered:[/b] a number can be reused. Delete the
+## actor called 3 and place another, and the new one is also 3 - so a graph that still
+## says [code]@3[/code] now drives the new actor instead of failing to find the old one.
+## An actor referenced across a map is one that has earned a real name, which is what
+## hand-typed ids are for.
+static func next_id(root: Node) -> StringName:
+	return next_id_avoiding(existing_ids(root))
 
 
 ## [method next_id] against a caller's own set, for naming several actors in one pass
 ## without re-walking the tree between each.
-static func next_id_avoiding(taken: Dictionary, from: int,
-		prefix: String = DEFAULT_PREFIX) -> StringName:
-	var safe := _safe_prefix(prefix)
-	var n := maxi(0, from)
-	while taken.has(StringName("%s_%d" % [safe, n])):
+static func next_id_avoiding(taken: Dictionary) -> StringName:
+	var n := FIRST_ID
+	while taken.has(StringName(str(n))):
 		n += 1
-	return StringName("%s_%d" % [safe, n])
-
-
-## A prefix that cannot produce an unusable node name. Returns [constant DEFAULT_PREFIX]
-## rather than a mangled string when the caller's prefix is empty or illegal, so the
-## failure is a visible fallback instead of a node named [code]__3[/code].
-static func _safe_prefix(prefix: String) -> String:
-	var text := prefix.strip_edges()
-	if text == "":
-		return DEFAULT_PREFIX
-	for bad in ILLEGAL_IN_NAMES:
-		if text.contains(bad):
-			push_warning("ActorNaming: prefix '%s' contains '%s', which Godot refuses in a node name - using '%s'."
-				% [prefix, bad, DEFAULT_PREFIX])
-			return DEFAULT_PREFIX
-	return text
+	return StringName(str(n))
 
 
 # -- Node names ----------------------------------------------------------------
@@ -147,7 +133,7 @@ static func _safe_prefix(prefix: String) -> String:
 ## The node an id belongs on: the placed scene instance, not the [Actor] inside it.
 ##
 ## Actors are placed as instances of one prefab - [code]Player[/code],
-## [code]Npc_17_9[/code] - each with an [Actor] child that is always just called
+## [code]Event__2[/code] - each with an [Actor] child that is always just called
 ## [code]Actor[/code]. Renaming that child would put the id on the node nobody picks in
 ## the scene tree, so this walks up to the nearest ancestor that is its own scene
 ## instance and names that instead.
@@ -169,79 +155,57 @@ static func placement_root(actor: Actor) -> Node:
 
 ## [param base] with [param id] appended, having first removed any id already there.
 ##
-## The strip is what makes a second click harmless. It removes a trailing
-## [code]__<prefix>_<number>[/code] whatever the number, so re-naming an actor that was
-## [code]event_3[/code] and is now [code]event_5[/code] leaves [code]Guard__event_5[/code]
-## rather than [code]Guard__event_3__event_5[/code].
+## The strip is what makes a second click harmless, and it removes two things: the id
+## being applied, and any trailing number. Without the first, an id that is not a number -
+## [code]north_door[/code] - is re-appended on every pass, so a second run over a map
+## produces [code]Door__north_door__north_door[/code] and a third adds another.
 ##
 ## [b]The player is the exception[/b] and gets [constant PLAYER_NODE_NAME] with nothing
 ## appended - see [constant PLAYER_ID]. The base is discarded entirely in that case, so a
 ## node called anything at all becomes [code]Player[/code] the moment it is given that id.
-static func node_name_for(base: String, id: StringName,
-		prefix: String = DEFAULT_PREFIX) -> String:
+static func node_name_for(base: String, id: StringName) -> String:
 	if is_player_id(id):
 		return PLAYER_NODE_NAME
 
-	# Its own id first, then the generated shape. Without the first strip an id that does
-	# not look generated - npc_guard, player - is re-appended every pass, so the second
-	# run over a map produces Guard__npc_guard__npc_guard and the third adds another. The
-	# idempotence this class promises is only true for generated ids without it.
-	var stem := strip_id(strip_exact(base, id), prefix)
+	var stem := strip_id(strip_exact(base, id))
 	if stem == "":
 		# A node called nothing but its old id still deserves a readable name.
 		stem = "Actor"
-	return "%s__%s" % [stem, id]
+	return "%s%s%s" % [stem, SEPARATOR, id]
 
 
-## [param name] with a trailing generated id removed. Any other name is returned
-## unchanged, so a hand-named [code]Guard_of_the_north[/code] survives.
-static func strip_id(name: String, prefix: String = DEFAULT_PREFIX) -> String:
+## [param name] with a trailing generated id - the separator and digits - removed. Any
+## other name is returned unchanged, so a hand-named [code]Guard_of_the_north[/code]
+## survives, and so does a name whose id is a word rather than a number.
+static func strip_id(name: String) -> String:
 	var expression := RegEx.new()
-	# The prefix is escaped rather than interpolated raw: a prefix with a regex
-	# metacharacter in it would otherwise match far more than it should.
-	expression.compile(r"__%s_\d+$" % _escape(_safe_prefix(prefix)))
+	expression.compile("%s[0-9]+$" % SEPARATOR)
 	return expression.sub(name, "", false)
-
-
-static func _escape(text: String) -> String:
-	var out := ""
-	for i in text.length():
-		var c := text[i]
-		out += ("\\" + c) if r"\^$.|?*+()[]{}".contains(c) else c
-	return out
 
 
 ## [param name] with a trailing [code]__<id>[/code] removed, for one specific id.
 ##
-## [method strip_id] only knows the generated [code]__<prefix>_<number>[/code] shape, so
-## it cannot remove an id that does not look generated - a hand-typed
-## [code]player[/code], or a [code]chest_2[/code] written while the prefix was
-## [code]event[/code]. Renaming from one of those would stack:
-## [code]Guard__chest_2__chest_3[/code]. Knowing the id being replaced is what avoids it.
+## [method strip_id] only knows the generated shape - the separator and digits - so it
+## cannot remove an id that is a word. Renaming away from one would stack:
+## [code]Door__north_door__side_door[/code]. Knowing the id being replaced avoids it, and
+## a hook that fires on every change to an id always knows that.
 static func strip_exact(name: String, id: StringName) -> String:
 	if id == &"":
 		return name
-	return name.trim_suffix("__%s" % id)
+	return name.trim_suffix("%s%s" % [SEPARATOR, id])
 
 
-## Renames [param node] for [param id], removing [param previous] first.
+## Renames [param node] for [param id], removing [param previous] first. Returns the name
+## the node ended up with.
 ##
-## This is the setter's form of [method node_name_for]: a hook that fires on every change
-## to an id knows what the id used to be, and that is strictly better information than a
-## pattern match. Returns the name the node ended up with.
-##
-## Does nothing and returns the current name when the result would be identical, so an
-## edit that changes nothing does not mark the scene dirty.
-static func rename_for(node: Node, id: StringName, previous: StringName = &"",
-		prefix: String = DEFAULT_PREFIX) -> String:
+## Does nothing when the result would be identical, so an edit that changes nothing does
+## not mark the scene dirty.
+static func rename_for(node: Node, id: StringName, previous: StringName = &"") -> String:
 	if node == null:
 		return ""
 
 	var stem := strip_exact(node.name, previous)
-	# Moving off the player id leaves the bare "Player" as the stem, which is the right
-	# thing to build on: an actor that was the player and is now event_3 reads
-	# Player__event_3, and renaming it by hand afterwards is one edit.
-	var wanted := node_name_for(stem, id, prefix) if id != &"" else strip_id(stem, prefix)
+	var wanted := node_name_for(stem, id) if id != &"" else strip_id(stem)
 	if wanted == "":
 		wanted = "Actor"
 	if node.name != wanted:
@@ -255,16 +219,14 @@ static func rename_for(node: Node, id: StringName, previous: StringName = &"",
 ##
 ## Returns the id the actor ended up with, or [code]&""[/code] if it was left alone.
 ##
-## [param root] is the scene to count and check against - the edited scene in the editor,
-## the map at runtime. Left null, the actor's own scene root is used.
+## [param root] is the scene to check against - the edited scene in the editor, the map
+## at runtime. Left null, the actor's own scene root is used.
 ##
 ## [b]An actor that already has an id keeps it[/b] unless [param overwrite] is true. That
-## is what stops a pass over the map renaming [code]player[/code] to
-## [code]event_0[/code] and breaking every graph that names it. The node is still renamed
-## to match, because an actor whose id and node name disagree is the thing this exists to
-## prevent.
-static func assign(actor: Actor, root: Node = null, prefix: String = DEFAULT_PREFIX,
-		overwrite: bool = false) -> StringName:
+## is what stops a pass over the map renaming [code]player[/code] to [code]1[/code] and
+## breaking every graph that names it. The node is still renamed to match, because an
+## actor whose id and node name disagree is the thing this exists to prevent.
+static func assign(actor: Actor, root: Node = null, overwrite: bool = false) -> StringName:
 	if actor == null:
 		return &""
 	if root == null:
@@ -276,12 +238,12 @@ static func assign(actor: Actor, root: Node = null, prefix: String = DEFAULT_PRE
 		var taken := existing_ids(root)
 		# Its own current id must not block it from being renumbered.
 		taken.erase(actor.actor_id)
-		id = next_id_avoiding(taken, taken.size(), prefix)
+		id = next_id_avoiding(taken)
 		actor.actor_id = id
 
 	var node := placement_root(actor)
 	if node != null:
-		node.name = node_name_for(node.name, id, prefix)
+		node.name = node_name_for(node.name, id)
 	return id
 
 
@@ -295,10 +257,9 @@ static func assign(actor: Actor, root: Node = null, prefix: String = DEFAULT_PRE
 ##
 ## The taken-set is built once and added to as it goes, rather than re-walked per actor:
 ## the ids handed out in this pass are not yet visible to a fresh [method existing_ids]
-## in the order this runs, and two actors named [code]event_3[/code] is exactly the
+## in the order this runs, and two actors both called [code]3[/code] is exactly the
 ## collision the numbering exists to avoid.
-static func assign_all(root: Node, prefix: String = DEFAULT_PREFIX,
-		overwrite: bool = false) -> Dictionary:
+static func assign_all(root: Node, overwrite: bool = false) -> Dictionary:
 	var changed: Dictionary = {}
 	if root == null:
 		return changed
@@ -315,7 +276,7 @@ static func assign_all(root: Node, prefix: String = DEFAULT_PREFIX,
 		# is the tree-and-inspector disagreement this whole class exists to prevent.
 		if id == &"" or overwrite:
 			taken.erase(id)
-			id = next_id_avoiding(taken, taken.size(), prefix)
+			id = next_id_avoiding(taken)
 			who.actor_id = id
 		taken[id] = true
 
@@ -324,7 +285,7 @@ static func assign_all(root: Node, prefix: String = DEFAULT_PREFIX,
 			continue
 
 		var before := node.name
-		node.name = node_name_for(node.name, id, prefix)
+		node.name = node_name_for(node.name, id)
 		if node.name != before:
 			changed[id] = node.name
 

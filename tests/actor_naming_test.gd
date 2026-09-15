@@ -19,7 +19,6 @@ func _ready() -> void:
 	_test_placement_root()
 	_test_assign()
 	_test_assign_all()
-	_test_prefix()
 	_test_rename_for()
 	_test_setter_hook()
 	_test_player()
@@ -33,34 +32,42 @@ func _ready() -> void:
 # -- Ids -----------------------------------------------------------------------
 
 func _test_ids() -> void:
-	_section("next_id -- numbered from the ids already handed out")
+	_section("next_id -- the lowest free number, counting from 1")
 
 	var empty := _map([])
 	_eq(ActorNaming.count(empty), 0, "an empty map has no actors")
-	_eq(ActorNaming.next_id(empty), &"event_0", "the first actor is event_0")
+	_eq(ActorNaming.next_id(empty), &"1", "the first actor is 1, not 0 -- a person reads these")
 	empty.free()
 
-	# Three actors, but zero ids handed out - so the next id is 0, not 3. Numbering from
-	# the actor count instead would make every id in a fresh map off by the number of
-	# actors in it, because the actor being named is itself in that count.
+	# Three actors, zero ids. The number is about ids handed out, never about how many
+	# actor nodes exist: the actor being named is itself one of them, so counting nodes
+	# would make every id in a fresh map off by the size of the map.
 	var three := _map(["", "", ""])
 	_eq(ActorNaming.count(three), 3, "three placed actors")
-	_eq(ActorNaming.next_id(three), &"event_0", "  but no ids yet, so the next id is event_0")
+	_eq(ActorNaming.next_id(three), &"1", "  but no ids yet, so the next id is still 1")
 	three.free()
 
-	_section("  and searched upward, so a deletion cannot hand one out twice")
-
-	# The case the count alone gets wrong: two actors remain, but the ids in use are
-	# event_0 and event_2 because event_1 was deleted. Numbering from the count alone
-	# would return event_2, which MapContext.register refuses at runtime.
-	var gappy := _map(["event_0", "event_2"])
-	_eq(ActorNaming.count(gappy), 2, "two ids in use")
-	_eq(ActorNaming.next_id(gappy), &"event_3", "so the search skips the taken event_2")
-	gappy.free()
-
-	var crowded := _map(["event_0", "event_1", "event_2"])
-	_eq(ActorNaming.next_id(crowded), &"event_3", "a full set counts past the end")
+	var crowded := _map(["1", "2", "3"])
+	_eq(ActorNaming.next_id(crowded), &"4", "a contiguous set counts past the end")
 	crowded.free()
+
+	_section("  and it fills gaps rather than counting past them")
+
+	# With 1, 2 and 4 in use the next is 3. An author reading a map expects the numbers
+	# to be the small contiguous set they look like, and a map edited for an hour should
+	# not be numbered into the forties.
+	var gappy := _map(["1", "2", "4"])
+	_eq(ActorNaming.next_id(gappy), &"3", "the hole is filled first")
+
+	var filled := _map(["1", "2", "3", "4"])
+	_eq(ActorNaming.next_id(filled), &"5", "  and once it is full, the end again")
+	gappy.free()
+	filled.free()
+
+	# Word ids are not numbers and never block one.
+	var worded := _map(["player", "north_door"])
+	_eq(ActorNaming.next_id(worded), &"1", "hand-typed names do not consume numbers")
+	worded.free()
 
 	# An unnamed actor must not make the empty string look taken.
 	var mixed := _map(["player", ""])
@@ -75,30 +82,30 @@ func _test_ids() -> void:
 func _test_names() -> void:
 	_section("node_name_for -- the id appended after a double underscore")
 
-	_eq(ActorNaming.node_name_for("Guard", &"event_3"), "Guard__event_3",
+	_eq(ActorNaming.node_name_for("Guard", &"3"), "Guard__3",
 		"the id goes on the end after __")
-	_eq(ActorNaming.node_name_for("Npc_17_9", &"event_1"), "Npc_17_9__event_1",
+	_eq(ActorNaming.node_name_for("Npc_17_9", &"1"), "Npc_17_9__1",
 		"a name with single underscores is left alone")
 
 	_section("  idempotence -- a second click changes nothing")
 
 	# The whole reason strip_id exists: this is meant to be a button, and a button that
 	# grows the name every time it is pressed is one nobody presses twice.
-	var once := ActorNaming.node_name_for("Guard", &"event_3")
-	var twice := ActorNaming.node_name_for(once, &"event_3")
-	_eq(twice, "Guard__event_3", "naming an already-named node is a no-op")
+	var once := ActorNaming.node_name_for("Guard", &"3")
+	var twice := ActorNaming.node_name_for(once, &"3")
+	_eq(twice, "Guard__3", "naming an already-named node is a no-op")
 
-	var renumbered := ActorNaming.node_name_for(once, &"event_5")
-	_eq(renumbered, "Guard__event_5", "and a new id replaces the old rather than stacking")
+	var renumbered := ActorNaming.node_name_for(once, &"5")
+	_eq(renumbered, "Guard__5", "and a new id replaces the old rather than stacking")
 
-	_eq(ActorNaming.strip_id("Guard__event_12"), "Guard", "strip_id takes any number")
+	_eq(ActorNaming.strip_id("Guard__12"), "Guard", "strip_id takes any number")
 	_eq(ActorNaming.strip_id("Guard"), "Guard", "and leaves a plain name alone")
 	_eq(ActorNaming.strip_id("Guard_of_the_north"), "Guard_of_the_north",
 		"a hand-written name with single underscores survives")
-	_eq(ActorNaming.strip_id("Guard__event_3__event_4"), "Guard__event_3",
+	_eq(ActorNaming.strip_id("Guard__3__4"), "Guard__3",
 		"only the trailing id is stripped, one layer at a time")
 
-	# The bug this caught: node_name_for only knew the generated __event_N shape, so an id
+	# The bug this caught: node_name_for only knew the generated generated number shape, so an id
 	# that does not look generated was re-appended on every pass. A second run over a map
 	# produced Guard__npc_guard__npc_guard, and a third added another.
 	_eq(ActorNaming.node_name_for("Guard__npc_guard", &"npc_guard"), "Guard__npc_guard",
@@ -107,7 +114,7 @@ func _test_names() -> void:
 		ActorNaming.node_name_for("Guard", &"npc_guard"), &"npc_guard"),
 		"Guard__npc_guard", "  applied twice in a row")
 
-	_eq(ActorNaming.node_name_for("__event_3", &"event_4"), "Actor__event_4",
+	_eq(ActorNaming.node_name_for("__3", &"4"), "Actor__4",
 		"a node that was nothing but its id still gets a readable stem")
 
 
@@ -152,14 +159,14 @@ func _test_assign() -> void:
 	var body := actor.get_parent()
 
 	var id := ActorNaming.assign(actor, map)
-	_eq(id, &"event_0", "an unnamed actor is given the first free id")
-	_eq(actor.actor_id, &"event_0", "  written to the actor")
-	_eq(body.name, "Guard_0__event_0", "  and appended to the node name")
+	_eq(id, &"1", "an unnamed actor is given the first free id")
+	_eq(actor.actor_id, &"1", "  written to the actor")
+	_eq(body.name, "Guard_0__1", "  and appended to the node name")
 	map.free()
 
 	_section("  an existing id is kept, because a graph may name it")
 
-	# The failure this prevents: a pass over the map renames player to event_0, and every
+	# The failure this prevents: a pass over the map renames player to 1, and every
 	# graph that says @player stops resolving.
 	var named := _map(["player"])
 	var who := ActorNaming.actors_under(named)[0]
@@ -172,11 +179,11 @@ func _test_assign() -> void:
 
 	_section("  overwrite renumbers, without colliding with itself")
 
-	var forced := _map(["event_7"])
+	var forced := _map(["7"])
 	var one := ActorNaming.actors_under(forced)[0]
-	var fresh := ActorNaming.assign(one, forced, ActorNaming.DEFAULT_PREFIX, true)
-	_eq(fresh, &"event_0", "overwrite renumbers from the ids in use")
-	_ok(fresh != &"event_7", "  and its own old id did not block it")
+	var fresh := ActorNaming.assign(one, forced, true)
+	_eq(fresh, &"1", "overwrite renumbers to the lowest free number")
+	_ok(fresh != &"7", "  and its own old id did not block it")
 	forced.free()
 
 	_eq(ActorNaming.assign(null), &"", "a null actor is answered, not crashed on")
@@ -217,26 +224,6 @@ func _test_assign_all() -> void:
 	_eq(ActorNaming.assign_all(null).size(), 0, "a null root is answered, not crashed on")
 
 
-func _test_prefix() -> void:
-	_section("prefixes -- a bad one falls back rather than making a bad node name")
-
-	var map := _map([""])
-	var actor := ActorNaming.actors_under(map)[0]
-	var id := ActorNaming.assign(actor, map, "chest")
-	_eq(id, &"chest_0", "a custom prefix is used")
-	_eq(actor.get_parent().name, "Guard_0__chest_0", "  and reaches the node name")
-	map.free()
-
-	# "@" is one of the characters Godot refuses in a node name, and it is the likely
-	# mistake here, because @event_3 is how the id is written inside a command.
-	var bad := _map([""])
-	var who := ActorNaming.actors_under(bad)[0]
-	var fallback := ActorNaming.assign(who, bad, "@event")
-	_eq(fallback, &"event_0", "an illegal prefix falls back to the default")
-	bad.free()
-
-
-
 # -- The setter hook -----------------------------------------------------------
 
 func _test_rename_for() -> void:
@@ -245,31 +232,31 @@ func _test_rename_for() -> void:
 	var node := Node.new()
 	node.name = "Guard"
 
-	_eq(ActorNaming.rename_for(node, &"event_2"), "Guard__event_2",
+	_eq(ActorNaming.rename_for(node, &"2"), "Guard__2",
 		"a first id is appended")
-	_eq(ActorNaming.rename_for(node, &"event_5", &"event_2"), "Guard__event_5",
+	_eq(ActorNaming.rename_for(node, &"5", &"2"), "Guard__5",
 		"a change replaces the old id rather than stacking")
 
 	# The case strip_id alone cannot handle: a hand-typed id looks nothing like a
 	# generated one, so only knowing what it was lets it be removed.
 	node.name = "Guard__player"
-	_eq(ActorNaming.rename_for(node, &"event_1", &"player"), "Guard__event_1",
+	_eq(ActorNaming.rename_for(node, &"1", &"player"), "Guard__1",
 		"moving away from a hand-typed id strips it exactly")
 
-	node.name = "Guard__chest_2"
-	_eq(ActorNaming.rename_for(node, &"chest_3", &"chest_2", "event"), "Guard__chest_3",
-		"even when the id does not match the prefix in play")
+	node.name = "Guard__north_door"
+	_eq(ActorNaming.rename_for(node, &"side_door", &"north_door"), "Guard__side_door",
+		"and between two word ids, which strip_id cannot recognise at all")
 
 	# Clearing the id takes the suffix off rather than leaving a dangling one.
-	node.name = "Guard__event_4"
-	_eq(ActorNaming.rename_for(node, &"", &"event_4"), "Guard",
+	node.name = "Guard__4"
+	_eq(ActorNaming.rename_for(node, &"", &"4"), "Guard",
 		"clearing the id removes the suffix")
 
-	node.name = "Guard__event_9"
-	_eq(ActorNaming.rename_for(node, &"event_9", &"event_9"), "Guard__event_9",
+	node.name = "Guard__9"
+	_eq(ActorNaming.rename_for(node, &"9", &"9"), "Guard__9",
 		"setting the same id again changes nothing")
 
-	_eq(ActorNaming.rename_for(null, &"event_0"), "", "null is answered, not crashed on")
+	_eq(ActorNaming.rename_for(null, &"0"), "", "null is answered, not crashed on")
 	node.free()
 
 	_section("  strip_exact")
@@ -293,8 +280,8 @@ func _test_setter_hook() -> void:
 	var body := actor.get_parent()
 	var before := body.name
 
-	actor.actor_id = &"event_9"
-	_eq(actor.actor_id, &"event_9", "the id changes at run time")
+	actor.actor_id = &"9"
+	_eq(actor.actor_id, &"9", "the id changes at run time")
 	_eq(body.name, before, "  but the node keeps its name (%s)" % before)
 
 	remove_child(map)
@@ -323,14 +310,14 @@ func _test_player() -> void:
 	_section("  through the setter path too")
 
 	var node := Node.new()
-	node.name = "Guard__event_3"
-	_eq(ActorNaming.rename_for(node, &"player", &"event_3"), "Player",
+	node.name = "Guard__3"
+	_eq(ActorNaming.rename_for(node, &"player", &"3"), "Player",
 		"promoting an actor to the player renames it Player")
 
 	# And back out again. The stem is the bare "Player", so the result reads
-	# Player__event_4 - which is honest about what the node used to be, and is one
+	# Player__4 - which is honest about what the node used to be, and is one
 	# hand-edit away from whatever the author would rather call it.
-	_eq(ActorNaming.rename_for(node, &"event_4", &"player"), "Player__event_4",
+	_eq(ActorNaming.rename_for(node, &"4", &"player"), "Player__4",
 		"and demoting it builds on the name it had")
 	node.free()
 
