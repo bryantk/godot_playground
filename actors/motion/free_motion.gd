@@ -19,6 +19,7 @@ class_name FreeMotion extends MotionController
 
 var _velocity: Vector3 = Vector3.ZERO
 var _intent: Vector3 = Vector3.ZERO
+var _intent_scale: float = 1.0
 var _target: Variant = null
 var _target_key: String = ""
 var _jump_key: String = ""
@@ -38,8 +39,18 @@ func is_travelling() -> bool:
 
 
 ## Per-frame steering, in world space and already basis-corrected by [InputProfile].
-func set_intent(dir: Vector3) -> void:
+##
+## [b]Speed is [param scale], not the length of [param dir].[/b] A run cannot ride in the
+## vector's magnitude, because this is where the intent is quantised to
+## [member direction_count] - snapping to one of eight headings means normalising, which
+## throws any magnitude above 1 away. That is exactly what happened to [member
+## Brain.run_speed_scale] until 2026-09-14: the brain multiplied the direction by 3 and
+## this method discarded it on the next line, so holding run did nothing in either demo
+## and only an actor left analog ([code]direction_count == 0[/code], which nothing ships)
+## ever ran. Direction and speed are separate arguments so that cannot recur.
+func set_intent(dir: Vector3, scale: float = 1.0) -> void:
 	_intent = Space.flatten(dir)
+	_intent_scale = maxf(0.0, scale)
 	if direction_count > 0 and _intent.length_squared() > 0.0001:
 		var snapped := Space.quantise(_intent, direction_count)
 		_intent = Vector3(snapped).normalized() * minf(1.0, _intent.length())
@@ -80,6 +91,7 @@ func jump(strength: float = -1.0) -> String:
 func cancel() -> void:
 	_target = null
 	_intent = Vector3.ZERO
+	_intent_scale = 1.0
 	if _target_key != "":
 		var key := _target_key
 		_target_key = ""
@@ -92,7 +104,12 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var desired := _intent
+	# A commanded move runs at the command's own speed. Whatever the player happens to
+	# be holding is steering input, and steering is not what is driving this actor while
+	# a `move_to` is in flight.
+	var scale := _intent_scale
 	if _target != null:
+		scale = 1.0
 		var to_target := Space.flatten(_target as Vector3 - adapt.world_position())
 		# Arrival scales with the compensation, because the approach speed does. A
 		# depth-bound actor at pitch 30 crosses twice the ground per frame, and a
@@ -120,7 +137,7 @@ func _physics_process(delta: float) -> void:
 	# only slows northward movement answers a free actor the same way it answers a grid
 	# one - Passability.cardinals resolves a diagonal to the two cardinals it lies
 	# between.
-	var wanted := compensate(desired * speed * speed_scale(desired))
+	var wanted := compensate(desired * speed * scale * speed_scale(desired))
 	_velocity.x = move_toward(_velocity.x, wanted.x, acceleration * delta)
 	_velocity.z = move_toward(_velocity.z, wanted.z, acceleration * delta)
 	_velocity.y -= gravity * delta

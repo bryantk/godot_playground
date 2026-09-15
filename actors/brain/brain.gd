@@ -21,6 +21,12 @@ class_name Brain extends Node
 ## steering. Nothing in a subclass needs to know which game it is in.
 
 ## How much faster [member InputIntent.run] is than a walk.
+##
+## [b]Free motion only.[/b] A grid actor's step is one cell whether or not run is held -
+## game 1 binds that key to [code]turn_in_place[/code] instead, and the two never contend
+## because a grid game never runs and a free-motion game never turns in place
+## (tools/setup_input_map.gd). If game 1 ever wants a run it is a shorter step duration,
+## not a speed multiplier, and it belongs in [GridMotion].
 @export var run_speed_scale: float = 1.75
 
 ## What this brain is asking for this frame. Rewritten by [method _think], read by
@@ -111,7 +117,11 @@ func _drive_grid(grid: GridMotion) -> void:
 
 
 ## Continuous steering, straight into the controller.
+##
+## The run goes in as [method FreeMotion.set_intent]'s second argument, not as a longer
+## direction vector: the controller quantises whatever direction it is handed, which
+## normalises the magnitude away. See that method.
 func _drive_free(free: FreeMotion) -> void:
-	free.set_intent(intent.move * (run_speed_scale if intent.run else 1.0))
+	free.set_intent(intent.move, run_speed_scale if intent.run else 1.0)
 	if intent.jump:
 		free.jump(-1.0)

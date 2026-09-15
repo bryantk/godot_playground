@@ -134,6 +134,47 @@ func _collect_zones(node: Node, into: Array[AreaZone]) -> void:
 		_collect_zones(child, into)
 
 
+## Fastest single physics frame while [param walk] is held, in world units per second,
+## walking from [param from] every time.
+##
+## [b]The peak, not an average or a fixed-window distance.[/b] [member
+## FreeMotion.acceleration] ramps the opening frames, and the demo map has walls, so a
+## window long enough for the speed to be stable is long enough to stop against
+## something. The fastest frame is the one that happened in open ground at full speed,
+## whenever that was.
+##
+## [b]And placed back at [param from] first[/b], which matters more than it looks: the
+## iso demo has a 0.5x [SpeedModifier] strip directly along the player's path, so two
+## samples taken from wherever the previous one stopped are partly a measurement of how
+## far into the mud each one got. Same start, same zones, same walls - the run modifier
+## is then the only thing that differs between the two numbers.
+func _top_speed(player: Actor, walk: String, modifier: String, from: Vector3) -> float:
+	var body := player.get_parent() as Node3D
+	if body != null:
+		body.global_position = from
+	for i in 4:
+		await get_tree().physics_frame
+
+	Input.action_press(walk)
+	if modifier != "":
+		Input.action_press(modifier)
+
+	var best := 0.0
+	var last := player.world_position()
+	for i in 40:
+		await get_tree().physics_frame
+		var now := player.world_position()
+		best = maxf(best, Space.flatten(now - last).length() / get_physics_process_delta_time())
+		last = now
+
+	Input.action_release(walk)
+	if modifier != "":
+		Input.action_release(modifier)
+	while player.is_travelling():
+		await get_tree().process_frame
+	return best
+
+
 func _check(path: String, label: String, walk: String, grid: bool) -> void:
 	print("  -- %s" % label)
 	var demo := (load(path) as PackedScene).instantiate()
@@ -201,6 +242,27 @@ func _check(path: String, label: String, walk: String, grid: bool) -> void:
 		await get_tree().process_frame
 	await get_tree().create_timer(0.4).timeout
 	_ok(not sheet.running, "walk cycle stops when still")
+
+	# Run, free motion only - a grid actor's step is one cell whether or not the key is
+	# held, and game 1 binds that key to turn_in_place anyway.
+	#
+	# This measures ground covered per frame rather than reading `run_speed_scale` back,
+	# because the bug it exists to catch was the field being read and then thrown away:
+	# the brain multiplied the direction vector by it and FreeMotion.set_intent quantised
+	# that vector on the next line, normalising the magnitude off. Every unit test of the
+	# field's value would have passed while the player walked.
+	if not grid:
+		var from := player.world_position()
+		var walk_speed := await _top_speed(player, walk, "", from)
+		var run_speed := await _top_speed(player, walk, "run", from)
+		# The ratio is reported because it is the readable number: both samples are taken
+		# through the same mud and the same acceleration ramp, so the factor between them
+		# is the brain's run_speed_scale and nothing else. The absolute figures are well
+		# under FreeMotion.speed for that reason, and that is not a fault.
+		var ratio := run_speed / maxf(walk_speed, 0.0001)
+		_ok(run_speed > walk_speed * 1.25,
+			"holding run moves faster (%.1f -> %.1f u/s, %.2fx)"
+				% [walk_speed, run_speed, ratio])
 
 	# Camera: the followed actor must be pinned.
 	var rig = demo.get("_rig")
