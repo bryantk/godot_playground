@@ -2,44 +2,103 @@
 	{
 		"id": "n1",
 		"title": "Face the player",
-		"position": {"x": 0, "y": 0},
+		"position": {
+			"x": 0,
+			"y": 0
+		},
 		"command": "face_to",
-		"args": {"actor": "@self", "target": "@player"},
-		"outputs": [{"type": "flow", "target": "n2"}]
+		"args": {
+			"actor": "@self",
+			"target": "@player"
+		},
+		"outputs": [
+			{
+				"type": "flow",
+				"target": "n2"
+			}
+		]
 	},
 	{
 		"id": "n2",
 		"title": "Halt.",
-		"position": {"x": 240, "y": 0},
+		"position": {
+			"x": 240,
+			"y": 0
+		},
 		"command": "say",
-		"args": {"text": "Halt. The gate is closed after dark.", "location": 2},
+		"args": {
+			"text": "Halt. The gate is closed after dark.",
+			"location": 2.0
+		},
 		"blocking": true,
-		"outputs": [{"type": "flow", "target": "n3"}]
+		"outputs": [
+			{
+				"type": "flow",
+				"target": "n3"
+			}
+		]
 	},
 	{
 		"id": "n3",
 		"title": "Step aside",
-		"position": {"x": 480, "y": 0},
+		"position": {
+			"x": 480,
+			"y": 0
+		},
 		"command": "move_by",
-		"args": {"actor": "@self", "cells": [1, 0, 0], "speed": 0.18},
+		"args": {
+			"actor": "@self",
+			"cells": [
+				1.0,
+				0.0,
+				0.0
+			],
+			"speed": 0.18
+		},
 		"blocking": true,
-		"outputs": [{"type": "flow", "target": "n4"}]
+		"outputs": [
+			{
+				"type": "flow",
+				"target": "n4"
+			}
+		]
 	},
 	{
 		"id": "n4",
 		"title": "Beat",
-		"position": {"x": 720, "y": 0},
+		"position": {
+			"x": 720,
+			"y": 0
+		},
 		"command": "wait",
-		"args": {"seconds": 0.4},
-		"outputs": [{"type": "flow", "target": "n5"}]
+		"args": {
+			"seconds": 0.4
+		},
+		"outputs": [
+			{
+				"type": "flow",
+				"target": "n5"
+			}
+		]
 	},
 	{
 		"id": "n5",
 		"title": "Go on then.",
-		"position": {"x": 960, "y": 0},
+		"position": {
+			"x": 960,
+			"y": 0
+		},
 		"command": "say",
-		"args": {"text": "...go on, then.", "location": 2},
+		"args": {
+			"text": "...go on, then.",
+			"location": 2.0
+		},
 		"blocking": true,
-		"outputs": [{"type": "flow", "target": ""}]
+		"outputs": [
+			{
+				"type": "flow",
+				"target": ""
+			}
+		]
 	}
 ]

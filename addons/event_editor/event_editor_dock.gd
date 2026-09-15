@@ -19,6 +19,13 @@ extends VBoxContainer
 const ROUTE_PARSER_CLASS := "EventCommand"
 const ROUTE_PARSER_METHOD := "parse_route"
 
+## The document-shape readers - a bare array is graph_document's, a page-wrapped object
+## is event_document's. Preloaded rather than looked up by name like the route parser
+## above: both are addon/project files that exist from the start, unlike EventCommand,
+## which this dock predates.
+const GraphDoc := preload("res://addons/graph_editor/graph_document.gd")
+const EventDoc := preload("res://events/event_document.gd")
+
 const EMPTY_DOCUMENT := "[\n]\n"
 ## What the Add button appends. A starting point to edit, not a meaningful command.
 const NEW_COMMAND := "{\"command\": \"mov n 2\"}"
@@ -125,6 +132,8 @@ func _build_ui() -> void:
 
 	toolbar.add_child(_make_button("Add", _add_command))
 	toolbar.add_child(_make_button("Format", _format))
+	toolbar.add_child(_make_button("Unknown", _show_unknown))
+	toolbar.add_child(_make_button("Strip Unknown", _strip_unknown))
 	toolbar.add_child(_make_button("Validate", _validate))
 
 	_title = Label.new()
@@ -346,6 +355,67 @@ func _format() -> void:
 	_set_text(JSON.stringify(data, "\t", false) + "\n")
 	_go_to_line(mini(line, _edit.get_line_count() - 1))
 	_on_text_changed()
+
+## Lists every key neither reader recognises - a "//" comment included - without
+## touching the buffer. Segment 3 preserves these silently on every parse/save; this is
+## the surface that lets an author see what is riding along.
+func _show_unknown() -> void:
+	if not _live():
+		return
+
+	var lines := _unknown_lines()
+	_results.clear()
+	for line in lines:
+		_add_result(line, -1)
+
+	if lines.is_empty():
+		_set_status("No unknown keys.", _status_color(true))
+	else:
+		_set_status("%d unknown key(s)." % lines.size(), _status_color(true))
+
+## Rewrites the buffer with every unrecognised key removed, at every level - document,
+## page and node. A one-way edit like Format: it lands on the undo stack, but it is not
+## undoing itself automatically, so a comment stripped this way is gone until Ctrl+Z.
+func _strip_unknown() -> void:
+	if not _live():
+		return
+
+	var json := JSON.new()
+	if json.parse(_edit.text) != OK:
+		_set_status("Nothing to strip - fix the JSON first.", _status_color(false))
+		_validate()
+		return
+
+	var data: Variant = json.data
+	var line := _edit.get_caret_line()
+
+	if typeof(data) == TYPE_ARRAY:
+		var parsed := GraphDoc.parse_nodes(data as Array)
+		_edit.text = GraphDoc.stringify(GraphDoc.strip_unknown(parsed["nodes"]))
+	elif typeof(data) == TYPE_DICTIONARY:
+		_edit.text = EventDoc.stringify(EventDoc.strip_unknown(EventDoc.parse(_edit.text)))
+	else:
+		_set_status("Nothing to strip.", _status_color(false))
+		return
+
+	_edit.clear_undo_history()
+	_go_to_line(mini(line, _edit.get_line_count() - 1))
+	_on_text_changed()
+	_show_unknown()
+
+## The unknown-key messages for whichever document shape the buffer currently holds, or
+## an empty list while it does not parse at all.
+func _unknown_lines() -> Array[String]:
+	var json := JSON.new()
+	if json.parse(_edit.text) != OK:
+		return []
+
+	var data: Variant = json.data
+	if typeof(data) == TYPE_ARRAY:
+		return GraphDoc.unknown_report(GraphDoc.parse_nodes(data as Array)["nodes"])
+	if typeof(data) == TYPE_DICTIONARY:
+		return EventDoc.unknown_report(EventDoc.parse(_edit.text))
+	return []
 
 func _set_text(text: String) -> void:
 	# Assigning text resets the undo history, which is what we want for a load or a

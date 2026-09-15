@@ -16,6 +16,11 @@ extends RefCounted
 ##     "id": "n1",
 ##     "title": "Start",
 ##     "position": {"x": 0, "y": 0},
+##     "command": "say",
+##     "args": {"text": "Halt."},
+##     "blocking": true,
+##     "key": "cam",
+##     "flows": ["true", "false"],
 ##     "outputs": [{"type": "flow", "target": "n2"}]
 ##   }
 ## ]
@@ -27,6 +32,19 @@ extends RefCounted
 ## [code]""[/code] for a port that is not wired up yet - a port always exists whether
 ## or not it has been connected, since the port list is what gives each output its
 ## index.
+##
+## [code]command[/code] and [code]args[/code] are [EventCommand]'s business and always
+## present, defaulting to [code]""[/code] and [code]{}[/code]. [code]blocking[/code],
+## [code]key[/code] and [code]flows[/code] are [i]that command's[/i] business too, and
+## optional - present only when the node authored one, absent otherwise, so a round
+## trip never invents a [code]"blocking": false[/code] nobody wrote. This file carries
+## all five without understanding any of them: it is the schema's data layer, not its
+## validator.
+##
+## [b]Unknown keys survive too.[/b] A [code]"//"[/code] comment, or any key this parser
+## does not recognise, is kept verbatim under [member _unknown] on the node in memory
+## and written back at the end of the entry on save - repair-and-report extends to
+## "don't understand" as well as "malformed".
 
 ## The primitive an output port carries. The first entry is the default for a new
 ## port, and the order is the order the type dropdown offers them in.
@@ -48,6 +66,12 @@ const DEFAULT_TITLE := "Node"
 
 ## Prefix for generated ids. See [method generate_id].
 const ID_PREFIX := "n"
+
+## Node keys this file understands. Anything else in a raw node object is passenger
+## data, kept under [code]_unknown[/code] rather than dropped - see [method _extract_unknown].
+const NODE_KEYS: PackedStringArray = [
+	"id", "title", "position", "command", "args", "blocking", "key", "flows", "outputs",
+]
 
 # --- Types --------------------------------------------------------------------
 
@@ -74,7 +98,10 @@ static func default_node(id: String, position: Vector2) -> Dictionary:
 		"id": id,
 		"title": DEFAULT_TITLE,
 		"position": position,
+		"command": "",
+		"args": {},
 		"outputs": [],
+		"_unknown": {},
 	}
 
 static func default_output() -> Dictionary:
@@ -111,18 +138,26 @@ static func generate_id(used: Variant) -> String:
 ## consistent.
 static func parse(text: String) -> Dictionary:
 	var problems: Array[String] = []
-	var nodes: Array[Dictionary] = []
 
 	var json := JSON.new()
 	if json.parse(text) != OK:
 		problems.append("Line %d: %s" % [json.get_error_line(), json.get_error_message()])
-		return {"nodes": nodes, "problems": problems}
+		return {"nodes": [], "problems": problems}
 
 	var data: Variant = json.data
 	if typeof(data) != TYPE_ARRAY:
 		problems.append("Top level must be an array of nodes, found %s."
 			% type_string(typeof(data)))
-		return {"nodes": nodes, "problems": problems}
+		return {"nodes": [], "problems": problems}
+
+	return parse_nodes(data)
+
+## The part of [method parse] that runs once the JSON is already decoded into an
+## array - what [code]event_document.gd[/code] calls for a page's [code]graph[/code],
+## which arrives already parsed as part of the larger document.
+static func parse_nodes(data: Array) -> Dictionary:
+	var problems: Array[String] = []
+	var nodes: Array[Dictionary] = []
 
 	# Every id and target the file mentions, gathered before anything is repaired. A
 	# generated id has to dodge all of them, not just the ones already read: renaming a
@@ -131,7 +166,7 @@ static func parse(text: String) -> Dictionary:
 	var reserved := _mentioned_ids(data)
 
 	var ids := {}
-	for i in (data as Array).size():
+	for i in data.size():
 		var node := _read_node(data[i], i, ids, reserved, problems)
 		ids[node["id"]] = true
 		reserved[node["id"]] = true
@@ -193,11 +228,60 @@ static func _read_node(raw: Variant, index: int, ids: Dictionary, reserved: Dict
 			% [where, id, replacement, id])
 		id = replacement
 
+	var of := "Node %d (%s)" % [index, id]
+
 	var node := default_node(id, _read_position(source.get("position")))
 	node["title"] = str(source.get("title", DEFAULT_TITLE))
-	node["outputs"] = _read_outputs(source.get("outputs", []), "Node %d (%s)" % [index, id],
-		problems)
+	node["command"] = str(source.get("command", ""))
+	node["args"] = _read_args(source.get("args", {}), of, problems)
+
+	if source.has("blocking"):
+		var raw_blocking: Variant = source.get("blocking")
+		if typeof(raw_blocking) == TYPE_BOOL:
+			node["blocking"] = raw_blocking
+		else:
+			problems.append("%s: \"blocking\" must be true or false, found %s - ignored."
+				% [of, type_string(typeof(raw_blocking))])
+
+	if source.has("key"):
+		var raw_key: Variant = source.get("key")
+		if raw_key is String:
+			node["key"] = raw_key
+		else:
+			problems.append("%s: \"key\" must be text, found %s - ignored."
+				% [of, type_string(typeof(raw_key))])
+
+	if source.has("flows"):
+		var raw_flows: Variant = source.get("flows")
+		if typeof(raw_flows) == TYPE_ARRAY:
+			var flows: Array[String] = []
+			for entry in raw_flows as Array:
+				flows.append(str(entry))
+			node["flows"] = flows
+		else:
+			problems.append("%s: \"flows\" must be an array, found %s - ignored."
+				% [of, type_string(typeof(raw_flows))])
+
+	node["outputs"] = _read_outputs(source.get("outputs", []), of, problems)
+	node["_unknown"] = _extract_unknown(source, NODE_KEYS)
 	return node
+
+static func _read_args(raw: Variant, where: String, problems: Array[String]) -> Dictionary:
+	if typeof(raw) != TYPE_DICTIONARY:
+		problems.append("%s: args must be an object, found %s - dropped."
+			% [where, type_string(typeof(raw))])
+		return {}
+	return (raw as Dictionary).duplicate(true)
+
+## Every key in [param source] that is not in [param known], as a dictionary - the
+## passenger data a reader does not understand, kept rather than dropped. A [code]"//"[/code]
+## comment is just another entry here; there is nothing special-cased about it.
+static func _extract_unknown(source: Dictionary, known: PackedStringArray) -> Dictionary:
+	var extra := {}
+	for key: Variant in source:
+		if not known.has(str(key)):
+			extra[key] = source[key]
+	return extra
 
 static func _read_position(raw: Variant) -> Vector2:
 	# Objects are what this writes; two-element arrays are accepted because they are
@@ -253,10 +337,21 @@ static func _resolve_targets(nodes: Array[Dictionary], ids: Dictionary,
 			output["target"] = ""
 
 ## Serialises [param nodes] back to the on-disk form.
+static func stringify(nodes: Array[Dictionary]) -> String:
+	# sort_keys off so the keys stay in the order to_data() wrote them in, which reads
+	# as id first and the wiring last.
+	return JSON.stringify(to_data(nodes), "\t", false) + "\n"
+
+## [param nodes] as the plain arrays and dictionaries [JSON] stringifies, without
+## turning them to text yet - what [code]event_document.gd[/code] needs to embed a
+## page's graph inside the larger document rather than stringifying it twice.
 ##
 ## Positions are rounded: they come from dragging, so the fractional part is noise that
-## would otherwise churn the file on every save.
-static func stringify(nodes: Array[Dictionary]) -> String:
+## would otherwise churn the file on every save. [code]blocking[/code], [code]key[/code]
+## and [code]flows[/code] are written only when the node carries one, so a round trip
+## never invents a value nobody authored; anything under [member _unknown] - a
+## [code]"//"[/code] comment included - is written back last, verbatim.
+static func to_data(nodes: Array[Dictionary]) -> Array:
 	var out: Array = []
 	for node in nodes:
 		var position: Vector2 = node.get("position", Vector2.ZERO)
@@ -264,16 +359,45 @@ static func stringify(nodes: Array[Dictionary]) -> String:
 		for output in node.get("outputs", []):
 			outputs.append({"type": output["type"], "target": output["target"]})
 
-		out.append({
+		var entry := {
 			"id": node["id"],
 			"title": node.get("title", DEFAULT_TITLE),
 			"position": {"x": roundi(position.x), "y": roundi(position.y)},
-			"outputs": outputs,
-		})
+			"command": node.get("command", ""),
+			"args": node.get("args", {}),
+		}
+		if node.has("blocking"):
+			entry["blocking"] = node["blocking"]
+		if node.has("key"):
+			entry["key"] = node["key"]
+		if node.has("flows"):
+			entry["flows"] = node["flows"]
+		entry["outputs"] = outputs
 
-	# sort_keys off so the keys stay in the order written above, which reads as id
-	# first and the wiring last.
-	return JSON.stringify(out, "\t", false) + "\n"
+		for key: Variant in node.get("_unknown", {}):
+			entry[key] = node["_unknown"][key]
+
+		out.append(entry)
+
+	return out
+
+## Messages naming every unrecognised key still carried on [param nodes], for an editor
+## surface that wants to show what a round trip is silently keeping.
+static func unknown_report(nodes: Array[Dictionary]) -> Array[String]:
+	var lines: Array[String] = []
+	for node in nodes:
+		for key: Variant in node.get("_unknown", {}):
+			lines.append("Node \"%s\": unknown key \"%s\"." % [node.get("id", ""), key])
+	return lines
+
+## [param nodes] with every unrecognised key discarded. Leaves the input untouched.
+static func strip_unknown(nodes: Array[Dictionary]) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for node in nodes:
+		var copy: Dictionary = (node as Dictionary).duplicate(true)
+		copy["_unknown"] = {}
+		out.append(copy)
+	return out
 
 ## Problems with a graph that is already in memory - the checks from [method parse]
 ## that can be broken again by editing, minus the ones parsing repairs on the way in.

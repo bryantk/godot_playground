@@ -198,6 +198,11 @@ func _make_graph_node(node: Dictionary) -> GraphNode:
 	# The scene name is sanitised and can collide, so the id travels separately. Every
 	# lookup goes through _id_of() rather than reading the name back.
 	graph_node.set_meta(&"graph_id", id)
+	# Everything this panel has no field for - command, args, blocking, key, flows, and
+	# whatever _unknown carries - rides along as meta rather than being dropped. This is
+	# the fix for the data-loss bug: a graph opened and saved here used to keep only id,
+	# title, position and outputs.
+	graph_node.set_meta(&"graph_extra", _extra_of(node))
 
 	var id_label := Label.new()
 	id_label.text = id
@@ -357,12 +362,15 @@ func _serialize() -> Array[Dictionary]:
 				"target": targets.get("%s:%d" % [graph_node.name, i], ""),
 			})
 
-		nodes.append({
-			"id": _id_of(graph_node),
-			"title": graph_node.title,
-			"position": graph_node.position_offset,
-			"outputs": outputs,
-		})
+		# Start from whatever this node carried that the panel has no field for, so
+		# command/args/blocking/key/flows/_unknown ride through untouched, then overwrite
+		# the four the UI actually owns.
+		var entry: Dictionary = _extra_of_node(graph_node).duplicate(true)
+		entry["id"] = _id_of(graph_node)
+		entry["title"] = graph_node.title
+		entry["position"] = graph_node.position_offset
+		entry["outputs"] = outputs
+		nodes.append(entry)
 
 	return nodes
 
@@ -377,6 +385,21 @@ func _id_of(graph_node: Node) -> String:
 	if graph_node == null:
 		return ""
 	return graph_node.get_meta(&"graph_id", "")
+
+## Everything in [param node] this panel has no UI for - every key besides id, title,
+## position and outputs, which are the ones a [GraphNode] can actually show and edit.
+func _extra_of(node: Dictionary) -> Dictionary:
+	var extra: Dictionary = node.duplicate(true)
+	extra.erase("id")
+	extra.erase("title")
+	extra.erase("position")
+	extra.erase("outputs")
+	return extra
+
+func _extra_of_node(graph_node: Node) -> Dictionary:
+	if graph_node == null:
+		return {}
+	return graph_node.get_meta(&"graph_extra", {})
 
 func _node_by_id(id: String) -> GraphNode:
 	for graph_node in _graph_nodes():
