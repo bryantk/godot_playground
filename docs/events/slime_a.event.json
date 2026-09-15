@@ -9,9 +9,9 @@
 			"//": "Page 1 - idle. Patrols a fixed loop, bumping into it starts a fight.",
 			"conditions": [],
 			"settings": {
-				"trigger": "touch",
+				"trigger": "player_touch",
 				"solid": true,
-				"speed": 100
+				"speed": 2.0
 			},
 			"art": {
 				"view": "sprite",
@@ -42,15 +42,15 @@
 			]
 		},
 		{
-			"//": "Page 2 - aggressive. Same slime, no graph change needed: a different route mode is the whole behaviour change.",
+			"//": "Page 2 - aggressive. Same slime, no graph change needed: a different route mode is the whole behaviour change. speed is world units per second - it was a speed class until 2026-09-14, question 42.",
 			"conditions": [
 				{"flag": "stole_the_idol"},
 				{"self_flag": "defeated", "is": false}
 			],
 			"settings": {
-				"trigger": "touch",
+				"trigger": "player_touch",
 				"solid": true,
-				"speed": 200
+				"speed": 4.0
 			},
 			"art": {
 				"view": "sprite",
@@ -91,7 +91,7 @@
 				{"self_flag": "defeated"}
 			],
 			"settings": {
-				"trigger": "interact",
+				"trigger": "action",
 				"solid": false,
 				"speed": 0
 			},

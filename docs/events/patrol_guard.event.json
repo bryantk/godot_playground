@@ -37,8 +37,8 @@
 		"id": "n5",
 		"title": "Face south",
 		"position": {"x": 960, "y": 0},
-		"command": "face",
-		"args": {"actor": "@self", "direction": [0, 0, 1]},
+		"command": "face_direction",
+		"args": {"actor": "@self", "direction": "s"},
 		"outputs": [{"type": "flow", "target": "n6"}]
 	},
 	{
@@ -46,7 +46,7 @@
 		"title": "Again",
 		"position": {"x": 1180, "y": 0},
 		"command": "goto",
-		"args": {"target": "n1"},
+		"args": {},
 		"outputs": [{"type": "flow", "target": "n1"}]
 	}
 ]

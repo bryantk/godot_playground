@@ -32,7 +32,7 @@
 		"title": "Open the door",
 		"position": {"x": 560, "y": -120},
 		"command": "play_anim",
-		"args": {"actor": "door_north", "anim": "open"},
+		"args": {"actor": "@door_north", "anim": "open"},
 		"blocking": true,
 		"outputs": [{"type": "flow", "target": "n4"}]
 	},

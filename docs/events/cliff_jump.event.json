@@ -14,7 +14,7 @@
 		"title": "Scout runs up",
 		"position": {"x": 300, "y": 0},
 		"command": "move_to",
-		"args": {"actor": "npc_scout", "cell": [18, 1, 8], "path": "astar", "speed": 3.5},
+		"args": {"actor": "@npc_scout", "cell": [18, 1, 8], "path": "astar", "speed": 3.5},
 		"blocking": true,
 		"outputs": [{"type": "flow", "target": "n3"}]
 	},
@@ -23,7 +23,7 @@
 		"title": "Jump the gap",
 		"position": {"x": 560, "y": 0},
 		"command": "jump",
-		"args": {"actor": "npc_scout", "strength": 6.0, "toward": [20, 3, 8]},
+		"args": {"actor": "@npc_scout", "strength": 6.0, "toward": [20, 3, 8]},
 		"blocking": true,
 		"outputs": [{"type": "flow", "target": "n4"}]
 	},
@@ -49,7 +49,7 @@
 		"title": "Camera back to the player",
 		"position": {"x": 1340, "y": 0},
 		"command": "camera_follow",
-		"args": {"actor": "player", "seconds": 0.8},
+		"args": {"actor": "@player", "seconds": 0.8},
 		"blocking": true,
 		"outputs": [{"type": "flow", "target": ""}]
 	}

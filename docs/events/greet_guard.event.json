@@ -3,8 +3,8 @@
 		"id": "n1",
 		"title": "Face the player",
 		"position": {"x": 0, "y": 0},
-		"command": "face",
-		"args": {"actor": "@self", "toward": "@player"},
+		"command": "face_to",
+		"args": {"actor": "@self", "target": "@player"},
 		"outputs": [{"type": "flow", "target": "n2"}]
 	},
 	{
