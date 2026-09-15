@@ -20,6 +20,8 @@ func _ready() -> void:
 	_test_assign()
 	_test_assign_all()
 	_test_prefix()
+	_test_rename_for()
+	_test_setter_hook()
 
 	print("")
 	print("  %d passed, %d failed" % [_passed, _failed])
@@ -221,6 +223,70 @@ func _test_prefix() -> void:
 	_eq(fallback, &"event_0", "an illegal prefix falls back to the default")
 	bad.free()
 
+
+
+# -- The setter hook -----------------------------------------------------------
+
+func _test_rename_for() -> void:
+	_section("rename_for -- what the actor_id setter calls")
+
+	var node := Node.new()
+	node.name = "Guard"
+
+	_eq(ActorNaming.rename_for(node, &"event_2"), "Guard__event_2",
+		"a first id is appended")
+	_eq(ActorNaming.rename_for(node, &"event_5", &"event_2"), "Guard__event_5",
+		"a change replaces the old id rather than stacking")
+
+	# The case strip_id alone cannot handle: a hand-typed id looks nothing like a
+	# generated one, so only knowing what it was lets it be removed.
+	node.name = "Guard__player"
+	_eq(ActorNaming.rename_for(node, &"event_1", &"player"), "Guard__event_1",
+		"moving away from a hand-typed id strips it exactly")
+
+	node.name = "Guard__chest_2"
+	_eq(ActorNaming.rename_for(node, &"chest_3", &"chest_2", "event"), "Guard__chest_3",
+		"even when the id does not match the prefix in play")
+
+	# Clearing the id takes the suffix off rather than leaving a dangling one.
+	node.name = "Guard__event_4"
+	_eq(ActorNaming.rename_for(node, &"", &"event_4"), "Guard",
+		"clearing the id removes the suffix")
+
+	node.name = "Guard__event_9"
+	_eq(ActorNaming.rename_for(node, &"event_9", &"event_9"), "Guard__event_9",
+		"setting the same id again changes nothing")
+
+	_eq(ActorNaming.rename_for(null, &"event_0"), "", "null is answered, not crashed on")
+	node.free()
+
+	_section("  strip_exact")
+
+	_eq(ActorNaming.strip_exact("Guard__player", &"player"), "Guard", "removes that id")
+	_eq(ActorNaming.strip_exact("Guard__player", &"other"), "Guard__player",
+		"and leaves a different one alone")
+	_eq(ActorNaming.strip_exact("Guard", &""), "Guard", "an empty id removes nothing")
+
+
+func _test_setter_hook() -> void:
+	_section("Actor.actor_id -- the hook does NOT fire at run time")
+
+	# This is the assertion that protects every demo script: they reach actors by node
+	# path (`$Upscale/World/Map/Actors/Player/Actor`), so a rename on the frame an id is
+	# set would break every @onready that names one. The rename is an authoring
+	# convenience and is guarded by Engine.is_editor_hint(), which is false here.
+	var map := _map(["player"])
+	add_child(map)
+	var actor := ActorNaming.actors_under(map)[0]
+	var body := actor.get_parent()
+	var before := body.name
+
+	actor.actor_id = &"event_9"
+	_eq(actor.actor_id, &"event_9", "the id changes at run time")
+	_eq(body.name, before, "  but the node keeps its name (%s)" % before)
+
+	remove_child(map)
+	map.free()
 
 # -- Helpers -------------------------------------------------------------------
 

@@ -1,3 +1,4 @@
+@tool
 class_name Actor extends Node
 
 ## The identity every system talks to. A [Node], not a body subclass - that is what
@@ -16,7 +17,24 @@ enum MotionMode { INHERIT, GRID, FREE }
 
 ## Map-unique: "player", "npc_guard". Two actors answering to one id makes every
 ## event that names it ambiguous, so [MapContext] refuses the second.
-@export var actor_id: StringName = &""
+##
+## [b]Changing this in the editor renames the placement node to match[/b], through
+## [method ActorNaming.rename_for] - so the scene tree and the inspector cannot disagree
+## about which guard is which. The setter knows the id being replaced, which is better
+## information than a pattern match: renaming away from a hand-typed id like
+## [code]player[/code] still strips cleanly instead of stacking suffixes.
+##
+## [b]Editor only, and that is load-bearing rather than caution.[/b] Demo scripts reach
+## actors by node path - [code]$Upscale/World/Map/Actors/Player/Actor[/code] - so a rename
+## at run time would break every [code]@onready[/code] that names one, on the frame the id
+## was set. Renaming is an authoring convenience; at run time the id changes and the node
+## keeps its name.
+@export var actor_id: StringName = &"":
+	set(value):
+		var previous := actor_id
+		actor_id = value
+		if previous != value:
+			_sync_placement_name(previous)
 
 ## Walks through other actors, and is walked through by them.
 ##
@@ -78,6 +96,13 @@ var _areas_leaving: Array[AreaZone] = []
 
 
 func _ready() -> void:
+	# @tool, for the actor_id setter alone (see the export above). Nothing else here
+	# should run in the editor: registering with a MapContext, reserving a cell and
+	# querying zones are all run-time acts, and doing them while a scene is merely open
+	# would put occupancy and the registry into a state no game session produced.
+	if Engine.is_editor_hint():
+		return
+
 	_ctx = MapContext.of(self)
 	_resolve_parts()
 
@@ -142,9 +167,31 @@ func _claim_spawn_zones() -> void:
 
 
 func _exit_tree() -> void:
+	# Nothing was claimed in the editor, so there is nothing to give back.
+	if Engine.is_editor_hint():
+		return
+
 	clear_areas()
 	if _ctx != null:
 		_ctx.unregister(self)
+
+
+## Keeps the placement node's name in step with [member actor_id], in the editor.
+##
+## Three guards, each for a different way this would otherwise misfire:
+##
+## - [b]Editor only.[/b] A rename at run time breaks every [code]@onready[/code] that
+##   reaches an actor by path, which is how all three demo scripts find theirs.
+## - [b]In the tree only.[/b] Godot applies exported properties before a node is in the
+##   tree, so on scene load this fires with no parent to rename and, worse, would rename
+##   the node while the scene is being read back.
+## - [b]The id it is replacing, not a pattern.[/b] [method ActorNaming.rename_for] strips
+##   the previous id exactly, so moving away from a hand-typed [code]player[/code] leaves
+##   [code]Guard[/code] rather than [code]Guard__player__event_2[/code].
+func _sync_placement_name(previous: StringName) -> void:
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	ActorNaming.rename_for(ActorNaming.placement_root(self), actor_id, previous)
 
 
 # -- Identity -----------------------------------------------------------------

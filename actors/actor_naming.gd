@@ -177,6 +177,41 @@ static func _escape(text: String) -> String:
 	return out
 
 
+## [param name] with a trailing [code]__<id>[/code] removed, for one specific id.
+##
+## [method strip_id] only knows the generated [code]__<prefix>_<number>[/code] shape, so
+## it cannot remove an id that does not look generated - a hand-typed
+## [code]player[/code], or a [code]chest_2[/code] written while the prefix was
+## [code]event[/code]. Renaming from one of those would stack:
+## [code]Guard__chest_2__chest_3[/code]. Knowing the id being replaced is what avoids it.
+static func strip_exact(name: String, id: StringName) -> String:
+	if id == &"":
+		return name
+	return name.trim_suffix("__%s" % id)
+
+
+## Renames [param node] for [param id], removing [param previous] first.
+##
+## This is the setter's form of [method node_name_for]: a hook that fires on every change
+## to an id knows what the id used to be, and that is strictly better information than a
+## pattern match. Returns the name the node ended up with.
+##
+## Does nothing and returns the current name when the result would be identical, so an
+## edit that changes nothing does not mark the scene dirty.
+static func rename_for(node: Node, id: StringName, previous: StringName = &"",
+		prefix: String = DEFAULT_PREFIX) -> String:
+	if node == null:
+		return ""
+
+	var stem := strip_exact(node.name, previous)
+	var wanted := node_name_for(stem, id, prefix) if id != &"" else strip_id(stem, prefix)
+	if wanted == "":
+		wanted = "Actor"
+	if node.name != wanted:
+		node.name = wanted
+	return node.name
+
+
 # -- Assigning -----------------------------------------------------------------
 
 ## Gives [param actor] an id and renames its placement node to match.
