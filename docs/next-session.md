@@ -76,12 +76,13 @@ all for scenery. See architecture.md §5. Two consequences worth remembering:
 direction arrives. A tap-versus-hold grace made the first frames of every press ambiguous:
 the step had to be delayed by the grace or retroactively cancelled by a turn.
 
-**That modifier is Q, not Shift, as of 2026-09-14.** It shared Shift with `run` on the
+**That modifier is X, not Shift, as of 2026-09-14.** It shared Shift with `run` on the
 reasoning that a grid game never runs and a free game never turns in place — and the first
 half stopped being true the day `GridMotion` learned to shorten a step, so **Shift now runs
-in both games** and turning moved off it. One collision left, noted rather than fixed: Q is
-also `yaw_ccw`, so in `isoish_grid_demo` — the only scene that is both a grid map and a
-rotatable camera — pressing Q turns the actor *and* swings the view. Game 1 has no yaw.
+in both games** and turning moved off it. It went to Q first and then to X the same day,
+because Q is `yaw_ccw`: in `isoish_grid_demo` — the only scene that is both a grid map and a
+rotatable camera — Q would have turned the actor *and* swung the view. X contends with
+nothing in either game.
 
 **2D collision is hand-painted** as of 2026-09-12. `TileSet` custom data went from a
 `passable` bool to a `pathing` int: the direction mask painted from

@@ -15,12 +15,12 @@ const ACTIONS := {
 	"jump":       [KEY_SPACE],
 	# Shift runs in both games now. It used to be shared with turn_in_place, on the
 	# reasoning that a grid game never runs - which stopped being true on 2026-09-14,
-	# when GridMotion learned to shorten a step. Turning in place moved to Q rather than
-	# the two contending.
+	# when GridMotion learned to shorten a step, so turning in place moved off it.
 	"run":        [KEY_SHIFT],
-	# Note this collides with yaw_ccw, also Q, in isoish_grid_demo - the only scene that
-	# is both a grid map and a rotatable camera. Game 1 proper has no yaw.
-	"turn_in_place": [KEY_Q],
+	# X, not Q: Q was the first choice and collided with yaw_ccw in isoish_grid_demo,
+	# the only scene that is both a grid map and a rotatable camera. X contends with
+	# nothing.
+	"turn_in_place": [KEY_X],
 	"wait_step":  [KEY_PERIOD],
 	"yaw_ccw":    [KEY_Q],
 	"yaw_cw":     [KEY_E],

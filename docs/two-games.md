@@ -441,7 +441,7 @@ hard to diagnose later.
 **Held-direction repeat.** The round gate (§3.1) simplifies this: the cadence is set by
 round completion, not by a repeat timer, so holding a direction means "step again the moment
 the round closes, if still held". Turning in place is not a policy in the profile but a held
-modifier — Q, the `turn_in_place` action — decided on the frame the direction arrives;
+modifier — X, the `turn_in_place` action — decided on the frame the direction arrives;
 a tap-versus-hold grace made the first frames of every press ambiguous. Note that the round
 duration therefore *is* game 1's input latency and its difficulty pacing, which is a good
 reason to keep blocking responder actions short.

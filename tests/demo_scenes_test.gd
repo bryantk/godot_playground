@@ -66,7 +66,7 @@ func _check_brains(ctx: MapContext, player: Actor) -> void:
 	_ok(idle.cell() == was_idle, "the brainless NPC stayed put")
 
 
-## Q plus a direction turns to face it and takes no step. Held, not tapped: there is
+## X plus a direction turns to face it and takes no step. Held, not tapped: there is
 ## no grace timer left to race, so this is a plain press-and-check.
 func _check_turn(player: Actor, dir_action: String) -> void:
 	var cell := player.cell()
@@ -76,7 +76,7 @@ func _check_turn(player: Actor, dir_action: String) -> void:
 	for i in 10:
 		await get_tree().process_frame
 
-	_ok(player.facing() != before, "Q+direction turned (%s -> %s)" % [
+	_ok(player.facing() != before, "X+direction turned (%s -> %s)" % [
 		before, player.facing()])
 	_ok(player.cell() == cell, "turning in place changed no cell")
 

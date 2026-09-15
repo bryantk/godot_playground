@@ -19,7 +19,7 @@ extends Node
 ## on the player, a [RouteBrain] pacing the guard north of the wall, and nothing at all
 ## on the one standing in the doorway.
 ##
-## Controls: WASD/arrows step, Q+direction turns in place, Shift runs, Q/E rotate the view,
+## Controls: WASD/arrows step, X+direction turns in place, Shift runs, Q/E rotate the view,
 ## 1 4-way/8-way, 2 sub-texel smoothing, 3 terrain data on/off, Esc back.
 
 @onready var _rig: OrthoPixelRig = $Upscale/World/Map/Camera/Rig
@@ -103,11 +103,10 @@ func _process(_delta: float) -> void:
 			_motion.direction_count, _motion.step_duration() * 1000.0,
 			"on" if _terrain_data else "OFF"],
 		"",
-		# Q does two things here, and this is the only scene where that is true: it is
-		# both the turn modifier and yaw-left. A grid map with a rotatable camera is a
-		# testbed rather than a shipping configuration - game 1 has no yaw - but if this
-		# demo starts getting walked seriously, yaw wants its own keys.
-		"WASD/arrows step   Shift run   Q+dir turn   Q/E rotate the view",
+		# This scene is why turn_in_place is X: it is the only one that is both a grid
+		# map and a rotatable camera, so the turn modifier and yaw-left would have shared
+		# Q here and nowhere else. Game 1 proper has no yaw.
+		"WASD/arrows step   Shift run   X+dir turn   Q/E rotate the view",
 		"1 %d-way   2 sub-texel smooth: %s   3 terrain data: %s   Esc back" % [
 			8 if _motion.direction_count == 4 else 4,
 			"on" if _rig.subtexel_smoothing else "OFF",
