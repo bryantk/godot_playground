@@ -888,9 +888,27 @@ deferred to — both answers are cheap to revisit and neither changes what stage
     node's ports are no longer something an author adds or removes (the `+ Output`/`-`
     buttons and the type dropdown are gone); they follow from the command, the same way its
     arguments do. There is still no UI for choosing a command at all (§4.1), so today that
-    still means the file already says one, or the Add Start button set it.
+    still means the file already said one.
 
     **A `GraphNode` also tints red when [`EventCommand.is_blocking`](../events/event_command.gd)
     says the node blocks** — `self_modulate`, since a `GraphNode` has no simpler
     "colour the background" knob — so a glance at the graph says which nodes hold the
     runner up and which fire and carry on.
+
+    **Second follow-up, same day: the start node stopped being something an author adds at
+    all.** The Add Start button lasted one round trip — a graph needs exactly one start
+    node, so a button to add one is a button that only ever gets pressed once per graph and
+    is otherwise a trap (press it twice and `validate_reachability` now reports two).
+    `graph_editor_panel._ensure_start_node()` maintains the invariant instead: called after
+    loading a page and after a page gains its first node, it adds a start node exactly when
+    one is missing and there is a real graph to belong to — an intentionally empty,
+    route-only page (event-pages.md §2) is left empty rather than handed a start node it
+    never asked for. Three more things follow from "there is always exactly one, and an
+    author never manages it directly":
+    - **it cannot be deleted** — `_on_delete_nodes_request` and `_on_duplicate_nodes_request`
+      both skip it even when it is part of the current selection;
+    - **it has no input slot** — nothing may flow into the node execution begins at, or it
+      would be reachable from somewhere else too, the exact ambiguity a named entry point
+      exists to remove;
+    - **it is always green**, never the blocking red above, so it reads as the graph's one
+      fixed landmark rather than as one more command among the others.

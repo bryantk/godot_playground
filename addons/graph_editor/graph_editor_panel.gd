@@ -35,9 +35,18 @@ const OUT_ROW_PREFIX := "Out"
 const ADD_POSITION := Vector2(80, 80)
 const ADD_STEP := Vector2(40, 30)
 
+## Where an auto-added start node lands - left of [constant ADD_POSITION], since it is
+## conventionally the leftmost node in a graph read left to right.
+const _START_POSITION := Vector2(-160, 80)
+
 ## A blocking node's [member GraphNode.self_modulate] - a tint on the whole node, panel
 ## included, since [GraphNode] has no simpler "colour the background" knob than that.
 const _BLOCKING_COLOR := Color(1.0, 0.55, 0.55)
+
+## [constant EventCommand.START_COMMAND]'s colour, always - it overrides
+## [constant _BLOCKING_COLOR] rather than combining with it, so the one node every graph
+## has exactly one of stays visually distinct from an ordinary blocking command.
+const _START_COLOR := Color(0.55, 1.0, 0.55)
 
 var _path := ""
 var _dirty := false
@@ -159,7 +168,6 @@ func _build_ui() -> void:
 	toolbar.add_child(_page_selector)
 
 	toolbar.add_child(_make_button("Add Node", _add_node))
-	toolbar.add_child(_make_button("Add Start", _add_start_node))
 	toolbar.add_child(_make_button("Arrange", _arrange))
 	toolbar.add_child(_make_button("Validate", _validate))
 
@@ -226,7 +234,8 @@ func _make_button(text: String, handler: Callable) -> Button:
 ## per choice - so a port is never something this panel offers to add or remove; it
 ## follows from choosing a command, same as the arguments it takes. There is still no UI
 ## for choosing a command (event-pages.md §4.1), so today that means whatever the file
-## already said (or [constant EventCommand.START_COMMAND] for the Add Start button).
+## already said, or [constant EventCommand.START_COMMAND] for the one every graph is
+## guaranteed to have - see [method _ensure_start_node].
 func _make_graph_node(node: Dictionary) -> GraphNode:
 	var id: String = node["id"]
 	var graph_node := GraphNode.new()
@@ -254,11 +263,22 @@ func _make_graph_node(node: Dictionary) -> GraphNode:
 		_add_output_row(graph_node, flow)
 	_refresh_slots(graph_node)
 
-	# Red for a blocking command, so a glance at the graph says which nodes hold the
-	# runner up and which fire and carry on - question 47's follow-up.
-	graph_node.self_modulate = _BLOCKING_COLOR if EventCommand.is_blocking(node) else Color.WHITE
+	# Green for the start node, always - never red, even though "start" blocks by its own
+	# registry entry; red for any other blocking command, so a glance at the graph says
+	# which nodes hold the runner up and which fire and carry on.
+	if str(node.get("command", "")) == EventCommand.START_COMMAND:
+		graph_node.self_modulate = _START_COLOR
+	elif EventCommand.is_blocking(node):
+		graph_node.self_modulate = _BLOCKING_COLOR
+	else:
+		graph_node.self_modulate = Color.WHITE
 
 	return graph_node
+
+## True for a [GraphNode] built from a [constant EventCommand.START_COMMAND] node - read
+## from meta, since the command lives there rather than in any field this panel edits.
+func _is_start_node(graph_node: GraphNode) -> bool:
+	return str(_extra_of_node(graph_node).get("command", "")) == EventCommand.START_COMMAND
 
 ## The input row. Also holds the title field, so the row that has no output port is
 ## the one carrying the only per-node value worth editing.
@@ -304,14 +324,19 @@ func _add_output_row(graph_node: GraphNode, flow: String) -> void:
 ## slots before them - so with the head row at index 0, an output's port index is always
 ## its child index minus one. Every output is a flow port now, so there is one slot type
 ## and one colour rather than a per-row choice.
+##
+## [b]The start node has no input slot.[/b] Nothing may flow into the node execution
+## begins at - that would make it reachable from somewhere else too, which is exactly
+## the ambiguity a single named entry point exists to remove.
 func _refresh_slots(graph_node: GraphNode) -> void:
+	var has_input := not _is_start_node(graph_node)
 	for i in graph_node.get_child_count():
 		var row := graph_node.get_child(i)
 		var is_head: bool = row.name == HEAD_ROW
 		var is_output: bool = str(row.name).begins_with(OUT_ROW_PREFIX)
 
 		graph_node.set_slot(i,
-			is_head, 0, Doc.UNTYPED_COLOR,
+			is_head and has_input, 0, Doc.UNTYPED_COLOR,
 			is_output, Doc.FLOW_SLOT_TYPE, Doc.FLOW_COLOR)
 
 ## The flow name [method _add_output_row] gave this row, for [method _serialize] to read
@@ -418,28 +443,46 @@ func _add_node() -> void:
 
 	var graph_node := _make_graph_node(Doc.default_node(id, position))
 	_graph.add_child(graph_node)
+	# The first node in what was an empty (route-only) page's graph turns it into a real
+	# graph, which needs its start node - see _ensure_start_node()'s force parameter.
+	_ensure_start_node()
 	_mark_dirty()
 	_validate()
 
-## A node pre-set to [constant EventCommand.START_COMMAND], with the one output every
-## graph's entry point needs already there. There is still no UI for a node's command in
-## general (event-pages.md §4.1, later) - this button exists only because every graph
-## needs exactly one of these, so typing it by hand in the JSON dock is the alternative.
-func _add_start_node() -> void:
-	if not _live():
-		return
+## Adds a [constant EventCommand.START_COMMAND] node if [member _graph] does not already
+## have one. Every graph with anything in it has exactly one - not a button an author
+## presses, a fact this panel maintains - so a graph that loaded without one (a hand-typed
+## file, an older one from before question 47) is given one here instead of being left to
+## fail validation until someone notices.
+##
+## [b]An empty graph stays empty unless [param force] is true.[/b] A page may legitimately
+## have no graph at all - event-pages.md §2's route-only decoration, logic-free by design -
+## and loading one should not hand it a start node it never asked for. [param force] is
+## for [method _new_document]: a brand new document is presumed to be about to become a
+## real graph, so it gets its start node up front rather than waiting for a first "Add
+## Node" to trigger the repair.
+##
+## Returns whether it had to add one, so callers that run this against a freshly loaded
+## page know whether that page now differs from what is on disk.
+func _ensure_start_node(force: bool = false) -> bool:
+	var existing := _graph_nodes()
+	for graph_node in existing:
+		if _is_start_node(graph_node):
+			return false
+	if existing.is_empty() and not force:
+		return false
 
-	var id := Doc.generate_id(_used_ids())
-	var position := ADD_POSITION + ADD_STEP * _added + _graph.scroll_offset / _graph.zoom
-	_added += 1
+	# "start" when it is free, matching the worked examples, otherwise a generated id -
+	# the name is cosmetic either way, since the command is what makes it the start node.
+	var used := _used_ids()
+	var id := "start" if not used.has("start") else Doc.generate_id(used)
 
-	var node := Doc.default_node(id, position)
+	var node := Doc.default_node(id, _START_POSITION)
 	node["title"] = "Start"
 	node["command"] = EventCommand.START_COMMAND
 
 	_graph.add_child(_make_graph_node(node))
-	_mark_dirty()
-	_validate()
+	return true
 
 func _on_node_title_changed(text: String, graph_node: GraphNode) -> void:
 	if not _live():
@@ -482,6 +525,12 @@ func _on_delete_nodes_request(names: Array[StringName]) -> void:
 		if graph_node == null:
 			continue
 
+		# The start node is not deletable: every graph has exactly one, and Delete/Select
+		# All + Delete should not be able to leave a graph without it. Selecting it alongside
+		# other nodes still deletes the rest - only the start node itself is skipped.
+		if _is_start_node(graph_node):
+			continue
+
 		# Ports pointing at it go slack rather than disappearing: the port is part of
 		# the owning node's shape, and dropping it would renumber its siblings.
 		for connection in _graph.get_connection_list():
@@ -497,6 +546,9 @@ func _on_delete_nodes_request(names: Array[StringName]) -> void:
 
 ## Copies the selected nodes, ports and all. Their targets are dropped: a duplicate
 ## that inherited them would silently double every path leading out of the original.
+##
+## The start node is excluded even when selected: a graph has exactly one, so duplicating
+## it would immediately fail validation with two rather than do anything useful.
 func _on_duplicate_nodes_request() -> void:
 	if not _live():
 		return
@@ -506,7 +558,7 @@ func _on_duplicate_nodes_request() -> void:
 
 	for node in _serialize():
 		var source := _node_by_id(node["id"])
-		if source == null or not source.selected:
+		if source == null or not source.selected or _is_start_node(source):
 			continue
 
 		var id := Doc.generate_id(ids)
@@ -540,6 +592,7 @@ func _on_popup_request(at_position: Vector2) -> void:
 	var position := (at_position + _graph.scroll_offset) / _graph.zoom
 
 	_graph.add_child(_make_graph_node(Doc.default_node(id, position)))
+	_ensure_start_node()
 	_mark_dirty()
 	_validate()
 
@@ -569,6 +622,7 @@ func _new_document() -> void:
 	_doc = EventDoc.default_document()
 	_current_page = 0
 	_clear()
+	_ensure_start_node(true)
 	_refresh_page_selector()
 	_dirty = false
 	_results.clear()
@@ -606,10 +660,12 @@ func _load(path: String) -> void:
 	_doc = EventDoc.parse(text)
 
 	_path = path
-	_load_page(0)
+	# A repair - the file loaded without a start node and this added one - leaves the
+	# buffer differing from disk, so it must not be reported clean.
+	var repaired := _load_page(0)
 	_refresh_page_selector()
 
-	_dirty = false
+	_dirty = repaired
 	_refresh_title()
 	_remember_path()
 
@@ -650,8 +706,9 @@ func _apply_connections(nodes: Array[Dictionary]) -> void:
 				_graph.connect_node(from.name, i, to.name, 0)
 
 ## Replaces whatever the [GraphEdit] shows with page [param index]'s graph. Does not
-## touch [member _dirty] - opening a page you are not editing is not an edit.
-func _load_page(index: int) -> void:
+## touch [member _dirty] itself - opening a page you are not editing is not an edit -
+## but returns whether [method _ensure_start_node] had to add one, which is.
+func _load_page(index: int) -> bool:
 	var pages: Array = _doc.get("pages", [])
 	var nodes: Array[Dictionary] = []
 	if index >= 0 and index < pages.size():
@@ -662,6 +719,7 @@ func _load_page(index: int) -> void:
 	for node in nodes:
 		_graph.add_child(_make_graph_node(node))
 	_apply_connections(nodes)
+	return _ensure_start_node()
 
 ## Writes the graph on screen back into [member _doc] before it is abandoned for another
 ## page, or for saving - the file (here, [member _doc]) stays the source of truth, and
@@ -697,7 +755,10 @@ func _on_page_selected(index: int) -> void:
 		return
 
 	_commit_current_page()
-	_load_page(index)
+	# A repair here means this page loaded without a start node and now has one, which the
+	# saved file does not - true dirt, not just "looked at a different page".
+	if _load_page(index):
+		_mark_dirty()
 	_page_selector.select(index)
 	_validate()
 

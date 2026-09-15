@@ -58,6 +58,14 @@ same as its arguments do (there is still no UI to choose a command at all). A `G
 also tints red (`self_modulate`) when `EventCommand.is_blocking(node)` is true. All five
 example docs migrated; see question 47's follow-up note in `solved-questions.md`.
 
+**Second same-day follow-up:** the Add Start button is gone. `graph_editor_panel._ensure_start_node()`
+maintains "every graph with anything in it has exactly one start node" as an invariant instead
+of a button — called after loading a page and after that page gains its first node, adding one
+only when there is a real graph to belong to (an intentionally empty, route-only page stays
+empty). The start node cannot be deleted or duplicated (`_on_delete_nodes_request`/
+`_on_duplicate_nodes_request` both skip it), has no input slot (nothing may flow into where
+execution begins), and is always green rather than blocking-red.
+
 Segment 4 needs `event_runner.gd`, `event_command_exec.gd`, `key_latch.gd`,
 `event_context.gd`, `events/commands/*.gd` and `core/event_scheduler.gd`, plus the four
 named motion-key fixes in `actors/motion/*.gd` (unobtainable step keys, an emit-before-
