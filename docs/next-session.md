@@ -9,30 +9,71 @@ work queue; [open-questions.md](open-questions.md) is what is still undecided,
 
 ## Start here tomorrow
 
-**Segment 3 of [stage-c-plan.md](stage-c-plan.md): `EventDocument`, pages, and the graph
-node fields.** Segments 0, 1 and 2 are built, tested and committed.
+**Segment 4 of [stage-c-plan.md](stage-c-plan.md): the runner core, and four motion-key
+defects.** Segments 0–3 are built, tested and committed.
 
-It is the segment that fixes a **live data-loss bug**, which is the reason it is next:
-`graph_document.stringify` (`addons/graph_editor/graph_document.gd:259`) writes only
-`id`, `title`, `position` and `outputs`, `_read_node` (`:175`) reads only those four, and
-`graph_editor_panel._serialize()` (`:342`) drops the rest too. **Opening any of the five
-documents in `docs/events/` in the graph editor and saving strips every `command`,
-`args`, `blocking`, `key` and `flows` in the file.** Nothing has noticed because nothing
-executes these documents yet — segment 1 made them executable data, so the next save
-would be the one that destroys them.
+Segment 4 needs `event_runner.gd`, `event_command_exec.gd`, `key_latch.gd`,
+`event_context.gd`, `events/commands/*.gd` and `core/event_scheduler.gd`, plus the four
+named motion-key fixes in `actors/motion/*.gd` (unobtainable step keys, an emit-before-
+return race in `move_to`, `jump` never returning a fall key, and `cancel()` orphaning
+`_step_key`). See the plan for the executor interface and the resumability rules —
+restart is always a legal downgrade, and a restart command must finish inside the tick
+it starts or have no committed side effects before then.
 
-What segment 3 owes, in order:
+**Run the full suite before starting**, including `event_document`, to confirm nothing
+upstream drifted:
 
-1. Extend `graph_document` to carry `command` / `args` / `blocking` / `key` / `flows`
-   under its existing repair-and-report rule (`:104-111`).
-2. Preserve unknown keys and `//` comments verbatim through a round trip (question 43).
-3. `events/event_document.gd` — the `{format, id, pages: []}` wrapper, with a bare
-   top-level array read as one default page (event-pages.md §2.1).
-4. `active_page(ctx)` — last page to first, first all-passing page wins, using
-   `EventCondition` from segment 2.
+```bash
+GODOT="/c/Users/kyle/Desktop/Godot_v4.7-stable_win64_console.exe"
+for t in stage_a areas demo_scenes height event_command actor_naming event_condition event_document; do
+  timeout 110 "$GODOT" --headless --path . res://tests/${t}_test.tscn
+done
+```
 
-The regression test that matters: **a byte-for-byte round trip of all five example
-documents**. That is the assertion that would have caught the bug above.
+### Stage C segment 3 — `EventDocument`, pages, and the graph node fields (`c972090`)
+
+Fixed the live data-loss bug: `graph_document.stringify`/`_read_node` used to carry only
+`id`/`title`/`position`/`outputs`, and `graph_editor_panel._serialize()` dropped the rest
+too, so opening any of the five `docs/events/` documents in the graph editor and saving
+silently stripped every `command`, `args`, `blocking`, `key` and `flows` in the file.
+
+- `graph_document.gd` now reads and writes all five node fields.
+  `blocking`/`key`/`flows` are written **only when the node authored one** — a round trip
+  never invents a `"blocking": false` nobody wrote — while `command`/`args` are always
+  present, defaulting to `""`/`{}`. `parse()` is split so `parse_nodes(data: Array)` takes
+  already-decoded JSON, which is what `event_document.gd` needs for a page's `graph`.
+  `stringify()` is likewise split behind `to_data(nodes) -> Array`, so a page's graph
+  embeds as data in the larger document instead of being stringified twice.
+- **Unknown keys survive at every level, unconditionally** — not just `"//"`, any key
+  none of these readers recognise, per decision 43 and this session's follow-up: they are
+  kept rather than reported as problems, under a per-node/page/document `_unknown` map,
+  and written back verbatim at the end of the entry. `graph_document.unknown_report()` /
+  `strip_unknown()` and `EventDocument`'s equivalents back two new buttons on
+  `event_editor_dock.gd` — **Unknown** lists what is riding along, **Strip Unknown**
+  removes it — since nothing else in the editor surfaces this yet.
+- `graph_editor_panel.gd` stashes everything it has no field for as `graph_extra` node
+  meta at load, and `_serialize()` starts from that meta before overwriting the four
+  fields the UI actually owns (id/title/position/outputs). Fixes the panel's half of the
+  bug with no new UI — a node's command/args/etc. now survive a visual edit even though
+  there is nothing to edit them with yet (that is event-pages.md §4.1, later).
+- `events/event_document.gd` — the `{format, id, pages: []}` wrapper. A bare top-level
+  array still reads as one default page (event-pages.md §2.1, backwards compatible).
+  `active_page(pages, ctx)` picks last-to-first, first all-passing page wins (§2.3);
+  `validate_pages()` is the "a later page has no conditions, so every page before it is
+  dead code" check that falls out of the same rule.
+- **The five `docs/events/*.json` examples are rewritten to the canonical output of
+  `stringify()`** — tabs, a fixed key order, unknown keys (comments included) trailing —
+  rather than their original hand layout. Byte-for-byte round trip means byte-for-byte
+  against that canonical form now, which is the regression test for the bug above.
+  **Side effect worth knowing**: Godot's `JSON` class has no integer type, so every
+  number inside a raw passthrough dictionary (an `args`, `conditions`, `settings`, `art`
+  or `route` value) now round-trips as a float — `"location": 2` became `"location": 2.0`.
+  Cosmetic only (`EventCommand._coerce` accepts either), not attempted to fix: doing so
+  generically would have erased the deliberate int/float distinction the docs already
+  draw (`"location": 2` vs `"speed": 2.0`), which needs `EventCommand`'s per-argument
+  types to fix properly rather than a blind "collapse whole floats" pass.
+- 56 new assertions in `tests/event_document_test.gd`, all five suites before it still
+  green.
 
 ---
 
@@ -40,12 +81,13 @@ documents**. That is the assertion that would have caught the bug above.
 
 ```bash
 GODOT="/c/Users/kyle/Desktop/Godot_v4.7-stable_win64_console.exe"
-for t in stage_a areas demo_scenes height event_command actor_naming event_condition; do
+for t in stage_a areas demo_scenes height event_command actor_naming event_condition event_document; do
   timeout 110 "$GODOT" --headless --path . res://tests/${t}_test.tscn
 done
 ```
 
-**738 assertions, all green** as of the last commit. Godot is not on PATH; use the
+**794 assertions, all green** as of the last commit (231+31+147+88+71+107+56, plus
+demo_scenes' unnumbered checks). Godot is not on PATH; use the
 `_console` build or a headless run prints nothing.
 
 Three hazards worth re-reading before a long debugging session, all of which cost time
