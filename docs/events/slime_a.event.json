@@ -62,7 +62,7 @@
 					"args": {},
 					"outputs": [
 						{
-							"type": "flow",
+							"flow": "next",
 							"target": "n1"
 						}
 					]
@@ -81,7 +81,7 @@
 					"blocking": true,
 					"outputs": [
 						{
-							"type": "flow",
+							"flow": "next",
 							"target": ""
 						}
 					]
@@ -128,7 +128,7 @@
 					"args": {},
 					"outputs": [
 						{
-							"type": "flow",
+							"flow": "next",
 							"target": "n1"
 						}
 					]
@@ -148,7 +148,7 @@
 					"blocking": true,
 					"outputs": [
 						{
-							"type": "flow",
+							"flow": "next",
 							"target": "n2"
 						}
 					]
@@ -167,7 +167,7 @@
 					"blocking": true,
 					"outputs": [
 						{
-							"type": "flow",
+							"flow": "next",
 							"target": ""
 						}
 					]
@@ -207,7 +207,7 @@
 					"args": {},
 					"outputs": [
 						{
-							"type": "flow",
+							"flow": "next",
 							"target": "n1"
 						}
 					]
@@ -226,7 +226,7 @@
 					"blocking": true,
 					"outputs": [
 						{
-							"type": "flow",
+							"flow": "next",
 							"target": ""
 						}
 					]

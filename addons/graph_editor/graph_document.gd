@@ -20,8 +20,7 @@ extends RefCounted
 ##     "args": {"text": "Halt."},
 ##     "blocking": true,
 ##     "key": "cam",
-##     "flows": ["true", "false"],
-##     "outputs": [{"type": "flow", "target": "n2"}]
+##     "outputs": [{"flow": "next", "target": "n2"}]
 ##   }
 ## ]
 ## [/codeblock]
@@ -31,35 +30,35 @@ extends RefCounted
 ## them. [code]target[/code] is the [code]id[/code] of the node the port points at, or
 ## [code]""[/code] for a port that is not wired up yet - a port always exists whether
 ## or not it has been connected, since the port list is what gives each output its
-## index.
+## index. [code]flow[/code] names the port - [code]"next"[/code] for a linear command,
+## [code]"true"[/code]/[code]"false"[/code] for a branch, a choice's own label for
+## [code]ask[/code] - and is [EventCommand]'s business: [method EventCommand.flows_of]
+## is authoritative for how many ports a node has and what each is named, this file only
+## carries whatever a port's [code]flow[/code] says without understanding it. Question
+## 47's follow-up merged what used to be a separate per-node [code]flows[/code] array
+## into each output's own [code]flow[/code] name, since the two always had to agree
+## anyway - one per port, not two lists a caller had to zip together.
 ##
 ## [code]command[/code] and [code]args[/code] are [EventCommand]'s business and always
-## present, defaulting to [code]""[/code] and [code]{}[/code]. [code]blocking[/code],
-## [code]key[/code] and [code]flows[/code] are [i]that command's[/i] business too, and
-## optional - present only when the node authored one, absent otherwise, so a round
-## trip never invents a [code]"blocking": false[/code] nobody wrote. This file carries
-## all five without understanding any of them: it is the schema's data layer, not its
-## validator.
+## present, defaulting to [code]""[/code] and [code]{}[/code]. [code]blocking[/code] and
+## [code]key[/code] are [i]that command's[/i] business too, and optional - present only
+## when the node authored one, absent otherwise, so a round trip never invents a
+## [code]"blocking": false[/code] nobody wrote. This file carries all four without
+## understanding any of them: it is the schema's data layer, not its validator.
 ##
 ## [b]Unknown keys survive too.[/b] A [code]"//"[/code] comment, or any key this parser
 ## does not recognise, is kept verbatim under [member _unknown] on the node in memory
 ## and written back at the end of the entry on save - repair-and-report extends to
 ## "don't understand" as well as "malformed".
 
-## The primitive an output port carries. The first entry is the default for a new
-## port, and the order is the order the type dropdown offers them in.
-const TYPES: PackedStringArray = ["flow", "bool", "int", "float", "string"]
+## The slot type value [GraphEdit] connects a flow port on, and its colour. Every output
+## port is a flow port - there is no other kind any more (question 47's follow-up), so
+## this is one value each rather than a table a per-port [code]type[/code] used to pick
+## from.
+const FLOW_SLOT_TYPE := 1
+const FLOW_COLOR := Color("e0e0e0")
 
-## Port colours, keyed by type. Only a display concern, but it lives beside the type
-## list so the two cannot drift apart.
-const TYPE_COLORS := {
-	"flow": Color("e0e0e0"),
-	"bool": Color("ff7085"),
-	"int": Color("a1ffe0"),
-	"float": Color("8fd3ff"),
-	"string": Color("ffeda1"),
-}
-
+## The colour of the untyped input side, which accepts any output.
 const UNTYPED_COLOR := Color("9a9a9a")
 
 const DEFAULT_TITLE := "Node"
@@ -70,21 +69,8 @@ const ID_PREFIX := "n"
 ## Node keys this file understands. Anything else in a raw node object is passenger
 ## data, kept under [code]_unknown[/code] rather than dropped - see [method _extract_unknown].
 const NODE_KEYS: PackedStringArray = [
-	"id", "title", "position", "command", "args", "blocking", "key", "flows", "outputs",
+	"id", "title", "position", "command", "args", "blocking", "key", "outputs",
 ]
-
-# --- Types --------------------------------------------------------------------
-
-static func is_type(type: String) -> bool:
-	return TYPES.has(type)
-
-static func type_color(type: String) -> Color:
-	return TYPE_COLORS.get(type, UNTYPED_COLOR)
-
-## The slot type [GraphEdit] connects on, for [param type]. Offset by one so that 0
-## stays free for the input side, which accepts every primitive.
-static func slot_type(type: String) -> int:
-	return TYPES.find(type) + 1
 
 # --- Documents ----------------------------------------------------------------
 
@@ -104,8 +90,8 @@ static func default_node(id: String, position: Vector2) -> Dictionary:
 		"_unknown": {},
 	}
 
-static func default_output() -> Dictionary:
-	return {"type": TYPES[0], "target": ""}
+static func default_output(flow: String = "") -> Dictionary:
+	return {"flow": flow, "target": ""}
 
 ## An id not in [param used], whose keys - or values, if it is an Array - are the ids
 ## already taken. Counts up from 1 rather than using a random or time-based id: these
@@ -251,17 +237,6 @@ static func _read_node(raw: Variant, index: int, ids: Dictionary, reserved: Dict
 			problems.append("%s: \"key\" must be text, found %s - ignored."
 				% [of, type_string(typeof(raw_key))])
 
-	if source.has("flows"):
-		var raw_flows: Variant = source.get("flows")
-		if typeof(raw_flows) == TYPE_ARRAY:
-			var flows: Array[String] = []
-			for entry in raw_flows as Array:
-				flows.append(str(entry))
-			node["flows"] = flows
-		else:
-			problems.append("%s: \"flows\" must be an array, found %s - ignored."
-				% [of, type_string(typeof(raw_flows))])
-
 	node["outputs"] = _read_outputs(source.get("outputs", []), of, problems)
 	node["_unknown"] = _extract_unknown(source, NODE_KEYS)
 	return node
@@ -309,13 +284,7 @@ static func _read_outputs(raw: Variant, where: String,
 			continue
 
 		var output := default_output()
-		var type := str((entry as Dictionary).get("type", TYPES[0]))
-		if is_type(type):
-			output["type"] = type
-		else:
-			problems.append("%s: output %d has unknown type \"%s\" - using \"%s\"."
-				% [where, i, type, TYPES[0]])
-
+		output["flow"] = str((entry as Dictionary).get("flow", ""))
 		output["target"] = str((entry as Dictionary).get("target", ""))
 		outputs.append(output)
 
@@ -347,17 +316,17 @@ static func stringify(nodes: Array[Dictionary]) -> String:
 ## page's graph inside the larger document rather than stringifying it twice.
 ##
 ## Positions are rounded: they come from dragging, so the fractional part is noise that
-## would otherwise churn the file on every save. [code]blocking[/code], [code]key[/code]
-## and [code]flows[/code] are written only when the node carries one, so a round trip
-## never invents a value nobody authored; anything under [member _unknown] - a
-## [code]"//"[/code] comment included - is written back last, verbatim.
+## would otherwise churn the file on every save. [code]blocking[/code] and [code]key[/code]
+## are written only when the node carries one, so a round trip never invents a value
+## nobody authored; anything under [member _unknown] - a [code]"//"[/code] comment
+## included - is written back last, verbatim.
 static func to_data(nodes: Array[Dictionary]) -> Array:
 	var out: Array = []
 	for node in nodes:
 		var position: Vector2 = node.get("position", Vector2.ZERO)
 		var outputs: Array = []
 		for output in node.get("outputs", []):
-			outputs.append({"type": output["type"], "target": output["target"]})
+			outputs.append({"flow": output.get("flow", ""), "target": output["target"]})
 
 		var entry := {
 			"id": node["id"],
@@ -370,8 +339,6 @@ static func to_data(nodes: Array[Dictionary]) -> Array:
 			entry["blocking"] = node["blocking"]
 		if node.has("key"):
 			entry["key"] = node["key"]
-		if node.has("flows"):
-			entry["flows"] = node["flows"]
 		entry["outputs"] = outputs
 
 		for key: Variant in node.get("_unknown", {}):
@@ -443,9 +410,6 @@ static func validate(nodes: Array[Dictionary]) -> Array[String]:
 	for node in nodes:
 		for i in (node["outputs"] as Array).size():
 			var output: Dictionary = node["outputs"][i]
-			if not is_type(output["type"]):
-				problems.append("Node \"%s\": output %d has unknown type \"%s\"."
-					% [node["id"], i, output["type"]])
 			if output["target"] != "" and not ids.has(output["target"]):
 				problems.append("Node \"%s\": output %d targets missing node \"%s\"."
 					% [node["id"], i, output["target"]])

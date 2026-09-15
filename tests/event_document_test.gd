@@ -2,7 +2,7 @@ extends Node
 
 ## Headless assertions over [EventDocument] and the node fields
 ## [code]graph_document.gd[/code] gained alongside it - command, args, blocking, key,
-## flows, and unrecognised keys of every kind.
+## each output's own flow name, and unrecognised keys of every kind.
 ##
 ##     godot --headless --path . res://tests/event_document_test.tscn
 ##
@@ -39,13 +39,12 @@ func _ready() -> void:
 # -- Node fields -----------------------------------------------------------------
 
 func _test_node_fields() -> void:
-	_section("graph_document -- command/args/blocking/key/flows survive a parse")
+	_section("graph_document -- command/args/blocking/key survive a parse")
 
 	var text := JSON.stringify([{
 		"id": "n1", "title": "Line", "position": {"x": 10, "y": 20},
 		"command": "say", "args": {"text": "hi"}, "blocking": false, "key": "cam",
-		"flows": ["true", "false"],
-		"outputs": [{"type": "flow", "target": ""}],
+		"outputs": [{"flow": "next", "target": ""}],
 	}])
 
 	var parsed := Doc.parse(text)
@@ -56,7 +55,8 @@ func _test_node_fields() -> void:
 	_eq(node["args"], {"text": "hi"}, "args carried through")
 	_eq(node["blocking"], false, "blocking carried through, false and all")
 	_eq(node["key"], "cam", "key carried through")
-	_eq(node["flows"], ["true", "false"], "flows carried through")
+	_eq(node["outputs"][0]["flow"], "next",
+		"a port's flow name lives on the output itself, not a separate list (question 47)")
 
 	_section("  absent stays absent -- no invented \"blocking\": false")
 
@@ -65,7 +65,6 @@ func _test_node_fields() -> void:
 	}]))["nodes"][0] as Dictionary
 	_ok(not bare.has("blocking"), "no blocking key when none was authored")
 	_ok(not bare.has("key"), "no key when none was authored")
-	_ok(not bare.has("flows"), "no flows when none was authored")
 	_eq(bare["command"], "", "command defaults to empty, not missing")
 	_eq(bare["args"], {}, "args defaults to empty, not missing")
 
@@ -73,14 +72,20 @@ func _test_node_fields() -> void:
 
 	var messy := Doc.parse(JSON.stringify([{
 		"id": "n1", "outputs": [],
-		"args": "not an object", "blocking": "yes", "key": 5, "flows": "nope",
+		"args": "not an object", "blocking": "yes", "key": 5,
 	}]))
-	_ok((messy["problems"] as Array).size() >= 4, "each malformed field is reported")
+	_ok((messy["problems"] as Array).size() >= 3, "each malformed field is reported")
 	var repaired: Dictionary = (messy["nodes"] as Array)[0]
 	_eq(repaired["args"], {}, "a non-object args is dropped to empty")
 	_ok(not repaired.has("blocking"), "a non-bool blocking is ignored, not coerced")
 	_ok(not repaired.has("key"), "a non-string key is ignored")
-	_ok(not repaired.has("flows"), "a non-array flows is ignored")
+
+	_section("  a missing flow name defaults to empty, not dropped")
+
+	var unnamed := Doc.parse(JSON.stringify([{
+		"id": "n1", "outputs": [{"target": ""}],
+	}]))["nodes"][0] as Dictionary
+	_eq(unnamed["outputs"][0]["flow"], "", "an output with no \"flow\" reads as unnamed")
 
 
 # -- Unknown keys ------------------------------------------------------------------
@@ -94,7 +99,7 @@ func _test_unknown_keys() -> void:
 			"conditions": [], "//": "a page comment",
 			"graph": [{
 				"id": "n1", "//": "a node comment", "spare": 42,
-				"command": "wait", "args": {"seconds": 1}, "outputs": [{"type": "flow", "target": ""}],
+				"command": "wait", "args": {"seconds": 1}, "outputs": [{"flow": "next", "target": ""}],
 			}],
 		}],
 	})
@@ -150,7 +155,7 @@ func _test_unknown_keys() -> void:
 		"and both unrecognised node keys are gone")
 	_eq(stripped_node, {
 		"id": "n1", "command": "wait", "args": {"seconds": 1.0},
-		"outputs": [{"type": "flow", "target": ""}],
+		"outputs": [{"flow": "next", "target": ""}],
 	}, "  with nothing added -- this node never had a title or a position either")
 
 
@@ -161,7 +166,7 @@ func _test_bare_array_is_one_page() -> void:
 
 	var text := JSON.stringify([
 		{"id": "n1", "command": "say", "args": {"text": "hi"},
-			"outputs": [{"type": "flow", "target": ""}]},
+			"outputs": [{"flow": "next", "target": ""}]},
 	])
 
 	var doc := EventDocument.parse(text)

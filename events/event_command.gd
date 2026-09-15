@@ -396,6 +396,16 @@ static func flows_of(node: Dictionary) -> PackedStringArray:
 	return PackedStringArray(def["flows"])
 
 
+## Whether [param node] blocks - its own [code]blocking[/code] when it authored one,
+## otherwise its command's default. An unknown or absent command reads as non-blocking:
+## nothing has said otherwise yet, so it should not read as loudly as a real command's
+## default might.
+static func is_blocking(node: Dictionary) -> bool:
+	if node.has("blocking"):
+		return bool(node["blocking"])
+	return bool(definition(str(node.get("command", ""))).get("blocking", false))
+
+
 ## True when [param value] is a resolvable term rather than a literal - question 40.
 static func is_term(value: Variant) -> bool:
 	return value is String and (value as String).begins_with(TERM_PREFIX)
@@ -772,9 +782,7 @@ static func validate_node(node: Variant) -> Array[String]:
 
 	# A non-blocking command is fire-and-forget unless it is given a key, and a key on a
 	# blocking one is never joinable because the runner has already waited for it.
-	var def := definition(name)
-	var blocking := bool(entry.get("blocking", def["blocking"]))
-	if blocking and entry.has("key"):
+	if is_blocking(entry) and entry.has("key"):
 		problems.append("%s: \"%s\" is blocking, so its \"key\" can never be joined - a later wait_for would already have missed it."
 			% [where, name])
 

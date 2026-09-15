@@ -549,7 +549,7 @@ two fields added per node:
   "command": "say",
   "args": {"text": "Halt.", "location": 2},
   "blocking": true,
-  "outputs": [{"type": "flow", "target": "n3"}]
+  "outputs": [{"flow": "next", "target": "n3"}]
 }
 ```
 
@@ -558,11 +558,12 @@ two fields added per node:
 - `blocking` — optional; defaults to the command's own default.
 - `key` — optional, non-blocking commands only: names the completion key so a later
   `wait_for` in the same graph can join it. Without one the command is fire-and-forget.
-- `flows` — optional editor hint listing the flow port labels a branch command produced,
-  so a graph reopens with its ports named. The runtime trusts the command definition, not
-  this field.
-- `outputs` — unchanged. Flow ports are successors. A linear command has one; a branch has
-  one per branch, in the order the command declares. `"target": ""` ends that path.
+- `outputs` — flow ports are successors. A linear command has one; a branch has one per
+  branch, in the order the command declares. `"target": ""` ends that path. `flow` names
+  the port — `"next"` for a linear command, `"true"`/`"false"` for a branch, a choice's
+  own label for `ask` — and is authoritative from `EventCommand.flows_of`, not something
+  an author picks; a separate `flows` array used to carry this per node until question
+  47's follow-up merged it into each port, since the two always had to agree anyway.
 
 Control flow needs no special mechanism: `if`, `choice`, `goto` and `loop` are ordinary
 commands that pick *which* flow port to continue from. That is exactly the "point at the

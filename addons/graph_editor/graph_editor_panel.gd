@@ -10,11 +10,13 @@ extends VBoxContainer
 ## standing - cannot lose the graph.
 ##
 ## Shape of the file is [GraphDocumentScript]'s business; this file is the editing of
-## it. Two rules from there matter to the UI:
-## - an output port carries one primitive and points at one node, so connecting a port
-##   that is already wired replaces the old connection rather than adding to it;
+## it. Three rules from there matter to the UI:
+## - an output port names one flow and points at one node, so connecting a port that is
+##   already wired replaces the old connection rather than adding to it;
 ## - a node has exactly one input, so every connection lands on port 0 and any number
-##   of ports may point at the same node.
+##   of ports may point at the same node;
+## - a node's ports come from its command ([method EventCommand.flows_of]), not from
+##   anything this panel lets an author add or remove directly.
 
 const Doc := preload("res://addons/graph_editor/graph_document.gd")
 const EventDoc := preload("res://events/event_document.gd")
@@ -32,6 +34,10 @@ const OUT_ROW_PREFIX := "Out"
 ## repeated presses out instead of stacking them.
 const ADD_POSITION := Vector2(80, 80)
 const ADD_STEP := Vector2(40, 30)
+
+## A blocking node's [member GraphNode.self_modulate] - a tint on the whole node, panel
+## included, since [GraphNode] has no simpler "colour the background" knob than that.
+const _BLOCKING_COLOR := Color(1.0, 0.55, 0.55)
 
 var _path := ""
 var _dirty := false
@@ -174,9 +180,8 @@ func _build_ui() -> void:
 	# than once per pixel, so it is cheap to mark dirty on.
 	_graph.end_node_move.connect(_mark_dirty)
 
-	# Every primitive may land on an input, which is the only thing type 0 is used for.
-	for type in Doc.TYPES:
-		_graph.add_valid_connection_type(Doc.slot_type(type), 0)
+	# Every output may land on an input, which is the only thing type 0 is used for.
+	_graph.add_valid_connection_type(Doc.FLOW_SLOT_TYPE, 0)
 
 	add_child(_graph)
 
@@ -214,6 +219,14 @@ func _make_button(text: String, handler: Callable) -> Button:
 ## Builds the [GraphNode] for one entry of the document. Its wiring is not applied
 ## here - targets are ids, which cannot be resolved until every node exists - see
 ## [method _apply_connections].
+##
+## [b]Output ports come from the command, not from [param node]'s own [code]outputs[/code].[/b]
+## [method EventCommand.flows_of] is authoritative for how many ports a node has and what
+## each is named - a linear command has one "next", "if" has "true"/"false", "ask" has one
+## per choice - so a port is never something this panel offers to add or remove; it
+## follows from choosing a command, same as the arguments it takes. There is still no UI
+## for choosing a command (event-pages.md §4.1), so today that means whatever the file
+## already said (or [constant EventCommand.START_COMMAND] for the Add Start button).
 func _make_graph_node(node: Dictionary) -> GraphNode:
 	var id: String = node["id"]
 	var graph_node := GraphNode.new()
@@ -223,10 +236,10 @@ func _make_graph_node(node: Dictionary) -> GraphNode:
 	# The scene name is sanitised and can collide, so the id travels separately. Every
 	# lookup goes through _id_of() rather than reading the name back.
 	graph_node.set_meta(&"graph_id", id)
-	# Everything this panel has no field for - command, args, blocking, key, flows, and
-	# whatever _unknown carries - rides along as meta rather than being dropped. This is
-	# the fix for the data-loss bug: a graph opened and saved here used to keep only id,
-	# title, position and outputs.
+	# Everything this panel has no field for - command, args, blocking, key, and whatever
+	# _unknown carries - rides along as meta rather than being dropped. This is the fix
+	# for the data-loss bug: a graph opened and saved here used to keep only id, title,
+	# position and outputs.
 	graph_node.set_meta(&"graph_extra", _extra_of(node))
 
 	var id_label := Label.new()
@@ -237,10 +250,13 @@ func _make_graph_node(node: Dictionary) -> GraphNode:
 	graph_node.get_titlebar_hbox().add_child(id_label)
 
 	_add_head_row(graph_node)
-	for output in node.get("outputs", []):
-		_add_output_row(graph_node, output["type"])
-	_add_footer_row(graph_node)
+	for flow in EventCommand.flows_of(node):
+		_add_output_row(graph_node, flow)
 	_refresh_slots(graph_node)
+
+	# Red for a blocking command, so a glance at the graph says which nodes hold the
+	# runner up and which fire and carry on - question 47's follow-up.
+	graph_node.self_modulate = _BLOCKING_COLOR if EventCommand.is_blocking(node) else Color.WHITE
 
 	return graph_node
 
@@ -261,66 +277,48 @@ func _add_head_row(graph_node: GraphNode) -> void:
 
 	graph_node.add_child(row)
 
-## One output port: its primitive, and a button to drop it.
-func _add_output_row(graph_node: GraphNode, type: String) -> void:
+## One output port: a label naming its flow, and nothing else. No type to pick, no
+## button to remove it - [method _make_graph_node]'s docstring says why.
+func _add_output_row(graph_node: GraphNode, flow: String) -> void:
 	var row := HBoxContainer.new()
 	# Numbered by the ports already present, which is also the port index this row
 	# will answer to once _refresh_slots() runs.
 	row.name = OUT_ROW_PREFIX + str(_output_rows(graph_node).size())
+	row.set_meta(&"flow", flow)
 
-	var remove := Button.new()
-	remove.name = "Remove"
-	remove.text = "-"
-	remove.tooltip_text = "Remove this output."
-	remove.pressed.connect(_on_remove_output.bind(graph_node, row))
-	row.add_child(remove)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(spacer)
 
-	var types := OptionButton.new()
-	types.name = "Type"
-	for i in Doc.TYPES.size():
-		types.add_item(Doc.TYPES[i], i)
-	types.select(maxi(Doc.TYPES.find(type), 0))
-	types.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	types.item_selected.connect(_on_output_type_changed.bind(graph_node))
-	row.add_child(types)
-
-	graph_node.add_child(row)
-
-func _add_footer_row(graph_node: GraphNode) -> void:
-	var row := HBoxContainer.new()
-	row.name = "Footer"
-
-	var add := Button.new()
-	add.name = "AddOutput"
-	add.text = "+ Output"
-	add.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	add.pressed.connect(_on_add_output.bind(graph_node))
-	row.add_child(add)
+	var label := Label.new()
+	label.name = "Flow"
+	label.text = flow if flow != "" else "(unnamed)"
+	label.add_theme_color_override(&"font_color", _muted_color())
+	row.add_child(label)
 
 	graph_node.add_child(row)
 
 ## Re-applies every slot on [param graph_node] from its rows.
 ##
 ## [GraphNode] indexes slots by child index, and numbers ports by counting the enabled
-## slots before them - so with the head row at index 0 and the footer disabled, an
-## output's port index is always its child index minus one. Called after any row is
-## added or removed, and after a type changes.
+## slots before them - so with the head row at index 0, an output's port index is always
+## its child index minus one. Every output is a flow port now, so there is one slot type
+## and one colour rather than a per-row choice.
 func _refresh_slots(graph_node: GraphNode) -> void:
 	for i in graph_node.get_child_count():
 		var row := graph_node.get_child(i)
 		var is_head: bool = row.name == HEAD_ROW
 		var is_output: bool = str(row.name).begins_with(OUT_ROW_PREFIX)
-		var type := _row_type(row) if is_output else ""
 
 		graph_node.set_slot(i,
 			is_head, 0, Doc.UNTYPED_COLOR,
-			is_output, Doc.slot_type(type), Doc.type_color(type))
+			is_output, Doc.FLOW_SLOT_TYPE, Doc.FLOW_COLOR)
 
-func _row_type(row: Node) -> String:
-	var types := row.get_node_or_null(^"Type") as OptionButton
-	if types == null:
-		return Doc.TYPES[0]
-	return types.get_item_text(types.selected)
+## The flow name [method _add_output_row] gave this row, for [method _serialize] to read
+## back - see [method _make_graph_node]'s docstring for why a port's identity is its flow
+## name rather than a stored type.
+func _row_flow(row: Node) -> String:
+	return row.get_meta(&"flow", "")
 
 func _output_rows(graph_node: GraphNode) -> Array[Node]:
 	var rows: Array[Node] = []
@@ -328,43 +326,6 @@ func _output_rows(graph_node: GraphNode) -> Array[Node]:
 		if str(child.name).begins_with(OUT_ROW_PREFIX):
 			rows.append(child)
 	return rows
-
-## Rebuilds the output rows of [param graph_node] to match [param outputs], preserving
-## the wiring by target id.
-##
-## Adding or removing a port renumbers the ones after it, and [GraphEdit] holds its
-## connections by port number - so rather than patch them, every connection out of this
-## node is dropped and the surviving targets are reconnected against the new numbering.
-func _rebuild_outputs(graph_node: GraphNode, outputs: Array) -> void:
-	for row in _output_rows(graph_node):
-		graph_node.remove_child(row)
-		row.queue_free()
-
-	var footer := graph_node.get_node_or_null(^"Footer")
-	for output in outputs:
-		_add_output_row(graph_node, output["type"])
-	# Keep the add button last: the footer must stay the highest child index or it
-	# would take an output's slot.
-	if footer != null:
-		graph_node.move_child(footer, graph_node.get_child_count() - 1)
-
-	_refresh_slots(graph_node)
-	_disconnect_from(graph_node)
-
-	for i in outputs.size():
-		var target: String = outputs[i]["target"]
-		if target == "":
-			continue
-
-		var target_node := _node_by_id(target)
-		if target_node != null:
-			_graph.connect_node(graph_node.name, i, target_node.name, 0)
-
-func _disconnect_from(graph_node: GraphNode) -> void:
-	for connection in _graph.get_connection_list():
-		if connection["from_node"] == graph_node.name:
-			_graph.disconnect_node(connection["from_node"], connection["from_port"],
-				connection["to_node"], connection["to_port"])
 
 # --- Reading the graph back ---------------------------------------------------
 
@@ -383,13 +344,13 @@ func _serialize() -> Array[Dictionary]:
 		var rows := _output_rows(graph_node)
 		for i in rows.size():
 			outputs.append({
-				"type": _row_type(rows[i]),
+				"flow": _row_flow(rows[i]),
 				"target": targets.get("%s:%d" % [graph_node.name, i], ""),
 			})
 
 		# Start from whatever this node carried that the panel has no field for, so
-		# command/args/blocking/key/flows/_unknown ride through untouched, then overwrite
-		# the four the UI actually owns.
+		# command/args/blocking/key/_unknown ride through untouched, then overwrite the
+		# four the UI actually owns.
 		var entry: Dictionary = _extra_of_node(graph_node).duplicate(true)
 		entry["id"] = _id_of(graph_node)
 		entry["title"] = graph_node.title
@@ -475,51 +436,10 @@ func _add_start_node() -> void:
 	var node := Doc.default_node(id, position)
 	node["title"] = "Start"
 	node["command"] = EventCommand.START_COMMAND
-	node["outputs"] = [Doc.default_output()]
 
 	_graph.add_child(_make_graph_node(node))
 	_mark_dirty()
 	_validate()
-
-func _on_add_output(graph_node: GraphNode) -> void:
-	if not _live():
-		return
-
-	var outputs := _outputs_of(graph_node)
-	outputs.append(Doc.default_output())
-	_rebuild_outputs(graph_node, outputs)
-	_mark_dirty()
-
-func _on_remove_output(graph_node: GraphNode, row: Node) -> void:
-	if not _live():
-		return
-
-	var index := _output_rows(graph_node).find(row)
-	if index < 0:
-		return
-
-	var outputs := _outputs_of(graph_node)
-	outputs.remove_at(index)
-	_rebuild_outputs(graph_node, outputs)
-	_mark_dirty()
-
-## This node's ports as [code]{"type", "target"}[/code], with targets as ids - the form
-## [method _rebuild_outputs] takes.
-func _outputs_of(graph_node: GraphNode) -> Array[Dictionary]:
-	for node in _serialize():
-		if node["id"] == _id_of(graph_node):
-			return node["outputs"]
-	return []
-
-func _on_output_type_changed(_selected: int, graph_node: GraphNode) -> void:
-	if not _live():
-		return
-
-	# A port that changed primitive keeps its connection: the input side accepts
-	# everything, so the wire is still legal. Only the slot's colour and type need
-	# catching up.
-	_refresh_slots(graph_node)
-	_mark_dirty()
 
 func _on_node_title_changed(text: String, graph_node: GraphNode) -> void:
 	if not _live():
@@ -701,14 +621,27 @@ func _load(path: String) -> void:
 
 ## Wires up a freshly built graph. Separate from node creation because a target may
 ## name a node that comes later in the file.
+##
+## Matched by flow name, not by position in [param node]'s authored [code]outputs[/code]
+## array - [method _make_graph_node] built this node's ports from
+## [method EventCommand.flows_of], in that order, which need not be the order (or even
+## the count) [code]outputs[/code] happened to list them in. A flow the node's ports
+## don't have is simply not wired, which is what an [code]if[/code] missing a
+## [code]"false"[/code] entry should do rather than silently wiring the wrong port.
 func _apply_connections(nodes: Array[Dictionary]) -> void:
 	for node in nodes:
 		var from := _node_by_id(node["id"])
 		if from == null:
 			continue
 
-		for i in (node["outputs"] as Array).size():
-			var target: String = node["outputs"][i]["target"]
+		var target_by_flow := {}
+		for output in (node.get("outputs", []) as Array):
+			var entry: Dictionary = output
+			target_by_flow[str(entry.get("flow", ""))] = str(entry.get("target", ""))
+
+		var flows := EventCommand.flows_of(node)
+		for i in flows.size():
+			var target: String = target_by_flow.get(flows[i], "")
 			if target == "":
 				continue
 

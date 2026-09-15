@@ -10,7 +10,7 @@
 		"args": {},
 		"outputs": [
 			{
-				"type": "flow",
+				"flow": "next",
 				"target": "n1"
 			}
 		]
@@ -35,7 +35,7 @@
 		"key": "cam",
 		"outputs": [
 			{
-				"type": "flow",
+				"flow": "next",
 				"target": "n2"
 			}
 		]
@@ -61,7 +61,7 @@
 		"blocking": true,
 		"outputs": [
 			{
-				"type": "flow",
+				"flow": "next",
 				"target": "n3"
 			}
 		]
@@ -86,7 +86,7 @@
 		"blocking": true,
 		"outputs": [
 			{
-				"type": "flow",
+				"flow": "next",
 				"target": "n4"
 			}
 		]
@@ -104,7 +104,7 @@
 		},
 		"outputs": [
 			{
-				"type": "flow",
+				"flow": "next",
 				"target": "n5"
 			}
 		]
@@ -124,7 +124,7 @@
 		"blocking": true,
 		"outputs": [
 			{
-				"type": "flow",
+				"flow": "next",
 				"target": "n6"
 			}
 		]
@@ -144,7 +144,7 @@
 		"blocking": true,
 		"outputs": [
 			{
-				"type": "flow",
+				"flow": "next",
 				"target": ""
 			}
 		]

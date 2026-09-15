@@ -875,3 +875,22 @@ deferred to — both answers are cheap to revisit and neither changes what stage
     at all — before this it could only open a bare-array file. Both are deliberately thin:
     the full page bar (§4.1) and Routes-panel-style tooling stay deferred, this is only enough
     to see and validate a multi-page graph today.
+
+    **Follow-up, same day: an output's `type` merged into a `flow` name, and the graph
+    viewer stopped offering to add or remove ports.** `graph_document`'s output shape used
+    to be `{"type": "flow"|"bool"|"int"|"float"|"string", "target": ...}` — a generic,
+    multi-primitive graph-editor concept a separate per-node `flows` array had to be kept
+    in step with by hand, and every real port in every example was `"flow"` anyway. An
+    output is now `{"flow": "next"|"true"|"false"|a choice's own label, "target": ...}`,
+    one list instead of two that always had to agree. `EventCommand.flows_of` is
+    authoritative for how many ports a node has and what each is named — the graph viewer
+    builds a node's ports from it directly rather than from the file's own `outputs`, so a
+    node's ports are no longer something an author adds or removes (the `+ Output`/`-`
+    buttons and the type dropdown are gone); they follow from the command, the same way its
+    arguments do. There is still no UI for choosing a command at all (§4.1), so today that
+    still means the file already says one, or the Add Start button set it.
+
+    **A `GraphNode` also tints red when [`EventCommand.is_blocking`](../events/event_command.gd)
+    says the node blocks** — `self_modulate`, since a `GraphNode` has no simpler
+    "colour the background" knob — so a glance at the graph says which nodes hold the
+    runner up and which fire and carry on.

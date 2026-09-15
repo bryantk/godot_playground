@@ -247,7 +247,7 @@ func _test_validation() -> void:
 
 	var linear := {
 		"id": "n1", "command": "say", "args": {"text": "hi"},
-		"outputs": [{"type": "flow", "target": "n2"}],
+		"outputs": [{"flow": "next", "target": "n2"}],
 	}
 	_ok(EventCommand.validate_node(linear).is_empty(), "a well-formed node is clean")
 
@@ -257,7 +257,7 @@ func _test_validation() -> void:
 
 	var branch := {
 		"id": "n2", "command": "if", "args": {"condition": "chapter >= 2"},
-		"outputs": [{"type": "flow", "target": "n3"}],
+		"outputs": [{"flow": "next", "target": "n3"}],
 	}
 	_ok(EventCommand.validate_node(branch).size() > 0,
 		"an `if` with one port is short of the two it branches on")
@@ -266,14 +266,14 @@ func _test_validation() -> void:
 	var menu := {
 		"id": "n4", "command": "ask",
 		"args": {"text": "Unlock it?", "choices": ["Unlock it", "Leave it"]},
-		"outputs": [{"type": "flow", "target": "n5"}, {"type": "flow", "target": ""}],
+		"outputs": [{"flow": "next", "target": "n5"}, {"flow": "next", "target": ""}],
 	}
 	_eq(EventCommand.flows_of(menu).size(), 2, "ask takes its ports from its choices")
 	_ok(EventCommand.validate_node(menu).is_empty(), "  and two choices want two outputs")
 
 	# Every message must quote the node id, or graph_editor_panel cannot make the result
 	# clickable -- it finds the node by scanning for the first quoted id.
-	var broken := {"id": "n9", "command": "wait", "args": {}, "outputs": [{"type": "flow"}]}
+	var broken := {"id": "n9", "command": "wait", "args": {}, "outputs": [{"flow": "next"}]}
 	var messages := EventCommand.validate_node(broken)
 	_ok(messages.size() > 0, "a broken node reports something")
 	var quoted := true
@@ -285,7 +285,7 @@ func _test_validation() -> void:
 	# A key on a blocking command can never be joined: the runner has already waited.
 	var pointless := {
 		"id": "n5", "command": "say", "args": {"text": "hi"}, "blocking": true,
-		"key": "line", "outputs": [{"type": "flow", "target": ""}],
+		"key": "line", "outputs": [{"flow": "next", "target": ""}],
 	}
 	_ok(EventCommand.validate_node(pointless).size() > 0,
 		"a key on a blocking command is reported as unjoinable")
@@ -296,7 +296,7 @@ func _test_validation() -> void:
 	# runner that waits forever. Catching it at author time is the whole mitigation.
 	var orphan: Array = [
 		{"id": "n1", "command": "wait_for", "args": {"key": "cam"},
-			"outputs": [{"type": "flow", "target": ""}]},
+			"outputs": [{"flow": "next", "target": ""}]},
 	]
 	_ok(EventCommand.validate_graph(orphan).size() > 0,
 		"wait_for on a key no command produces is reported")
@@ -304,9 +304,9 @@ func _test_validation() -> void:
 	var joined: Array = [
 		{"id": "n1", "command": "camera_to", "args": {"cell": [1, 0, 1]},
 			"blocking": false, "key": "cam",
-			"outputs": [{"type": "flow", "target": "n2"}]},
+			"outputs": [{"flow": "next", "target": "n2"}]},
 		{"id": "n2", "command": "wait_for", "args": {"key": "cam"},
-			"outputs": [{"type": "flow", "target": ""}]},
+			"outputs": [{"flow": "next", "target": ""}]},
 	]
 	_ok(EventCommand.validate_graph(joined).is_empty(),
 		"and a key a non-blocking command does produce is clean")
@@ -322,25 +322,25 @@ func _test_reachability() -> void:
 
 	var no_start: Array = [
 		{"id": "n1", "command": "say", "args": {"text": "hi"},
-			"outputs": [{"type": "flow", "target": ""}]},
+			"outputs": [{"flow": "next", "target": ""}]},
 	]
 	var missing := EventCommand.validate_reachability(no_start)
 	_ok(missing.size() > 0, "no start node is reported")
 	_ok(missing[0].contains("start"), "  and names what is missing")
 
 	var wired: Array = [
-		{"id": "start", "command": "start", "outputs": [{"type": "flow", "target": "n1"}]},
+		{"id": "start", "command": "start", "outputs": [{"flow": "next", "target": "n1"}]},
 		{"id": "n1", "command": "say", "args": {"text": "hi"},
-			"outputs": [{"type": "flow", "target": ""}]},
+			"outputs": [{"flow": "next", "target": ""}]},
 	]
 	_ok(EventCommand.validate_reachability(wired).is_empty(),
 		"one start reaching every node is clean")
 
 	var two_starts: Array = [
-		{"id": "start", "command": "start", "outputs": [{"type": "flow", "target": "n1"}]},
-		{"id": "start2", "command": "start", "outputs": [{"type": "flow", "target": "n1"}]},
+		{"id": "start", "command": "start", "outputs": [{"flow": "next", "target": "n1"}]},
+		{"id": "start2", "command": "start", "outputs": [{"flow": "next", "target": "n1"}]},
 		{"id": "n1", "command": "say", "args": {"text": "hi"},
-			"outputs": [{"type": "flow", "target": ""}]},
+			"outputs": [{"flow": "next", "target": ""}]},
 	]
 	var doubled := EventCommand.validate_reachability(two_starts)
 	_ok(doubled.size() > 0, "a second start node is reported")
@@ -350,17 +350,17 @@ func _test_reachability() -> void:
 	_section("  orphaned chains")
 
 	var orphan_chain: Array = [
-		{"id": "start", "command": "start", "outputs": [{"type": "flow", "target": "n1"}]},
+		{"id": "start", "command": "start", "outputs": [{"flow": "next", "target": "n1"}]},
 		{"id": "n1", "command": "say", "args": {"text": "hi"},
-			"outputs": [{"type": "flow", "target": ""}]},
+			"outputs": [{"flow": "next", "target": ""}]},
 		# n2 -> n3 is a two-node chain nothing flows into.
 		{"id": "n2", "command": "wait", "args": {"seconds": 1},
-			"outputs": [{"type": "flow", "target": "n3"}]},
+			"outputs": [{"flow": "next", "target": "n3"}]},
 		{"id": "n3", "command": "wait", "args": {"seconds": 1},
-			"outputs": [{"type": "flow", "target": ""}]},
+			"outputs": [{"flow": "next", "target": ""}]},
 		# n4 is a lone orphan, its own chain.
 		{"id": "n4", "command": "wait", "args": {"seconds": 1},
-			"outputs": [{"type": "flow", "target": ""}]},
+			"outputs": [{"flow": "next", "target": ""}]},
 	]
 	var orphaned := EventCommand.validate_reachability(orphan_chain)
 	_ok(orphaned.size() > 0, "unreachable nodes are reported")

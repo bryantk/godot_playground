@@ -10,7 +10,7 @@
 		"args": {},
 		"outputs": [
 			{
-				"type": "flow",
+				"flow": "next",
 				"target": "n1"
 			}
 		]
@@ -26,17 +26,13 @@
 		"args": {
 			"condition": "flags.has_brass_key"
 		},
-		"flows": [
-			"true",
-			"false"
-		],
 		"outputs": [
 			{
-				"type": "flow",
+				"flow": "true",
 				"target": "n2"
 			},
 			{
-				"type": "flow",
+				"flow": "false",
 				"target": "n5"
 			}
 		]
@@ -57,17 +53,13 @@
 			],
 			"location": 1.0
 		},
-		"flows": [
-			"Unlock it",
-			"Leave it"
-		],
 		"outputs": [
 			{
-				"type": "flow",
+				"flow": "Unlock it",
 				"target": "n3"
 			},
 			{
-				"type": "flow",
+				"flow": "Leave it",
 				"target": ""
 			}
 		]
@@ -87,7 +79,7 @@
 		"blocking": true,
 		"outputs": [
 			{
-				"type": "flow",
+				"flow": "next",
 				"target": "n4"
 			}
 		]
@@ -106,7 +98,7 @@
 		},
 		"outputs": [
 			{
-				"type": "flow",
+				"flow": "next",
 				"target": ""
 			}
 		]
@@ -125,7 +117,7 @@
 		"blocking": true,
 		"outputs": [
 			{
-				"type": "flow",
+				"flow": "next",
 				"target": ""
 			}
 		]

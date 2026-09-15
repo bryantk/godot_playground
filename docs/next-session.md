@@ -48,6 +48,16 @@ not a bare comma list) so `graph_editor_panel`'s click-to-jump still works on it
 message beginning `unreachable from "start"` would always jump to the start node instead of
 one of the actually-orphaned ones.
 
+**Same-day follow-up:** an output's `type` (`"flow"`/`"bool"`/`"int"`/`"float"`/`"string"`)
+merged into a `flow` name, replacing the separate per-node `flows` array entirely —
+`{"flow": "next", "target": "n2"}` instead of a `flows` list plus `{"type": "flow", ...}`.
+`graph_editor_panel.gd` now builds a node's ports from `EventCommand.flows_of(node)` rather
+than from the file's own `outputs`, so the type dropdown and the `+ Output`/`-` buttons are
+gone — a port is no longer something an author adds or removes, it follows from the command,
+same as its arguments do (there is still no UI to choose a command at all). A `GraphNode`
+also tints red (`self_modulate`) when `EventCommand.is_blocking(node)` is true. All five
+example docs migrated; see question 47's follow-up note in `solved-questions.md`.
+
 Segment 4 needs `event_runner.gd`, `event_command_exec.gd`, `key_latch.gd`,
 `event_context.gd`, `events/commands/*.gd` and `core/event_scheduler.gd`, plus the four
 named motion-key fixes in `actors/motion/*.gd` (unobtainable step keys, an emit-before-
