@@ -127,6 +127,32 @@ func _test_unknown_keys() -> void:
 	_eq(stripped["pages"][0]["graph"][0]["command"], "wait",
 		"stripping touches nothing but the unknown keys")
 
+	_section("  strip_unknown_raw -- an editor's \"strip\" button, which must not repair")
+
+	# The bug this guards: routing a plain command list through parse()/stringify() to
+	# strip a comment silently handed every entry an id, a title, a position and an
+	# outputs array it never had - "stripping" that visibly grew the file.
+	var bare: Variant = JSON.parse_string(JSON.stringify([
+		{"command": "mov n 2", "//": "a note"},
+	]))
+	var bare_stripped: Variant = Doc.strip_unknown_raw(bare as Array)
+	var bare_entry: Dictionary = (bare_stripped as Array)[0]
+	_eq(bare_entry, {"command": "mov n 2"}, "only the known key survives -- nothing invented")
+
+	var wrapped: Variant = JSON.parse_string(text)
+	var wrapped_stripped: Variant = EventDocument.strip_unknown_raw(wrapped)
+	var stripped_doc: Dictionary = wrapped_stripped as Dictionary
+	_ok(not stripped_doc.has("extra_doc_field"), "the document-level key is gone")
+	var stripped_page: Dictionary = stripped_doc["pages"][0]
+	_ok(not stripped_page.has("//"), "the page-level comment is gone")
+	var stripped_node: Dictionary = stripped_page["graph"][0]
+	_ok(not stripped_node.has("//") and not stripped_node.has("spare"),
+		"and both unrecognised node keys are gone")
+	_eq(stripped_node, {
+		"id": "n1", "command": "wait", "args": {"seconds": 1.0},
+		"outputs": [{"type": "flow", "target": ""}],
+	}, "  with nothing added -- this node never had a title or a position either")
+
 
 # -- Backwards compatibility (event-pages.md §2.1) --------------------------------
 

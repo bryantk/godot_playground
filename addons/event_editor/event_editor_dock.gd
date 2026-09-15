@@ -27,8 +27,8 @@ const GraphDoc := preload("res://addons/graph_editor/graph_document.gd")
 const EventDoc := preload("res://events/event_document.gd")
 
 const EMPTY_DOCUMENT := "[\n]\n"
-## What the Add button appends. A starting point to edit, not a meaningful command.
-const NEW_COMMAND := "{\"command\": \"mov n 2\"}"
+## The command the Add button seeds - a starting point to edit, not a meaningful one.
+const NEW_COMMAND := "mov n 2"
 ## Where the last opened path is remembered between editor sessions.
 const METADATA_SECTION := "event_editor"
 const METADATA_PATH_KEY := "last_file"
@@ -86,8 +86,8 @@ func _bind() -> bool:
 	_results = get_node_or_null(^"Results") as ItemList
 	_hover_label = get_node_or_null(^"Hover") as Label
 	_status = get_node_or_null(^"Status") as Label
-	_save_button = get_node_or_null(^"Toolbar/Save") as Button
-	_reload_button = get_node_or_null(^"Toolbar/Reload") as Button
+	_save_button = get_node_or_null(^"ToolbarFile/Save") as Button
+	_reload_button = get_node_or_null(^"ToolbarFile/Reload") as Button
 	_file_dialog = get_node_or_null(^"FileDialog") as EditorFileDialog
 
 	if is_instance_valid(_hover_label):
@@ -115,26 +115,34 @@ func _live() -> bool:
 func _build_ui() -> void:
 	add_theme_constant_override("separation", 4)
 
-	var toolbar := HBoxContainer.new()
-	toolbar.name = "Toolbar"
-	add_child(toolbar)
+	# Two rows: file operations, which act on the whole document, above editing
+	# operations, which act on the buffer's contents. Growing list of the latter is
+	# what made one crowded row worth splitting.
+	var files := HBoxContainer.new()
+	files.name = "ToolbarFile"
+	add_child(files)
 
-	toolbar.add_child(_make_button("New", _new_document))
-	toolbar.add_child(_make_button("Open", _open))
+	files.add_child(_make_button("New", _new_document))
+	files.add_child(_make_button("Open", _open))
 	_reload_button = _make_button("Reload", _reload)
-	toolbar.add_child(_reload_button)
+	files.add_child(_reload_button)
 	_save_button = _make_button("Save", _save)
-	toolbar.add_child(_save_button)
+	files.add_child(_save_button)
+
+	var editing := HBoxContainer.new()
+	editing.name = "ToolbarEdit"
+	add_child(editing)
+
+	editing.add_child(_make_button("Add", _add_command))
+	editing.add_child(_make_button("Format", _format))
+	editing.add_child(_make_button("Unknown", _show_unknown))
+	editing.add_child(_make_button("Strip Unknown", _strip_unknown))
 
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	toolbar.add_child(spacer)
+	editing.add_child(spacer)
 
-	toolbar.add_child(_make_button("Add", _add_command))
-	toolbar.add_child(_make_button("Format", _format))
-	toolbar.add_child(_make_button("Unknown", _show_unknown))
-	toolbar.add_child(_make_button("Strip Unknown", _strip_unknown))
-	toolbar.add_child(_make_button("Validate", _validate))
+	editing.add_child(_make_button("Validate", _validate))
 
 	_title = Label.new()
 	_title.name = "Title"
@@ -334,11 +342,34 @@ func _add_command() -> void:
 		_validate()
 		return
 
-	_edit.insert_text(separator + NEW_COMMAND, line, column)
+	# Every command in this project's files is a graph node - id and a wired output
+	# included - so a seeded one should already look like its neighbours rather than
+	# needing both filled in by hand before Validate stops complaining.
+	var seed := {
+		"id": GraphDoc.generate_id(_used_ids()),
+		"title": GraphDoc.DEFAULT_TITLE,
+		"command": NEW_COMMAND,
+		"outputs": [{"type": "flow", "target": ""}],
+	}
+	_edit.insert_text(separator + JSON.stringify(seed), line, column)
 
 	# Leave the caret on the command that was just added, ready to be edited.
 	_go_to_line(line + 1)
 	_validate()
+
+## Every [code]"id"[/code] already used by a top-level array element, for
+## [method GraphDoc.generate_id] to dodge. Empty when the buffer is not an array at all -
+## [method _add_command] has already refused by the time this would matter.
+func _used_ids() -> Dictionary:
+	var used := {}
+	var json := JSON.new()
+	if json.parse(_edit.text) != OK or typeof(json.data) != TYPE_ARRAY:
+		return used
+
+	for entry in json.data as Array:
+		if entry is Dictionary and (entry as Dictionary).has("id"):
+			used[str((entry as Dictionary)["id"])] = true
+	return used
 
 func _format() -> void:
 	if not _live():
@@ -389,14 +420,15 @@ func _strip_unknown() -> void:
 	var data: Variant = json.data
 	var line := _edit.get_caret_line()
 
-	if typeof(data) == TYPE_ARRAY:
-		var parsed := GraphDoc.parse_nodes(data as Array)
-		_edit.text = GraphDoc.stringify(GraphDoc.strip_unknown(parsed["nodes"]))
-	elif typeof(data) == TYPE_DICTIONARY:
-		_edit.text = EventDoc.stringify(EventDoc.strip_unknown(EventDoc.parse(_edit.text)))
-	else:
+	if typeof(data) != TYPE_ARRAY and typeof(data) != TYPE_DICTIONARY:
 		_set_status("Nothing to strip.", _status_color(false))
 		return
+
+	# strip_unknown_raw() only, never EventDoc.parse()/stringify(): that pair repairs as
+	# it round-trips - a missing id generated, a missing title defaulted - which is right
+	# for a graph about to be shown, but wrong here. A plain command list that never had
+	# an id or a position should not gain four fields because its comment got removed.
+	_edit.text = JSON.stringify(EventDoc.strip_unknown_raw(data), "\t", false) + "\n"
 
 	_edit.clear_undo_history()
 	_go_to_line(mini(line, _edit.get_line_count() - 1))

@@ -167,6 +167,16 @@ static func _extract_unknown(source: Dictionary, known: PackedStringArray) -> Di
 			extra[key] = source[key]
 	return extra
 
+## The inverse of [method _extract_unknown] - see the identical private helper in
+## [code]graph_document.gd[/code], duplicated rather than shared for the same reason
+## [method _extract_unknown] is: independent readers of independent layers.
+static func _strip_dict_keys(source: Dictionary, known: PackedStringArray) -> Dictionary:
+	var out := {}
+	for key: Variant in source:
+		if known.has(str(key)):
+			out[key] = source[key]
+	return out
+
 
 # -- Serialising ---------------------------------------------------------------
 
@@ -264,6 +274,46 @@ static func strip_unknown(doc: Dictionary) -> Dictionary:
 		page_dict["_unknown"] = {}
 		page_dict["graph"] = Doc.strip_unknown(page_dict.get("graph", []))
 		pages.append(page_dict)
+	out["pages"] = pages
+
+	return out
+
+## [param data] - raw, freshly [method JSON.parse_string]'d data, not what [method parse]
+## returns - with every key outside [constant DOCUMENT_KEYS], [constant PAGE_KEYS] or
+## [code]graph_document[/code]'s [constant NODE_KEYS] dropped, at whichever levels
+## [param data] actually has. Accepts either shape §2.1 allows: a bare array is handed
+## straight to [method GraphDoc.strip_unknown_raw], a page-wrapped object is walked level
+## by level. Anything else is returned untouched.
+##
+## The one an editor's "strip unknown keys" button should call - see the identical
+## reasoning on [method GraphDoc.strip_unknown_raw]: going through [method parse] instead
+## would repair every missing id, title, position and route/settings/art default into
+## existence, which is right for a graph about to be shown but not for "just remove the
+## comments".
+static func strip_unknown_raw(data: Variant) -> Variant:
+	if typeof(data) == TYPE_ARRAY:
+		return Doc.strip_unknown_raw(data as Array)
+	if typeof(data) != TYPE_DICTIONARY:
+		return data
+
+	var source: Dictionary = data
+	var out := _strip_dict_keys(source, DOCUMENT_KEYS)
+
+	var pages_raw: Variant = source.get("pages", [])
+	if typeof(pages_raw) != TYPE_ARRAY:
+		return out
+
+	var pages: Array = []
+	for page in pages_raw as Array:
+		if typeof(page) != TYPE_DICTIONARY:
+			pages.append(page)
+			continue
+
+		var stripped_page := _strip_dict_keys(page as Dictionary, PAGE_KEYS)
+		var graph: Variant = (page as Dictionary).get("graph")
+		if typeof(graph) == TYPE_ARRAY:
+			stripped_page["graph"] = Doc.strip_unknown_raw(graph as Array)
+		pages.append(stripped_page)
 	out["pages"] = pages
 
 	return out

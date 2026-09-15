@@ -399,6 +399,33 @@ static func strip_unknown(nodes: Array[Dictionary]) -> Array[Dictionary]:
 		out.append(copy)
 	return out
 
+## [param data] - raw, freshly [method JSON.parse_string]'d entries, not the normalised
+## node dictionaries [method parse] returns - with every key outside [constant NODE_KEYS]
+## dropped from each object. A non-object entry is left as it was.
+##
+## [b]This is the one an editor's "strip unknown keys" button should call, not
+## [method strip_unknown].[/b] Round-tripping through [method parse]/[method stringify]
+## repairs as it goes - a missing id is generated, a missing title becomes
+## [constant DEFAULT_TITLE] - which is exactly right for a graph the editor is about to
+## show, but wrong for a plain command list that never had an id or a position in the
+## first place: stripping its comments should not also hand it four fields it never
+## carried.
+static func strip_unknown_raw(data: Array) -> Array:
+	var out: Array = []
+	for entry in data:
+		if typeof(entry) == TYPE_DICTIONARY:
+			out.append(_strip_dict_keys(entry, NODE_KEYS))
+		else:
+			out.append(entry)
+	return out
+
+static func _strip_dict_keys(source: Dictionary, known: PackedStringArray) -> Dictionary:
+	var out := {}
+	for key: Variant in source:
+		if known.has(str(key)):
+			out[key] = source[key]
+	return out
+
 ## Problems with a graph that is already in memory - the checks from [method parse]
 ## that can be broken again by editing, minus the ones parsing repairs on the way in.
 static func validate(nodes: Array[Dictionary]) -> Array[String]:
