@@ -22,6 +22,7 @@ func _ready() -> void:
 	_test_prefix()
 	_test_rename_for()
 	_test_setter_hook()
+	_test_player()
 
 	print("")
 	print("  %d passed, %d failed" % [_passed, _failed])
@@ -97,6 +98,15 @@ func _test_names() -> void:
 	_eq(ActorNaming.strip_id("Guard__event_3__event_4"), "Guard__event_3",
 		"only the trailing id is stripped, one layer at a time")
 
+	# The bug this caught: node_name_for only knew the generated __event_N shape, so an id
+	# that does not look generated was re-appended on every pass. A second run over a map
+	# produced Guard__npc_guard__npc_guard, and a third added another.
+	_eq(ActorNaming.node_name_for("Guard__npc_guard", &"npc_guard"), "Guard__npc_guard",
+		"a hand-typed id is idempotent too, not just a generated one")
+	_eq(ActorNaming.node_name_for(
+		ActorNaming.node_name_for("Guard", &"npc_guard"), &"npc_guard"),
+		"Guard__npc_guard", "  applied twice in a row")
+
 	_eq(ActorNaming.node_name_for("__event_3", &"event_4"), "Actor__event_4",
 		"a node that was nothing but its id still gets a readable stem")
 
@@ -156,8 +166,8 @@ func _test_assign() -> void:
 	var kept := ActorNaming.assign(who, named)
 	_eq(kept, &"player", "assign leaves an authored id alone")
 	_eq(who.actor_id, &"player", "  the actor keeps it")
-	_eq(who.get_parent().name, "Guard_0__player",
-		"  but the node name is still corrected to match")
+	_eq(who.get_parent().name, "Player",
+		"  and the node becomes plain Player, with nothing appended")
 	named.free()
 
 	_section("  overwrite renumbers, without colliding with itself")
@@ -178,7 +188,9 @@ func _test_assign_all() -> void:
 	var map := _map(["player", "", "", "npc_guard", ""])
 	var named := ActorNaming.assign_all(map)
 
-	_eq(named.size(), 3, "only the three unnamed actors were touched")
+	# Five renames, not three: the two already-named actors keep their ids but still have
+	# their nodes brought into line, which is the disagreement this class exists to stop.
+	_eq(named.size(), 5, "every node was brought into line")
 
 	var ids: Array[StringName] = []
 	for who in ActorNaming.actors_under(map):
@@ -286,6 +298,53 @@ func _test_setter_hook() -> void:
 	_eq(body.name, before, "  but the node keeps its name (%s)" % before)
 
 	remove_child(map)
+	map.free()
+
+
+func _test_player() -> void:
+	_section("the player -- named Player, with nothing appended")
+
+	_eq(ActorNaming.node_name_for("Guard", &"player"), "Player",
+		"the id is not appended, and the old name is dropped entirely")
+	_eq(ActorNaming.node_name_for("Anything_At_All", &"player"), "Player",
+		"whatever the node was called")
+
+	_section("  matched case-insensitively")
+
+	_ok(ActorNaming.is_player_id(&"player"), "player")
+	_ok(ActorNaming.is_player_id(&"Player"), "Player")
+	_ok(ActorNaming.is_player_id(&"PLAYER"), "PLAYER")
+	_ok(not ActorNaming.is_player_id(&"player_two"), "but not player_two")
+	_ok(not ActorNaming.is_player_id(&"the_player"), "and not the_player")
+
+	_eq(ActorNaming.node_name_for("Guard", &"Player"), "Player",
+		"an id typed with a capital still gets the plain node name")
+
+	_section("  through the setter path too")
+
+	var node := Node.new()
+	node.name = "Guard__event_3"
+	_eq(ActorNaming.rename_for(node, &"player", &"event_3"), "Player",
+		"promoting an actor to the player renames it Player")
+
+	# And back out again. The stem is the bare "Player", so the result reads
+	# Player__event_4 - which is honest about what the node used to be, and is one
+	# hand-edit away from whatever the author would rather call it.
+	_eq(ActorNaming.rename_for(node, &"event_4", &"player"), "Player__event_4",
+		"and demoting it builds on the name it had")
+	node.free()
+
+	_section("  and through assign_all")
+
+	var map := _map(["player", "", ""])
+	ActorNaming.assign_all(map)
+
+	var names: Array[String] = []
+	for who in ActorNaming.actors_under(map):
+		names.append(who.get_parent().name)
+
+	_ok(names.has("Player"), "the player's node is Player (%s)" % str(names))
+	_eq(ActorNaming.actors_under(map)[0].actor_id, &"player", "  and keeps its id")
 	map.free()
 
 # -- Helpers -------------------------------------------------------------------

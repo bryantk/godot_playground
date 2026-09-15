@@ -30,6 +30,29 @@ const DEFAULT_PREFIX := "event"
 ## a node whose name silently does not match the id inside it.
 const ILLEGAL_IN_NAMES := [".", ":", "@", "/", "\"", "%"]
 
+## The one actor whose node is named [i]for[/i] its id rather than after it.
+##
+## Every other actor reads [code]Guard__event_3[/code], because the number is the only
+## thing telling two guards apart. There is exactly one player, its id is the one an
+## author types from memory, and [code]Player__player[/code] says the same word twice for
+## no gain - so the player's node is simply [code]Player[/code].
+##
+## It is also the name the three demo scenes already use, so this is the rule matching
+## what a hand-authored map does rather than imposing something new on it.
+const PLAYER_ID := &"player"
+const PLAYER_NODE_NAME := "Player"
+
+## True when [param id] names the player, compared case-insensitively.
+##
+## [b]The comparison is loose and the id is left alone.[/b] An author who types
+## [code]Player[/code] means the player and should get a node called [code]Player[/code];
+## rewriting their id to lower case as well would be a second, silent edit they did not
+## ask for. Worth knowing, though: a graph that says [code]@player[/code] will not resolve
+## an actor whose id is [code]Player[/code], because ids themselves are matched exactly.
+static func is_player_id(id: StringName) -> bool:
+	return String(id).to_lower() == String(PLAYER_ID)
+
+
 
 # -- Reading a map -------------------------------------------------------------
 
@@ -150,9 +173,20 @@ static func placement_root(actor: Actor) -> Node:
 ## [code]__<prefix>_<number>[/code] whatever the number, so re-naming an actor that was
 ## [code]event_3[/code] and is now [code]event_5[/code] leaves [code]Guard__event_5[/code]
 ## rather than [code]Guard__event_3__event_5[/code].
+##
+## [b]The player is the exception[/b] and gets [constant PLAYER_NODE_NAME] with nothing
+## appended - see [constant PLAYER_ID]. The base is discarded entirely in that case, so a
+## node called anything at all becomes [code]Player[/code] the moment it is given that id.
 static func node_name_for(base: String, id: StringName,
 		prefix: String = DEFAULT_PREFIX) -> String:
-	var stem := strip_id(base, prefix)
+	if is_player_id(id):
+		return PLAYER_NODE_NAME
+
+	# Its own id first, then the generated shape. Without the first strip an id that does
+	# not look generated - npc_guard, player - is re-appended every pass, so the second
+	# run over a map produces Guard__npc_guard__npc_guard and the third adds another. The
+	# idempotence this class promises is only true for generated ids without it.
+	var stem := strip_id(strip_exact(base, id), prefix)
 	if stem == "":
 		# A node called nothing but its old id still deserves a readable name.
 		stem = "Actor"
@@ -204,6 +238,9 @@ static func rename_for(node: Node, id: StringName, previous: StringName = &"",
 		return ""
 
 	var stem := strip_exact(node.name, previous)
+	# Moving off the player id leaves the bare "Player" as the stem, which is the right
+	# thing to build on: an actor that was the player and is now event_3 reads
+	# Player__event_3, and renaming it by hand afterwards is one edit.
 	var wanted := node_name_for(stem, id, prefix) if id != &"" else strip_id(stem, prefix)
 	if wanted == "":
 		wanted = "Actor"
@@ -248,10 +285,13 @@ static func assign(actor: Actor, root: Node = null, prefix: String = DEFAULT_PRE
 	return id
 
 
-## Names every unnamed actor under [param root], in tree order.
+## Brings every actor under [param root] into line, in tree order: an id for the ones
+## without one, and a matching node name for all of them.
 ##
-## Returns [code]{actor_id: node_name}[/code] for the ones it touched, so a caller can
-## report what it did rather than the author having to diff the scene to find out.
+## Returns [code]{actor_id: node_name}[/code] for every node it renamed, so a caller can
+## report what it did rather than the author having to diff the scene to find out. A map
+## that is already in order returns an empty dictionary, which makes a second run a
+## visible no-op rather than a silent one.
 ##
 ## The taken-set is built once and added to as it goes, rather than re-walked per actor:
 ## the ids handed out in this pass are not yet visible to a fresh [method existing_ids]
@@ -259,27 +299,33 @@ static func assign(actor: Actor, root: Node = null, prefix: String = DEFAULT_PRE
 ## collision the numbering exists to avoid.
 static func assign_all(root: Node, prefix: String = DEFAULT_PREFIX,
 		overwrite: bool = false) -> Dictionary:
-	var named: Dictionary = {}
+	var changed: Dictionary = {}
 	if root == null:
-		return named
+		return changed
 
 	var all := actors_under(root)
 	var taken := existing_ids(root)
 
 	for who in all:
-		if who.actor_id != &"" and not overwrite:
-			continue
+		var id := who.actor_id
 
-		taken.erase(who.actor_id)
-		var id := next_id_avoiding(taken, taken.size(), prefix)
+		# An authored id is kept; only the node name is brought into line. Skipping a
+		# named actor outright was the first version of this, and it left the player's
+		# node called whatever it had been while every other node carried its id - which
+		# is the tree-and-inspector disagreement this whole class exists to prevent.
+		if id == &"" or overwrite:
+			taken.erase(id)
+			id = next_id_avoiding(taken, taken.size(), prefix)
+			who.actor_id = id
 		taken[id] = true
-		who.actor_id = id
 
 		var node := placement_root(who)
-		if node != null:
-			node.name = node_name_for(node.name, id, prefix)
-			named[id] = node.name
-		else:
-			named[id] = ""
+		if node == null:
+			continue
 
-	return named
+		var before := node.name
+		node.name = node_name_for(node.name, id, prefix)
+		if node.name != before:
+			changed[id] = node.name
+
+	return changed
