@@ -211,29 +211,29 @@ size = Vector3(0.7, 0.4, 0.7)
 texture_albedo = SubResource("ImageTexture_y7j2v")
 modulate = Color(0, 0, 0, 0.55)
 
-[node name="Npc_10_7" parent="Upscale/World/Map/Actors" unique_id=926035196 instance=ExtResource("4_4yn8y")]
+[node name="Event__1" parent="Upscale/World/Map/Actors" unique_id=926035196 instance=ExtResource("4_4yn8y")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.5, 0, 7.5)
 
-[node name="Actor" parent="Upscale/World/Map/Actors/Npc_10_7" index="1"]
-actor_id = &"npc_10_7"
+[node name="Actor" parent="Upscale/World/Map/Actors/Event__1" index="1"]
+actor_id = &"1"
 
-[node name="Sprite" parent="Upscale/World/Map/Actors/Npc_10_7" index="2"]
+[node name="Sprite" parent="Upscale/World/Map/Actors/Event__1" index="2"]
 modulate = Color(0.65, 0.8, 1, 1)
 frame = 1
 
-[node name="Shadow" parent="Upscale/World/Map/Actors/Npc_10_7" index="3"]
+[node name="Shadow" parent="Upscale/World/Map/Actors/Event__1" index="3"]
 process_priority = 100
 size = Vector3(0.7, 0.4, 0.7)
 texture_albedo = SubResource("ImageTexture_12pxd")
 modulate = Color(0, 0, 0, 0.55)
 
-[node name="Npc_7_4" parent="Upscale/World/Map/Actors" unique_id=784194929 instance=ExtResource("4_4yn8y")]
+[node name="Event__2" parent="Upscale/World/Map/Actors" unique_id=784194929 instance=ExtResource("4_4yn8y")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 4.5)
 
-[node name="Actor" parent="Upscale/World/Map/Actors/Npc_7_4" index="1"]
-actor_id = &"npc_7_4"
+[node name="Actor" parent="Upscale/World/Map/Actors/Event__2" index="1"]
+actor_id = &"2"
 
-[node name="Brain" type="Node" parent="Upscale/World/Map/Actors/Npc_7_4/Actor" index="3" unique_id=1247669565]
+[node name="Brain" type="Node" parent="Upscale/World/Map/Actors/Event__2/Actor" index="3" unique_id=1247669565]
 script = ExtResource("6_q5ub7")
 commands = Array[Dictionary]([{
 "args": {
@@ -257,11 +257,11 @@ commands = Array[Dictionary]([{
 "command": "wait"
 }])
 
-[node name="Sprite" parent="Upscale/World/Map/Actors/Npc_7_4" index="2"]
+[node name="Sprite" parent="Upscale/World/Map/Actors/Event__2" index="2"]
 modulate = Color(0.65, 0.8, 1, 1)
 frame = 1
 
-[node name="Shadow" parent="Upscale/World/Map/Actors/Npc_7_4" index="3"]
+[node name="Shadow" parent="Upscale/World/Map/Actors/Event__2" index="3"]
 process_priority = 100
 size = Vector3(0.7, 0.4, 0.7)
 texture_albedo = SubResource("ImageTexture_yqpgd")
@@ -287,5 +287,5 @@ theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 12
 
 [editable path="Upscale/World/Map/Actors/Player"]
-[editable path="Upscale/World/Map/Actors/Npc_10_7"]
-[editable path="Upscale/World/Map/Actors/Npc_7_4"]
+[editable path="Upscale/World/Map/Actors/Event__1"]
+[editable path="Upscale/World/Map/Actors/Event__2"]
