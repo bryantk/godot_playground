@@ -52,6 +52,22 @@
 			},
 			"graph": [
 				{
+					"id": "start",
+					"title": "Start",
+					"position": {
+						"x": -240,
+						"y": 0
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"type": "flow",
+							"target": "n1"
+						}
+					]
+				},
+				{
 					"id": "n1",
 					"title": "Start the fight",
 					"position": {
@@ -101,6 +117,22 @@
 				"loop": "cycle"
 			},
 			"graph": [
+				{
+					"id": "start",
+					"title": "Start",
+					"position": {
+						"x": -240,
+						"y": 0
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"type": "flow",
+							"target": "n1"
+						}
+					]
+				},
 				{
 					"id": "n1",
 					"title": "Angry line",
@@ -164,6 +196,22 @@
 				"mode": "fixed"
 			},
 			"graph": [
+				{
+					"id": "start",
+					"title": "Start",
+					"position": {
+						"x": -240,
+						"y": 0
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"type": "flow",
+							"target": "n1"
+						}
+					]
+				},
 				{
 					"id": "n1",
 					"title": "Flavour",

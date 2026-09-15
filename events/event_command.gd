@@ -85,6 +85,15 @@ const SPACE_FREE := "free"
 ## node that names somebody else.
 const COMMANDS: Dictionary = {
 	# -- Flow ------------------------------------------------------------------
+	"start": {
+		# The one node a graph is entered through. Its single output names the node
+		# execution actually begins at - see [constant START_COMMAND] and
+		# [method validate_reachability]. It carries no state of its own, so it is a
+		# RESTART command like "label" and "goto".
+		"args": {},
+		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+	},
 	"wait": {
 		"args": {"seconds": T_SECONDS},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
@@ -337,6 +346,11 @@ const TURN_TOKENS: PackedStringArray = ["turn_cw", "turn_ccw", "turn_180", "rand
 ## [code]@self[/code] and [code]@npc_scout[/code] are references resolved at runtime; a
 ## bare string is a literal string and never an actor id.
 const TERM_PREFIX := "@"
+
+## The command that marks a graph's entry point - see [method validate_reachability].
+## Every page's graph is expected to have exactly one node with this command; its single
+## output names the node execution actually begins at.
+const START_COMMAND := "start"
 
 
 # -- Reading the registry ------------------------------------------------------
@@ -793,3 +807,118 @@ static func validate_graph(nodes: Variant) -> Array[String]:
 					% [str(entry.get("id", "")), key])
 
 	return problems
+
+
+## Problems reachability alone can find: no [constant START_COMMAND] node, more than
+## one, or nodes [method start] cannot reach by following [code]outputs[/code] targets.
+##
+## [b]A separate function from [method validate_graph][/b], deliberately - folding this
+## into it would have broken every hand-built test fixture and every graph written
+## before "start" existed, none of which carry one. A caller that wants both calls both.
+##
+## An empty [param nodes] is clean: a page with no graph at all is legitimate
+## (event-pages.md §2 - a route-only decoration has nothing to reach).
+static func validate_reachability(nodes: Variant) -> Array[String]:
+	var problems: Array[String] = []
+	if typeof(nodes) != TYPE_ARRAY or (nodes as Array).is_empty():
+		return problems
+
+	var list: Array = nodes
+	var by_id: Dictionary = {}
+	var starts: Array[String] = []
+	var forward: Dictionary = {}
+
+	for node in list:
+		if typeof(node) != TYPE_DICTIONARY:
+			continue
+		var entry: Dictionary = node
+		var id := str(entry.get("id", ""))
+		by_id[id] = entry
+		if str(entry.get("command", "")) == START_COMMAND:
+			starts.append(id)
+
+		var targets: Array[String] = []
+		var outputs: Variant = entry.get("outputs", [])
+		if outputs is Array:
+			for output in outputs as Array:
+				if output is Dictionary:
+					var target := str((output as Dictionary).get("target", ""))
+					if target != "":
+						targets.append(target)
+		forward[id] = targets
+
+	if starts.is_empty():
+		problems.append("This graph has no \"%s\" node - nothing says where it begins."
+			% START_COMMAND)
+		return problems
+	if starts.size() > 1:
+		problems.append("This graph has %d \"%s\" nodes (%s) - exactly one is expected."
+			% [starts.size(), START_COMMAND, _quoted(starts)])
+
+	# Forward reachability from the first start node, even when there is more than one -
+	# the duplicate is already reported above, and reachability from the first is still
+	# useful information rather than none.
+	var reached: Dictionary = {}
+	var queue: Array[String] = [starts[0]]
+	reached[starts[0]] = true
+	while not queue.is_empty():
+		var current: String = queue.pop_back()
+		for target in (forward.get(current, []) as Array[String]):
+			if by_id.has(target) and not reached.has(target):
+				reached[target] = true
+				queue.append(target)
+
+	var unreached: Array[String] = []
+	for id: Variant in by_id:
+		if not reached.has(id):
+			unreached.append(id)
+
+	if unreached.is_empty():
+		return problems
+
+	# Group the unreached set into chains: nodes an author dragged out a sequence of
+	# commands into, that nothing hooks back up to "start". Grouped by following outputs
+	# as undirected edges, so "a chain" matches what it looks like on screen - one
+	# dangling run of connected nodes - rather than counting every node in it separately.
+	var undirected: Dictionary = {}
+	for id in unreached:
+		undirected[id] = []
+	for id in unreached:
+		for target in (forward.get(id, []) as Array[String]):
+			if undirected.has(target):
+				(undirected[id] as Array).append(target)
+				(undirected[target] as Array).append(id)
+
+	var visited: Dictionary = {}
+	var chains := 0
+	for id in unreached:
+		if visited.has(id):
+			continue
+		chains += 1
+		var stack: Array[String] = [id]
+		visited[id] = true
+		while not stack.is_empty():
+			var current: String = stack.pop_back()
+			for neighbor in (undirected.get(current, []) as Array[String]):
+				if not visited.has(neighbor):
+					visited[neighbor] = true
+					stack.append(neighbor)
+
+	# START_COMMAND is deliberately not quoted here: every other message in this file
+	# quotes a node id, and this one would otherwise put "start" first in the string,
+	# which graph_editor_panel's click-to-jump would then always resolve to the start
+	# node itself rather than to one of the unreachable ones it is actually reporting.
+	problems.append(
+		"%d node(s) unreachable from %s: %s (%d orphaned chain%s)."
+		% [unreached.size(), START_COMMAND, _quoted(unreached), chains,
+			"" if chains == 1 else "s"])
+	return problems
+
+## [param ids], each individually quoted and comma-joined - so every id a reachability
+## message names is clickable the same way [method validate_node]'s messages already are
+## (graph_editor_panel.gd scans a message for its first quoted id).
+static func _quoted(ids: Array[String]) -> String:
+	var out := PackedStringArray()
+	for id in ids:
+		out.append("\"%s\"" % id)
+	return ", ".join(out)

@@ -17,6 +17,7 @@ extends VBoxContainer
 ##   of ports may point at the same node.
 
 const Doc := preload("res://addons/graph_editor/graph_document.gd")
+const EventDoc := preload("res://events/event_document.gd")
 
 const METADATA_SECTION := "graph_editor"
 const METADATA_PATH_KEY := "last_file"
@@ -37,8 +38,21 @@ var _dirty := false
 ## How many nodes the Add button has placed, so each lands clear of the last.
 var _added := 0
 
+## The whole loaded file, [EventDocument]-shaped even when [member _wrapped] is false -
+## a bare array reads as one page the same way [method EventDocument.parse] always
+## reads one (event-pages.md §2.1). The [GraphEdit] on screen only ever shows
+## [code]_doc.pages[_current_page].graph[/code]; every other page's data sits here
+## untouched until its turn.
+var _doc: Dictionary = EventDoc.default_document()
+## True when the file on disk is the [code]{format, id, pages: []}[/code] wrapper, false
+## for a bare array. Decides what [method _save] writes back - saving must not silently
+## upgrade one of the four plain-array examples into the wrapper shape.
+var _wrapped := false
+var _current_page := 0
+
 var _graph: GraphEdit
 var _title: Label
+var _page_selector: OptionButton
 var _results: ItemList
 var _status: Label
 var _save_button: Button
@@ -76,6 +90,7 @@ func _bind() -> bool:
 
 	_graph = get_node_or_null(^"Graph") as GraphEdit
 	_title = get_node_or_null(^"Title") as Label
+	_page_selector = get_node_or_null(^"Toolbar/PageSelector") as OptionButton
 	_results = get_node_or_null(^"Results") as ItemList
 	_status = get_node_or_null(^"Status") as Label
 	_save_button = get_node_or_null(^"Toolbar/Save") as Button
@@ -128,7 +143,17 @@ func _build_ui() -> void:
 	_title.mouse_filter = Control.MOUSE_FILTER_PASS
 	toolbar.add_child(_title)
 
+	# Hidden until a loaded document has more than one page - the four plain-array
+	# examples and any new document never show it at all.
+	_page_selector = OptionButton.new()
+	_page_selector.name = "PageSelector"
+	_page_selector.tooltip_text = "Which page's graph is on screen. Order is priority - event-pages.md §2.3."
+	_page_selector.item_selected.connect(_on_page_selected)
+	_page_selector.visible = false
+	toolbar.add_child(_page_selector)
+
 	toolbar.add_child(_make_button("Add Node", _add_node))
+	toolbar.add_child(_make_button("Add Start", _add_start_node))
 	toolbar.add_child(_make_button("Arrange", _arrange))
 	toolbar.add_child(_make_button("Validate", _validate))
 
@@ -435,6 +460,27 @@ func _add_node() -> void:
 	_mark_dirty()
 	_validate()
 
+## A node pre-set to [constant EventCommand.START_COMMAND], with the one output every
+## graph's entry point needs already there. There is still no UI for a node's command in
+## general (event-pages.md §4.1, later) - this button exists only because every graph
+## needs exactly one of these, so typing it by hand in the JSON dock is the alternative.
+func _add_start_node() -> void:
+	if not _live():
+		return
+
+	var id := Doc.generate_id(_used_ids())
+	var position := ADD_POSITION + ADD_STEP * _added + _graph.scroll_offset / _graph.zoom
+	_added += 1
+
+	var node := Doc.default_node(id, position)
+	node["title"] = "Start"
+	node["command"] = EventCommand.START_COMMAND
+	node["outputs"] = [Doc.default_output()]
+
+	_graph.add_child(_make_graph_node(node))
+	_mark_dirty()
+	_validate()
+
 func _on_add_output(graph_node: GraphNode) -> void:
 	if not _live():
 		return
@@ -599,7 +645,11 @@ func _new_document() -> void:
 		return
 
 	_path = ""
+	_wrapped = false
+	_doc = EventDoc.default_document()
+	_current_page = 0
 	_clear()
+	_refresh_page_selector()
 	_dirty = false
 	_results.clear()
 	_set_status("New graph - Save to choose a path.", _status_color(true))
@@ -631,20 +681,23 @@ func _load(path: String) -> void:
 			path, error_string(FileAccess.get_open_error())], _status_color(false))
 		return
 
-	var parsed: Dictionary = Doc.parse(file.get_as_text())
-	var nodes: Array[Dictionary] = parsed["nodes"]
+	var text := file.get_as_text()
+	_wrapped = typeof(JSON.parse_string(text)) == TYPE_DICTIONARY
+	_doc = EventDoc.parse(text)
 
 	_path = path
-	_clear()
-
-	for node in nodes:
-		_graph.add_child(_make_graph_node(node))
-	_apply_connections(nodes)
+	_load_page(0)
+	_refresh_page_selector()
 
 	_dirty = false
 	_refresh_title()
 	_remember_path()
-	_report(parsed["problems"], "%d node(s) loaded." % nodes.size())
+
+	var pages: Array = _doc["pages"]
+	var total := 0
+	for page in pages:
+		total += ((page as Dictionary)["graph"] as Array).size()
+	_report(_doc["problems"], "%d page(s), %d node(s) loaded." % [pages.size(), total])
 
 ## Wires up a freshly built graph. Separate from node creation because a target may
 ## name a node that comes later in the file.
@@ -662,6 +715,58 @@ func _apply_connections(nodes: Array[Dictionary]) -> void:
 			var to := _node_by_id(target)
 			if to != null:
 				_graph.connect_node(from.name, i, to.name, 0)
+
+## Replaces whatever the [GraphEdit] shows with page [param index]'s graph. Does not
+## touch [member _dirty] - opening a page you are not editing is not an edit.
+func _load_page(index: int) -> void:
+	var pages: Array = _doc.get("pages", [])
+	var nodes: Array[Dictionary] = []
+	if index >= 0 and index < pages.size():
+		nodes = (pages[index] as Dictionary).get("graph", [])
+
+	_current_page = index
+	_clear()
+	for node in nodes:
+		_graph.add_child(_make_graph_node(node))
+	_apply_connections(nodes)
+
+## Writes the graph on screen back into [member _doc] before it is abandoned for another
+## page, or for saving - the file (here, [member _doc]) stays the source of truth, and
+## the [GraphEdit] is a view onto one page of it at a time.
+func _commit_current_page() -> void:
+	var pages: Array = _doc.get("pages", [])
+	if _current_page < 0 or _current_page >= pages.size():
+		return
+	(pages[_current_page] as Dictionary)["graph"] = _serialize()
+
+## Rebuilds the dropdown from [member _doc]'s pages, with a one-line condition summary
+## per entry (event-pages.md §4.1's page bar, minus reorder/add/duplicate/delete - those
+## stay deferred). Hidden for the ordinary one-page case so the four plain-array examples
+## and any new document do not show a selector with nothing to select.
+func _refresh_page_selector() -> void:
+	if not is_instance_valid(_page_selector):
+		return
+
+	_page_selector.clear()
+	var pages: Array = _doc.get("pages", [])
+	for i in pages.size():
+		var conditions: Array = (pages[i] as Dictionary).get("conditions", [])
+		var summary := "no conditions" if conditions.is_empty() \
+			else "%d condition(s)" % conditions.size()
+		_page_selector.add_item("Page %d (%s)" % [i + 1, summary], i)
+
+	_page_selector.visible = pages.size() > 1
+	if _current_page < pages.size():
+		_page_selector.select(_current_page)
+
+func _on_page_selected(index: int) -> void:
+	if not _live() or index == _current_page:
+		return
+
+	_commit_current_page()
+	_load_page(index)
+	_page_selector.select(index)
+	_validate()
 
 func _reload() -> void:
 	if _path == "" or not _live():
@@ -686,7 +791,15 @@ func _save() -> void:
 			_path, error_string(FileAccess.get_open_error())], _status_color(false))
 		return
 
-	file.store_string(Doc.stringify(_serialize()))
+	_commit_current_page()
+
+	# A bare-array file stays a bare array: EventDoc.stringify() always writes the
+	# {format, id, pages: []} wrapper, and saving through it would silently upgrade every
+	# plain-array example the moment someone opened it here and hit Save.
+	var text: String = EventDoc.stringify(_doc) if _wrapped \
+		else Doc.stringify((_doc["pages"][0] as Dictionary).get("graph", []))
+
+	file.store_string(text)
 	file.close()
 
 	_dirty = false
@@ -731,7 +844,9 @@ func _validate() -> void:
 		return
 
 	var nodes := _serialize()
-	_report(Doc.validate(nodes), "%d node(s), %d connection(s), graph is consistent."
+	var problems := Doc.validate(nodes)
+	problems.append_array(EventCommand.validate_reachability(nodes))
+	_report(problems, "%d node(s), %d connection(s), graph is consistent."
 		% [nodes.size(), _graph.get_connection_list().size()])
 
 ## Fills the result list from [param problems], or reports [param clean] when there are

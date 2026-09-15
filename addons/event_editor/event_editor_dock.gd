@@ -556,9 +556,16 @@ func _on_hover_changed(info: Dictionary) -> void:
 
 # --- Validation ---------------------------------------------------------------
 
-## Re-checks the buffer and fills the result list. Three passes, each only reached
-## when the one before it was clean: JSON syntax, the shape the file has to have to
-## be a command list at all, and finally the schema itself via the route parser.
+## Re-checks the buffer and fills the result list. Passes, each only reached when the
+## one before it was clean: JSON syntax, the shape the file has to have, the graph's
+## wiring (dangling targets, and every node "start" cannot reach), and finally the
+## per-command schema via the route parser.
+##
+## A page-wrapped document ([EventDocument]'s [code]{format, id, pages: []}[/code])
+## and a bare array both reach here - see [method _validate_wrapped] and
+## [method _validate_bare_array]. Only the bare-array path can point a result at a line:
+## the wrapped one has no per-page line tracking yet, so its results carry no line and
+## are not clickable, the same as the Unknown button's.
 func _validate() -> void:
 	if not _live():
 		return
@@ -573,25 +580,109 @@ func _validate() -> void:
 		return
 
 	var data: Variant = json.data
-	var lines := _element_lines(_edit.text)
 
-	if typeof(data) != TYPE_ARRAY:
-		_add_result("Top level must be an array of commands, found %s."
-			% type_string(typeof(data)), 0)
-		_set_status("1 problem.", _status_color(false))
+	if typeof(data) == TYPE_ARRAY:
+		_validate_bare_array(data as Array)
+		return
+	if typeof(data) == TYPE_DICTIONARY:
+		_validate_wrapped(data as Dictionary)
 		return
 
-	var commands: Array = data
-	for i in commands.size():
-		if typeof(commands[i]) != TYPE_DICTIONARY:
+	_add_result("Top level must be an array of commands or a page-wrapped object, found %s."
+		% type_string(typeof(data)), 0)
+	_set_status("1 problem.", _status_color(false))
+
+func _validate_bare_array(data: Array) -> void:
+	var lines := _element_lines(_edit.text)
+
+	for i in data.size():
+		if typeof(data[i]) != TYPE_DICTIONARY:
 			_add_result("Command %d must be an object, found %s."
-				% [i, type_string(typeof(commands[i]))], _line_of(lines, i))
+				% [i, type_string(typeof(data[i]))], _line_of(lines, i))
 
 	if _results.item_count > 0:
 		_set_status(_problem_count(), _status_color(false))
 		return
 
-	_validate_route(commands, lines)
+	var parsed := GraphDoc.parse_nodes(data)
+	var nodes: Array = parsed["nodes"]
+
+	for message in (parsed["problems"] as Array):
+		_add_result(str(message), -1)
+
+	for message in _wiring_problems(nodes):
+		_add_result(message, _line_for_id(nodes, lines, message))
+
+	if _results.item_count > 0:
+		_set_status(_problem_count(), _status_color(false))
+		return
+
+	_validate_route(data, lines)
+
+## The dangling-target/duplicate-id checks [method GraphDoc.validate] already has, plus
+## the start-node and orphan-chain checks [method EventCommand.validate_reachability]
+## adds - one call for both wiring concerns, kept together because a caller wanting one
+## almost always wants the other.
+func _wiring_problems(nodes: Array) -> Array[String]:
+	var problems: Array[String] = GraphDoc.validate(nodes)
+	problems.append_array(EventCommand.validate_reachability(nodes))
+	return problems
+
+## The line of the top-level array element named by the first quoted id in [param message],
+## or -1 when none of [param nodes] is named. [param nodes] is in file order, so its index
+## lines up with [param lines] the same way [method _line_of] already assumes elsewhere.
+func _line_for_id(nodes: Array, lines: PackedInt32Array, message: String) -> int:
+	var parts := message.split("\"")
+	var i := 1
+	while i < parts.size():
+		for j in nodes.size():
+			if str((nodes[j] as Dictionary).get("id", "")) == parts[i]:
+				return _line_of(lines, j)
+		i += 2
+	return -1
+
+## A page-wrapped document has no per-page line tracking, so every result here carries no
+## line - not clickable, same as the Unknown button's results.
+func _validate_wrapped(data: Dictionary) -> void:
+	var doc := EventDoc.parse(_edit.text)
+
+	for message in (doc["problems"] as Array):
+		_add_result(str(message), -1)
+
+	var pages: Array = doc["pages"]
+	for i in pages.size():
+		var nodes: Array = (pages[i] as Dictionary).get("graph", [])
+		for message in _wiring_problems(nodes):
+			_add_result("Page %d: %s" % [i + 1, message], -1)
+
+	for message in EventDoc.validate_pages(pages):
+		_add_result(str(message), -1)
+
+	if _results.item_count > 0:
+		_set_status(_problem_count(), _status_color(false))
+		return
+
+	var total := 0
+	for page in pages:
+		var nodes: Array = (page as Dictionary).get("graph", [])
+		total += nodes.size()
+		var parser := _route_parser()
+		if parser == null:
+			continue
+		for problem in _route_problems(parser.call(ROUTE_PARSER_METHOD, nodes)):
+			_add_result(str(problem["message"]), -1)
+
+	if _results.item_count > 0:
+		_set_status(_problem_count(), _status_color(false))
+		return
+
+	if _route_parser() == null:
+		_set_status("%d page(s), %d command(s), valid JSON. %s.%s not found, schema unchecked."
+			% [pages.size(), total, ROUTE_PARSER_CLASS, ROUTE_PARSER_METHOD], _status_color(true))
+		return
+
+	_set_status("%d page(s), %d command(s), every route parses clean." % [pages.size(), total],
+		_status_color(true))
 
 ## Hands the parsed commands to the route parser, if the project has one yet.
 func _validate_route(commands: Array, lines: PackedInt32Array) -> void:

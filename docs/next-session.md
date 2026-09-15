@@ -10,7 +10,43 @@ work queue; [open-questions.md](open-questions.md) is what is still undecided,
 ## Start here tomorrow
 
 **Segment 4 of [stage-c-plan.md](stage-c-plan.md): the runner core, and four motion-key
-defects.** Segments 0–3 are built, tested and committed.
+defects.** Segments 0–3 are built, tested and committed. Between segment 3 and segment 4,
+this session also did the editor/schema work below (question 47) — not part of the plan's
+numbered segments, but load-bearing for segment 4's runner, which now has an explicit entry
+point to start from.
+
+### Editor and schema work — the `start` node (question 47, `docs/solved-questions.md`)
+
+A graph's entry point used to be an unstated convention (whichever node came first in the
+array). It is now an explicit per-page `start` command, one flow port, validated by
+`EventCommand.validate_reachability(nodes)` — exactly one `start` expected, and every node
+`start` cannot reach reported as an **orphaned chain** (a connected component of the unreached
+set, not a flat count: a two-node dangling sequence is one chain).
+
+- All five `docs/events/*.json` examples now open with a `start` node.
+- `graph_editor_panel.gd`: an **Add Start** button, a **minimal page selector** (dropdown,
+  condition summary, no reorder/add/duplicate/delete) so a page-wrapped document can be opened
+  and switched between pages at all — before this the panel could only open a bare array and
+  had no idea `EventDocument`/pages existed. Save writes back through `EventDocument` for a
+  wrapped file, or bare `graph_document.stringify()` for one of the four plain-array examples —
+  deliberately not unified, so opening and saving one of those four does not silently upgrade
+  it to the wrapper shape.
+- `event_editor_dock.gd` (the JSON text editor): **two toolbar rows** now (file ops, then
+  buffer edits); **Validate** now handles a page-wrapped top-level object as well as a bare
+  array, and both shapes get the dangling-target check (`graph_document.validate()`, which
+  existed but was never actually called from this dock) and the new reachability check: two
+  gaps closed at once. **Add** seeds a full node (id, title, one wired output) instead of a
+  bare `{"command": "mov n 2"}` with neither. **Strip Unknown** was a real bug, not a request —
+  it round-tripped the buffer through `parse()`/`stringify()`, which repairs as it goes (a
+  missing id generated, a missing title defaulted), so "strip this comment" was quietly handing
+  every plain command four fields it never had; `strip_unknown_raw()` on both
+  `graph_document`/`EventDocument` now only removes keys, adding nothing.
+
+Every message a reachability check produces quotes each node id individually (`"n2", "n3"`,
+not a bare comma list) so `graph_editor_panel`'s click-to-jump still works on it — and the
+`start` command's own name is deliberately left unquoted in the "N unreachable" message, or a
+message beginning `unreachable from "start"` would always jump to the start node instead of
+one of the actually-orphaned ones.
 
 Segment 4 needs `event_runner.gd`, `event_command_exec.gd`, `key_latch.gd`,
 `event_context.gd`, `events/commands/*.gd` and `core/event_scheduler.gd`, plus the four
@@ -86,7 +122,7 @@ for t in stage_a areas demo_scenes height event_command actor_naming event_condi
 done
 ```
 
-**794 assertions, all green** as of the last commit (231+31+147+88+71+107+56, plus
+**753 assertions, all green** as of the last commit (231+31+147+105+71+107+61, plus
 demo_scenes' unnumbered checks). Godot is not on PATH; use the
 `_console` build or a headless run prints nothing.
 

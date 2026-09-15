@@ -26,6 +26,7 @@ func _ready() -> void:
 	_test_coercion()
 	_test_terms()
 	_test_validation()
+	_test_reachability()
 	_test_examples()
 
 	print("")
@@ -311,6 +312,64 @@ func _test_validation() -> void:
 		"and a key a non-blocking command does produce is clean")
 
 
+# -- Reachability ---------------------------------------------------------------
+
+func _test_reachability() -> void:
+	_section("validate_reachability -- exactly one start, and nothing orphaned")
+
+	_ok(EventCommand.validate_reachability([]).is_empty(),
+		"an empty graph is clean -- a route-only page has nothing to reach")
+
+	var no_start: Array = [
+		{"id": "n1", "command": "say", "args": {"text": "hi"},
+			"outputs": [{"type": "flow", "target": ""}]},
+	]
+	var missing := EventCommand.validate_reachability(no_start)
+	_ok(missing.size() > 0, "no start node is reported")
+	_ok(missing[0].contains("start"), "  and names what is missing")
+
+	var wired: Array = [
+		{"id": "start", "command": "start", "outputs": [{"type": "flow", "target": "n1"}]},
+		{"id": "n1", "command": "say", "args": {"text": "hi"},
+			"outputs": [{"type": "flow", "target": ""}]},
+	]
+	_ok(EventCommand.validate_reachability(wired).is_empty(),
+		"one start reaching every node is clean")
+
+	var two_starts: Array = [
+		{"id": "start", "command": "start", "outputs": [{"type": "flow", "target": "n1"}]},
+		{"id": "start2", "command": "start", "outputs": [{"type": "flow", "target": "n1"}]},
+		{"id": "n1", "command": "say", "args": {"text": "hi"},
+			"outputs": [{"type": "flow", "target": ""}]},
+	]
+	var doubled := EventCommand.validate_reachability(two_starts)
+	_ok(doubled.size() > 0, "a second start node is reported")
+	_ok(doubled[0].contains("start") and doubled[0].contains("start2"),
+		"  naming both")
+
+	_section("  orphaned chains")
+
+	var orphan_chain: Array = [
+		{"id": "start", "command": "start", "outputs": [{"type": "flow", "target": "n1"}]},
+		{"id": "n1", "command": "say", "args": {"text": "hi"},
+			"outputs": [{"type": "flow", "target": ""}]},
+		# n2 -> n3 is a two-node chain nothing flows into.
+		{"id": "n2", "command": "wait", "args": {"seconds": 1},
+			"outputs": [{"type": "flow", "target": "n3"}]},
+		{"id": "n3", "command": "wait", "args": {"seconds": 1},
+			"outputs": [{"type": "flow", "target": ""}]},
+		# n4 is a lone orphan, its own chain.
+		{"id": "n4", "command": "wait", "args": {"seconds": 1},
+			"outputs": [{"type": "flow", "target": ""}]},
+	]
+	var orphaned := EventCommand.validate_reachability(orphan_chain)
+	_ok(orphaned.size() > 0, "unreachable nodes are reported")
+	_ok(orphaned[0].contains("n2") and orphaned[0].contains("n3") and orphaned[0].contains("n4"),
+		"  naming every one of them")
+	_ok(orphaned[0].contains("3 node"), "  the total unreached count")
+	_ok(orphaned[0].contains("2 orphaned chain"), "  and it counts TWO chains, not three nodes")
+
+
 # -- The worked examples -------------------------------------------------------
 
 func _test_examples() -> void:
@@ -330,6 +389,10 @@ func _test_examples() -> void:
 		_ok(problems.is_empty(), "  and validates%s"
 			% ("" if problems.is_empty() else ": " + str(problems)))
 
+		var reachability := EventCommand.validate_reachability(nodes)
+		_ok(reachability.is_empty(), "  and everything is reachable from its start node%s"
+			% ("" if reachability.is_empty() else ": " + str(reachability)))
+
 	# slime_a is the page-wrapped one, so only its graphs are a command list. The wrapper
 	# itself is segment 3's business.
 	var doc: Variant = _read_json("%sslime_a.event.json" % EXAMPLES)
@@ -342,6 +405,10 @@ func _test_examples() -> void:
 			var result := EventCommand.parse_route(graph)
 			_ok(result["problems"].is_empty(), "  page %d's graph parses clean%s"
 				% [i + 1, "" if result["problems"].is_empty() else ": " + str(result["problems"])])
+
+			var reachability := EventCommand.validate_reachability(graph)
+			_ok(reachability.is_empty(), "  page %d is reachable from its start node%s"
+				% [i + 1, "" if reachability.is_empty() else ": " + str(reachability)])
 
 	_section("the dock's contract")
 

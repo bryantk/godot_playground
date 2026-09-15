@@ -849,3 +849,29 @@ deferred to — both answers are cheap to revisit and neither changes what stage
     route the selected `GameEvent` is using, inline or shared. One place to browse, one place
     to drag, and it keeps the event dock's file-is-the-truth model rather than adding a second
     source.
+47. ~~How does a page's graph say where it begins?~~ ✅ **An explicit `start` node**, decided
+    2026-09-15 while building the graph and JSON editors against segment 3's page-wrapped
+    documents. Before this, a graph's entry point was an unstated convention — whichever node
+    happened to be first in the array, which nothing enforced and nothing could validate.
+    **Per-page, not global**: each page's `graph` is already fully self-contained (question 17
+    — absent means default, never inherited), so each gets its own `start`, matching that
+    independence rather than inventing a new place in the document for one shared entry point.
+
+    `start` is a command like any other (`events/event_command.gd`) — no args, one flow port,
+    a `RESTART` resume bucket like `label`/`goto` — so it costs the registry one entry rather
+    than a special case bolted onto the schema. `EventCommand.validate_reachability(nodes)` is
+    the check it unlocks: exactly one `start` node is expected, and every node not reachable
+    from it by following `outputs` targets is reported, grouped into **orphaned chains**
+    (connected components of the unreached set, not a flat node count) — a two-node dangling
+    sequence is one chain, not two.
+
+    All five worked examples in [docs/events/](events/) now open with a `start` node
+    targeting their old first node. `graph_editor_panel.gd` gained a matching **Add Start**
+    button, since there is still no general command-editing UI (event-pages.md §4.1) — typing
+    `"command": "start"` by hand in the JSON dock was the only alternative. The graph viewer
+    also gained a **minimal page selector** (a dropdown, condition summary per entry, no
+    reorder/add/duplicate/delete yet) so a page-wrapped document like
+    [slime_a.event.json](events/slime_a.event.json) can be opened and switched between pages
+    at all — before this it could only open a bare-array file. Both are deliberately thin:
+    the full page bar (§4.1) and Routes-panel-style tooling stay deferred, this is only enough
+    to see and validate a multi-page graph today.
