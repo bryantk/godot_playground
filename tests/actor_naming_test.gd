@@ -22,6 +22,7 @@ func _ready() -> void:
 	_test_rename_for()
 	_test_setter_hook()
 	_test_player()
+	_test_default_stem()
 
 	print("")
 	print("  %d passed, %d failed" % [_passed, _failed])
@@ -161,7 +162,7 @@ func _test_assign() -> void:
 	var id := ActorNaming.assign(actor, map)
 	_eq(id, &"1", "an unnamed actor is given the first free id")
 	_eq(actor.actor_id, &"1", "  written to the actor")
-	_eq(body.name, "Guard_0__1", "  and appended to the node name")
+	_eq(body.name, "event__1", "  and the node takes the default stem")
 	map.free()
 
 	_section("  an existing id is kept, because a graph may name it")
@@ -232,10 +233,12 @@ func _test_rename_for() -> void:
 	var node := Node.new()
 	node.name = "Guard"
 
-	_eq(ActorNaming.rename_for(node, &"2"), "Guard__2",
-		"a first id is appended")
-	_eq(ActorNaming.rename_for(node, &"5", &"2"), "Guard__5",
-		"a change replaces the old id rather than stacking")
+	# A first generated id takes the default stem, discarding whatever the node was
+	# called - see _test_default_stem. An actor whose name should survive gets a word id.
+	_eq(ActorNaming.rename_for(node, &"2"), "event__2",
+		"a first generated id takes the default stem")
+	_eq(ActorNaming.rename_for(node, &"5", &"2"), "event__5",
+		"and a change replaces the id rather than stacking, keeping the stem")
 
 	# The case strip_id alone cannot handle: a hand-typed id looks nothing like a
 	# generated one, so only knowing what it was lets it be removed.
@@ -333,6 +336,48 @@ func _test_player() -> void:
 	_ok(names.has("Player"), "the player's node is Player (%s)" % str(names))
 	_eq(ActorNaming.actors_under(map)[0].actor_id, &"player", "  and keeps its id")
 	map.free()
+
+func _test_default_stem() -> void:
+	_section("default stem -- a first id makes the node event__N")
+
+	# A freshly placed prefab is called after the prefab, which says what it was
+	# instanced from and nothing about what it is in this map.
+	var map := _map([""])
+	var actor := ActorNaming.actors_under(map)[0]
+	ActorNaming.assign(actor, map)
+	_eq(actor.get_parent().name, "event__1", "a first generated id renames to event__N")
+	map.free()
+
+	_section("  but a deliberate name survives later renames")
+
+	# Only the first time. A node called Guard on purpose should not be flattened back
+	# to the default every time its id is edited.
+	var node := Node.new()
+	node.name = "Guard__4"
+	_eq(ActorNaming.rename_for(node, &"5", &"4"), "Guard__5",
+		"renaming an actor that already had an id keeps the stem")
+
+	node.name = "ActorIsoish"
+	_eq(ActorNaming.rename_for(node, &"7"), "event__7",
+		"while a first id on a fresh node takes the default")
+
+	node.name = "Guard"
+	_eq(ActorNaming.rename_for(node, &"north_door"), "Guard__north_door",
+		"a hand-typed id keeps the stem, because a name is a deliberate act")
+	node.free()
+
+	_section("  and the player is still just Player")
+
+	var solo := _map([""])
+	var who := ActorNaming.actors_under(solo)[0]
+	who.actor_id = &"player"
+	ActorNaming.assign(who, solo)
+	_eq(who.get_parent().name, "Player", "an authored player id wins over the default stem")
+	solo.free()
+
+	_ok(ActorNaming.is_number_id(&"3"), "3 is a generated id")
+	_ok(not ActorNaming.is_number_id(&"north_door"), "north_door is not")
+	_ok(not ActorNaming.is_number_id(&""), "and neither is nothing")
 
 # -- Helpers -------------------------------------------------------------------
 

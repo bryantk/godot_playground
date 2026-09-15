@@ -1,227 +1,173 @@
 # Next session — where to pick up
 
-Written 2026-09-08 at the end of the stage A session. This is the work queue;
-[open-questions.md](open-questions.md) is what is still undecided, and
-[solved-questions.md](solved-questions.md) is the decision record.
+Rewritten 2026-09-14 at the end of the stage C planning-and-build session. This is the
+work queue; [open-questions.md](open-questions.md) is what is still undecided,
+[solved-questions.md](solved-questions.md) is the decision record, and
+[stage-c-plan.md](stage-c-plan.md) is the agreed plan this session is executing.
 
 ---
 
-## Where things stand
+## Start here tomorrow
 
-**Stage A is built, tested and committed** (`9f3c118`), along with Cluster 5's file moves.
-160 headless assertions, exit 0:
+**Segment 3 of [stage-c-plan.md](stage-c-plan.md): `EventDocument`, pages, and the graph
+node fields.** Segments 0, 1 and 2 are built, tested and committed.
 
-```
-godot --headless --path . res://tests/stage_a_test.tscn
-```
+It is the segment that fixes a **live data-loss bug**, which is the reason it is next:
+`graph_document.stringify` (`addons/graph_editor/graph_document.gd:259`) writes only
+`id`, `title`, `position` and `outputs`, `_read_node` (`:175`) reads only those four, and
+`graph_editor_panel._serialize()` (`:342`) drops the rest too. **Opening any of the five
+documents in `docs/events/` in the graph editor and saving strips every `command`,
+`args`, `blocking`, `key` and `flows` in the file.** Nothing has noticed because nothing
+executes these documents yet — segment 1 made them executable data, so the next save
+would be the one that destroys them.
 
-Regenerate the two game profiles after changing `GameProfile` or `InputProfile`:
+What segment 3 owes, in order:
 
-```
-godot --headless --path . res://tools/make_profiles.tscn
-```
+1. Extend `graph_document` to carry `command` / `args` / `blocking` / `key` / `flows`
+   under its existing repair-and-report rule (`:104-111`).
+2. Preserve unknown keys and `//` comments verbatim through a round trip (question 43).
+3. `events/event_document.gd` — the `{format, id, pages: []}` wrapper, with a bare
+   top-level array read as one default page (event-pages.md §2.1).
+4. `active_page(ctx)` — last page to first, first all-passing page wins, using
+   `EventCondition` from segment 2.
 
-The three demo scenes are **hand-authored `.tscn` files** — edit them in the editor, not
-in code. The bootstrap that first generated them (`tools/make_demo_scenes.gd`) is gone as
-of 2026-09-12; re-running it would only have clobbered editor work. What guards them now:
-
-```
-godot --headless --path . res://tests/demo_scenes_test.tscn
-```
-
-It loads each demo, walks the player, and checks the nodes the demo scripts reach by
-`@onready` path still exist — which is the failure a rename in the editor causes.
-
-**Areas entered and exited landed 2026-09-13** — `core/areas/`, architecture.md §6.2,
-decisions 30–33. An `AreaZone` under an `Area2D`/`Area3D` reports four moments
-(entered / arrived / leaving / exited); `AreaComponent` children act on them;
-`SpeedModifier` is the first. Grid actors resolve zones by a **synchronous point query at
-commit**, not by overlap signals, which is what lets the step *entering* a slow tile be the
-slow one.
-
-```
-godot --headless --path . res://tests/areas_test.tscn
-```
-
-**Each demo carries one example patch**, marked in translucent blue so it can be seen as
-well as felt: jrpg cells 11–12 / 5–6 (north+south, ×0.8), and an east–west strip at
-x 3–6, z 7 in both iso demos (×0.5). `demo_scenes_test` checks the two ways an authored
-zone fails silently — a component that never found its zone, and a shape off the query
-layer or not monitorable.
-
-Two things to know before touching movement:
-
-- **The grid step's `Tween` is gone.** `GridMotion._process` walks the sprite offset to
-  zero, keeping remaining *distance*, so speed can change mid-cell.
-  `ActorView.apply_step_offset` is now `set_step_offset`, and `step_trans` / `step_ease`
-  are deleted.
-- **`demo_scenes_test` had a phase-dependent assertion** — it sampled the routed NPC's cell
-  once, 1.4 s later, against a route whose longest `wait` is 1.5 s, so a working patrol
-  could read as broken. It now watches for movement over a window covering a whole cycle.
-
-**Player and NPC are one prefab** as of 2026-09-12. Each game has a single actor scene —
-`actor_jrpg.tscn`, `actor_isoish.tscn`, `actor_isoish_grid.tscn` — and every placement of
-it is a data container with no opinion about what it does. A `Brain` child supplies that:
-`PlayerBrain` (the keyboard, formerly `core/input_driver.gd`), `RouteBrain` (a looping
-`move_to` / `step` / `face` / `wait` list in the event format's vocabulary), or nothing at
-all for scenery. See architecture.md §5. Two consequences worth remembering:
-
-- Stage C's event runner is the third brain, not a second system bolted beside one. A
-  route authored today is a route graph later.
-- `MapContext.camera_rig()` exists so a `PlayerBrain` inside a prefab can find the yaw
-  that resolves "up on the stick" without a `NodePath` reaching up out of the prefab.
-
-**Turning in place is a held modifier**, not a tap, as of 2026-09-12. `InputProfile` lost
-`tap_turns_in_place` and `turn_grace`; the `turn_in_place` action decides on the frame the
-direction arrives. A tap-versus-hold grace made the first frames of every press ambiguous:
-the step had to be delayed by the grace or retroactively cancelled by a turn.
-
-**That modifier is X, not Shift, as of 2026-09-14.** It shared Shift with `run` on the
-reasoning that a grid game never runs and a free game never turns in place — and the first
-half stopped being true the day `GridMotion` learned to shorten a step, so **Shift now runs
-in both games** and turning moved off it. It went to Q first and then to X the same day,
-because Q is `yaw_ccw`: in `isoish_grid_demo` — the only scene that is both a grid map and a
-rotatable camera — Q would have turned the actor *and* swung the view. X contends with
-nothing in either game.
-
-**2D collision is hand-painted** as of 2026-09-12. `TileSet` custom data went from a
-`passable` bool to a `pathing` int: the direction mask painted from
-`resources/Pathing.png`, one tile per cell, N/E/S/W as 1/10/100/1000. A step asks both
-cells — the one being left and the one being entered — so painting either side of a
-boundary is enough. Unpainted reads as open, which is why `jrpg_demo` currently has no
-blocking at all. architecture.md §6 has the rule; `stage_a_test` covers it.
-
-Nothing 🔴 is outstanding. Questions 20, 21, 27 and 28 were answered by building.
-
-**Cluster 9 was decided on 2026-09-13** — questions 34–38, now in
-[solved-questions.md](solved-questions.md) with the rest of the answers.
-**All five are built and green** as of 2026-09-14: 34 and 35 in `stage_a_test` (232
-assertions), 36–38 in `height_test` (90).
-
-**Two scopes, and they split the list in half.** 34 and 35 are **every grid game, in either
-space** — `Occupancy` is what all grid movement commits through. 36, 37 and 38 are **grid
-movement in 3D only**, gated on `effective_motion() == GRID` *and*
-`MapContext.supports_height`. Not "3D": `FreeMotion` is 3D and already has real gravity and
-jumping, and none of the vertical half may reach it.
-
-### Every grid game — done 2026-09-13
-
-- [x] **`Occupancy` holds a list per cell**, and blocking is a predicate over it (34).
-      `at()` became `actors_at` / `blockers_at`, `is_free` became `is_empty` / `is_clear`,
-      and `place()` is the forced path that `commit()` is not — a teleport used to call
-      `commit_step` and silently fail to move onto a held cell.
-- [x] **`solid` split into `through_terrain` and `through_actors`** (35). Note
-      `through_terrain` switches off **two** of `Passability`'s three steps: physics is the
-      modelled half of terrain, so skipping only the paint lets `body_test_move` put the
-      wall back. A through-terrain actor **does not fall** and owns its own `y`, so it needs
-      explicit height commands — the one actor the rest of this block does not govern.
-
-### Grid movement in 3D only
-
-**Built 2026-09-14** — [core/terrain.gd](../core/terrain.gd), with 90 assertions in
-`tests/height_test.gd`:
-
-```
-godot --headless --path . res://tests/height_test.tscn
-```
-
-- [x] **Ramps and stairs** (36) — `Y` stops being an input to a step:
-      `Terrain.resolve_step()` decides where a direction actually lands. **No climb
-      tolerance** — the only way up is a ramp or a ladder, so a bare one-cell lip is a wall
-      from below and a drop from above, which is the asymmetry 2D's painted mask could never
-      express. **Stairs and ramps are the same rule and differ only in art**; the item name
-      picks which mesh, `Terrain` reads both as `RAMP`.
-- [x] **Falling** (37) — literally repeated one-cell steps, paid out from `_settle()`, each
-      publishing its own `actor_stepped` / `actor_settled`. Depth is measured *before* the
-      step off the ledge commits, so an over-limit drop is refused rather than stranding the
-      actor. `MapContext.max_fall_cells` defaults to **1**, and 0 makes every ledge a wall.
-- [x] **The fall hook** — `Actor.falling(from, to)` (plus `EventBus.actor_falling` /
-      `player_falling`) fires **once per fall, before anything drops**, naming where the
-      actor is and where it will land. `GridMotion.fall_delay` is the window it opens:
-      per-actor seconds of hang before the drop starts, defaulting to 0 so nothing changes
-      until it is set. A hanging actor is still `is_busy()`, and `cancel()` clears the hang
-      with the fall. **A ladder release skips the delay** — the hang is for a fall nobody
-      asked for. **It announces, it does not yet intercept** — the default drop still
-      follows. Taking the fall over is the next step and will reuse this signature.
-- [x] **Ladders** (38) — a column of `ladder` cells **on their own GridMap layer**
-      (`MapContext.ladder_node`), oriented toward the wall they are mounted against. Pressing
-      into the wall climbs, away descends, both ends dismount, and sideways off a rung is
-      refused. **`jump` is the release** and ignores `max_fall_cells`.
-      **The separate layer is load-bearing, not tidiness**: a GridMap cell holds one item, so
-      a ladder on the floor layer evicts the tile at its own foot. On its own layer a cell is
-      floor *and* ladder — an actor at the foot stands on solid ground and walks off in any
-      direction, and the ladder only *adds* the move into the wall. Only an actor hanging on
-      a rung over air is restricted to the ladder's moves.
-      **Both ways a ladder gets built are supported**, and the first pass only handled one:
-      the top rung may sit a cell *under* the ledge or *level* with the top surface, and the
-      ladder is mounted from either end of its axis. Assuming the tucked-under layout meant
-      a flush ladder matched no rule at all — walking off the ledge toward it fell past it,
-      and climbing it stranded the actor on the top rung with no way off.
-
-**Ladders took three passes to work in a real map, and the third bug is the one to remember**
-— all three looked identical from inside the game ("the player falls instead of grabbing the
-ladder") and had nothing to do with each other:
-
-1. **The ladder shared the floor layer**, so it evicted the tile at its own foot. Fixed by
-   giving ladders their own GridMap (`ladder_node`).
-2. **Only one build of a ladder was understood** — top rung tucked under the ledge, mounted
-   from below. Fixed by accepting either height and either end of the axis.
-3. **A leftover `ladder` cell in the *floor* layer read as solid ground.** This is the
-   subtle one, and it is what was actually wrong with `isoish_grid_demo`. After moving a
-   ladder onto its own layer, the original cell stays behind in the floor layer unless it is
-   deleted, and `_kind_of_item`'s "anything that is not a ramp is floor" turned that leftover
-   into an invisible platform. The rung then counted as ground, which switched off the guard
-   keeping a hanging actor on its ladder — so pressing a perpendicular direction walked the
-   actor off the rung into open air, and `max_fall_cells = 5` let it fall.
-   `Terrain._kind_of_item` now reads a `ladder`-named item on the floor layer as **VOID**.
-
-- [ ] **A validator for the leftover case.** VOID is the right runtime answer but a silent
-      one. A ladder cell sitting in the floor layer is always a mistake and the author should
-      be told, alongside the ladder-top check below.
-
-**Two revisions to 36 worth knowing, both decided with Kyle on 2026-09-14:**
-
-- **The floor is a `GridMap`, not a raycast.** 36 said stairs and ramps would be *inferred
-  from the mesh* with a continuity test at the shared edge. They are not: `MapContext`
-  gained a **`floor_node`**, and a cell's presence says where the ground is while its item
-  name says what kind. Deterministic, cheap, needs no physics, works headless, and it means
-  no continuity tolerance to tune. The mesh is still consulted for one thing — how high to
-  draw the sprite on a slope.
-- **A ramp's cell is its lower end.** Stepping onto a ramp is a level step; the climb happens
-  on the way *off* it. The sprite is lifted `Terrain.RAMP_RISE` (half a cell) so it stands on
-  the slope rather than in it, which is the one place the visual and the logical answer
-  deliberately disagree.
-
-**Still open from this work:**
-
-- [ ] **A ladder-top validator** (38 called for it) — a ladder whose top has no floor beside
-      it reads in-game as a ladder you cannot leave. The dismount rule handles it correctly;
-      nothing warns the author.
-- [ ] **Intercepting a fall, not just watching one.** `Actor.falling` and `fall_delay` give a
-      listener the news and a window; they do not let it *take over*. The shape this wants is
-      a listener claiming the fall — the default drop stands down, the listener moves the
-      actor and says when it has landed. Needs a way to hand back "I've got this" that a
-      signal alone cannot carry, which is the design question, not the plumbing.
-- [ ] **Demo geometry.** `tools/make_height_items.tscn` has written placeholder `ramp`,
-      `stairs` and `ladder` items (6, 7, 8) into `pixel_blocks.tres`, and
-      `tools/make_block_variants.tscn` three capped-off `block_1` variants (9, 10, 11) with
-      no top and one, two or three wall faces. Placing them, pointing
-      `MapContext.floor_node` at the Floor GridMap and adding a **Ladders** GridMap for
-      `ladder_node` is editor work. The art is placeholder primitives until real meshes
-      exist — they borrow existing materials so they are textured, but the UV mapping is
-      arbitrary and ignores §3.6's texel density.
-
-**Two things worth knowing if you regenerate the placeholders:**
-
-- **Winding decides which way a face points**, and Godot reads it as
-  `(v0 - v2).cross(v0 - v1)`. The first ramp had every face inverted — the slope rendered
-  from underneath — and was missing both triangular sides, because the two it called sides
-  were both the tall north end.
-- **`SurfaceTool` smooths by default.** It welds matching vertices on commit and averages
-  their normals, which lit the wedge as if it were rounded and turned the stairs into one
-  soft lump. `set_smooth_group(-1)` before adding vertices is what makes them flat.
+The regression test that matters: **a byte-for-byte round trip of all five example
+documents**. That is the assertion that would have caught the bug above.
 
 ---
+
+## Run everything
+
+```bash
+GODOT="/c/Users/kyle/Desktop/Godot_v4.7-stable_win64_console.exe"
+for t in stage_a areas demo_scenes height event_command actor_naming event_condition; do
+  timeout 110 "$GODOT" --headless --path . res://tests/${t}_test.tscn
+done
+```
+
+**738 assertions, all green** as of the last commit. Godot is not on PATH; use the
+`_console` build or a headless run prints nothing.
+
+Three hazards worth re-reading before a long debugging session, all of which cost time
+today:
+
+- **A script that fails to parse hangs the run** rather than erroring — the scene loads
+  with no script and nothing calls `quit()`. Wrap runs in `timeout` and grep the log head
+  for `SCRIPT ERROR` before assuming the binary is slow.
+- **A script error inside a test aborts that section silently.** The run still exits 0
+  with assertions quietly missing. Watch the *count*, not just the exit code: striking the
+  round dropped `stage_a` from 232 to 224 and nothing failed.
+- **A new `class_name` is invisible until Godot re-imports.** A test referencing one that
+  is not yet in the class cache hangs. Run `--headless --path . --import` after adding a
+  global class.
+
+---
+
+## What was built today
+
+### Stage C segment 0 — the round and the step pulse are struck (`60f040d`)
+
+Removed from the design, not deferred (question 42). Speed classes and `credit` went with
+them, so **`speed` now has exactly one meaning everywhere**: world units per second.
+
+It cost nothing in code, which was the argument for doing it: `RULES["pulse"]`,
+`RULES["round"]`, `suppresses_pulse()`, `rounds_active()` and
+`GameProfile.Capability.STEP_PULSE` were all uncalled outside a test. `EventBus.actor_stepped`
+and its three siblings survive unchanged — a step is still a published moment, it is just
+no longer a clock. `InputIntent.lock_step` survives too, and stage C's exclusive slot will
+be its only caller.
+
+**The enum values are positional and a `.tres` stores raw ints**, so deleting `STEP_PULSE`
+from the middle renumbered everything after it. Both profiles were regenerated through
+`tools/make_profiles.tscn`; `core/game_profile.gd` now says so where the next person will
+read it. **Re-run that tool after any change to the `Capability` enum.**
+
+### Stage C segment 1 — `EventCommand` (`848cfe3`)
+
+`events/event_command.gd`: 33 commands as one data table — argument names and types, flow
+ports, blocking default, space, and which half of question 39's hybrid save each is in.
+88 assertions.
+
+`parse_route` returns `commands`, `problems` **and** `errors`. The third key is deliberate
+duplication: `event_editor_dock.gd:557` reads `errors`/`error` and treats a
+`problems`-only dictionary as a *clean* route, so emitting both lights the dock up
+per-line without the dock being touched.
+
+The five worked examples in `docs/events/` were updated for questions 40–42 and now parse
+clean as part of the suite.
+
+### Stage C segment 2 — `EventCondition` (`c4f7f79`)
+
+`events/event_condition.gd`: the tree, the evaluator, the key extractor, a hand-written
+tokeniser and recursive-descent parser, and the manifest check. 107 assertions.
+
+The test that carries the decision is the **equivalence** one: a page's structured list
+and a typed expression produce the same tree, evaluate the same, and subscribe to the
+same keys. Two grammar rules to remember — **a bare name is a flag, a compared name is a
+variable**, and `self.talked == false` is the negated leaf rather than a comparison.
+
+`keys()` expands a self flag to the composite `map:event:flag` that
+`GameState.set_self_flag` actually emits; `item` and `party_has` contribute no key,
+because neither system emits a change signal and a subscription naming one would look like
+it was working while never firing.
+
+### Actor auto-naming (`722b4b3`, `00cf513`, `ff7a0f6`, `8419e6a`, and the stem default)
+
+Not part of the plan — asked for during the session. `actors/actor_naming.gd`, 71
+assertions.
+
+- `assign()` / `assign_all()` give an actor an id and rename its placement node to match.
+- Generated ids are **plain numbers** counting from 1, filling gaps.
+- A first generated id renames the node to **`event__3`**; once an actor has an id, later
+  renames keep whatever stem the node has, so a deliberate `Guard` stays `Guard__4`.
+- An id of `player` (matched case-insensitively) names the node just `Player`.
+- `Actor.actor_id` has a setter that renames the placement node **in the editor only** —
+  `Actor` is now `@tool`, with `_ready` and `_exit_tree` returning early under
+  `Engine.is_editor_hint()`.
+
+**The editor-only guard is load-bearing.** All three demo scripts reach actors by node
+path, so a rename at run time would break every `@onready` that names one. There is a test
+asserting the hook does *not* fire at run time.
+
+---
+
+## Decisions taken today
+
+Questions **39–45** are in [solved-questions.md](solved-questions.md) as cluster 10:
+hybrid save granularity, `@` marking a resolvable term, the `face` split with
+`turn_cw`/`turn_ccw`/`turn_180`, striking the round, `//` as comments, the seven triggers,
+and routes being edited in a Routes panel plus a viewport gizmo.
+
+**Question 46 is open and deferred:** what drives a monster now that the pulse is gone.
+Stage C assumes routes tick on delta as background runners, because that is the only clock
+left. That assumption is **one call site** — `EventScheduler.tick` — and
+[open-questions.md](open-questions.md) says to check it is still one call site before
+answering 46.
+
+---
+
+## Small things left open
+
+- **The node stem for a hand-named node.** A first generated id discards whatever the node
+  was called: a node deliberately named `Guard` with no id becomes `event__2`, not
+  `Guard__2`. Nothing can tell a deliberate name from a prefab's default name, so this
+  follows the literal rule. Give such an actor a word id if the name should survive.
+- **Nothing calls `assign_all` yet.** The editor button is unbuilt — it belongs with the
+  snap-to-cell shortcut on the wishlist in [open-questions.md](open-questions.md).
+- **Two questions expected mid-build**, flagged in the plan: whether `ask` and `choice`
+  are one command or two (architecture.md §7.3 says `choice`, the example says `ask`), and
+  whether `follow` is a command or a route mode, since it appears in both lists.
+- **`apply_art` does not match the `art` block** and will have to be reconciled in segment
+  6 — `SpriteView2D.apply_art` reads `"frames"` and loads a `SpriteFrames`, but the example
+  art block says `"sheet": "…png"`, and it early-returns for exactly the sheet-driven
+  actor that block describes.
+
+---
+
+# The stage A and B notes below are kept as reference
+
+Written 2026-09-08 and extended since. Still accurate about what stage A built and what
+stage B owes; read the sections above first for where things actually stand.
 
 ## 1. The four questions — answered 2026-09-14
 

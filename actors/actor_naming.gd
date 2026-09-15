@@ -40,6 +40,24 @@ const SEPARATOR := "__"
 ## of numbering them at all.
 const FIRST_ID := 1
 
+## What a node is called before its number, when it has nothing better.
+##
+## A freshly placed prefab is called whatever the prefab is - [code]ActorIsoish[/code] -
+## which says what it was instanced from and nothing about what it is in this map. The
+## first time an actor is given a generated id, its node becomes [code]event__3[/code]
+## instead.
+##
+## [b]Only the first time.[/b] Once an actor has an id, later renames keep whatever stem
+## the node has, so a node deliberately called [code]Guard[/code] stays
+## [code]Guard__4[/code] rather than being flattened back to the default on every edit.
+const DEFAULT_STEM := "event"
+
+## True when [param id] is one of the generated numbers rather than a hand-typed name.
+## A name is a deliberate act and keeps its node's stem; a number is not.
+static func is_number_id(id: StringName) -> bool:
+	var text := String(id)
+	return text != "" and text.is_valid_int()
+
 ## The one actor whose node is named [i]for[/i] its id rather than after it.
 ##
 ## Every other actor reads [code]Event__3[/code], because the number is the only thing
@@ -205,6 +223,10 @@ static func rename_for(node: Node, id: StringName, previous: StringName = &"") -
 		return ""
 
 	var stem := strip_exact(node.name, previous)
+	# An actor getting its first id has no stem worth keeping - the node is still named
+	# after the prefab it came from. One that already had an id does, so it keeps it.
+	if previous == &"" and is_number_id(id) and strip_id(stem) == stem:
+		stem = DEFAULT_STEM
 	var wanted := node_name_for(stem, id) if id != &"" else strip_id(stem)
 	if wanted == "":
 		wanted = "Actor"
@@ -212,6 +234,15 @@ static func rename_for(node: Node, id: StringName, previous: StringName = &"") -
 		node.name = wanted
 	return node.name
 
+
+
+## The name to build on. [constant DEFAULT_STEM] for an actor whose id was just
+## generated and whose node is still called after the prefab it came from; otherwise the
+## node's own name, so a deliberate one survives.
+static func _base_for(node: Node, id: StringName, generated: bool) -> String:
+	if generated and is_number_id(id) and strip_id(node.name) == node.name:
+		return DEFAULT_STEM
+	return node.name
 
 # -- Assigning -----------------------------------------------------------------
 
@@ -234,16 +265,18 @@ static func assign(actor: Actor, root: Node = null, overwrite: bool = false) -> 
 			if actor.is_inside_tree() else actor
 
 	var id := actor.actor_id
+	var generated := false
 	if id == &"" or overwrite:
 		var taken := existing_ids(root)
 		# Its own current id must not block it from being renumbered.
 		taken.erase(actor.actor_id)
 		id = next_id_avoiding(taken)
 		actor.actor_id = id
+		generated = true
 
 	var node := placement_root(actor)
 	if node != null:
-		node.name = node_name_for(node.name, id)
+		node.name = node_name_for(_base_for(node, id, generated), id)
 	return id
 
 
@@ -274,10 +307,12 @@ static func assign_all(root: Node, overwrite: bool = false) -> Dictionary:
 		# named actor outright was the first version of this, and it left the player's
 		# node called whatever it had been while every other node carried its id - which
 		# is the tree-and-inspector disagreement this whole class exists to prevent.
+		var generated := false
 		if id == &"" or overwrite:
 			taken.erase(id)
 			id = next_id_avoiding(taken)
 			who.actor_id = id
+			generated = true
 		taken[id] = true
 
 		var node := placement_root(who)
@@ -285,7 +320,7 @@ static func assign_all(root: Node, overwrite: bool = false) -> Dictionary:
 			continue
 
 		var before := node.name
-		node.name = node_name_for(node.name, id)
+		node.name = node_name_for(_base_for(node, id, generated), id)
 		if node.name != before:
 			changed[id] = node.name
 
