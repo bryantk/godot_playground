@@ -103,10 +103,18 @@ polluting global flag space: per-event, per-map storage keyed `map_id:event_id:f
 a `set_self_flag` command. They belong in the save envelope (two-games.md §3.10) and are
 easy to forget there.
 
-Note the deliberate inconsistency with architecture.md §7.2, where the `if` *command* takes
-an expression string. Pages get structured conditions because they are edited in a form;
-`if` inside a graph keeps strings because it is typed inline and needs arbitrary logic. See
-§6 Q1 — unifying is defensible, but the two have genuinely different ergonomics.
+**Two surfaces, one shape** (question 16, decided 2026-09-14). The `if` *command*
+(architecture.md §7.2) still takes an expression string, because it is typed inline while
+writing a graph and a form would be slower there — but **the string is parsed into exactly
+the condition above**, not evaluated as a string. So there is one evaluator, one predicate
+table (`flag`, `var`, `self_flag`, `item`, `party_has`, …), and one thing a validator has to
+understand; the difference between a page and an `if` is the authoring surface, not the
+format. Two things follow. The structured form carries `all` / `any` / `not` nesting so it
+can hold anything a typed expression can — the flat AND list above is the *page* convention,
+what the page form offers, not the limit of the representation. And a typed expression does
+not survive a round trip: it normalises to the tree on read, the way §7.2's terse `mov n 2`
+does. Godot's built-in `Expression` cannot be the evaluator, since it executes without
+handing back a tree, so stage C owes a real parser.
 
 ### 2.3 Page selection
 
@@ -378,23 +386,33 @@ which keeps the "what is at this cell?" lookup uniform.
 
 ## 6. Open questions
 
-1. **Structured conditions vs expression strings** (§2.2) — pages use structured entries and
-   the `if` command uses strings. Keep both, or unify? Structured is toolable and
-   validatable; strings are faster to type and handle arbitrary logic. Recommend keeping both
-   and being explicit about why, rather than compromising in the middle.
-2. **Mid-execution page switch** (§2.3) — defer to graph completion, defer to round close, or
-   swap immediately? Recommend deferring; confirm, because "the chest changed art halfway
-   through its own cutscene" is the failure it prevents.
-3. **Gizmo undo** (§4.2) — internal snapshot stack, or invest in `EditorUndoRedoManager`
-   integration so `Ctrl+Z` is uniform? The second is meaningfully more work and constrains
-   where the data lives.
+**All seven are answered.** Kept here with their decisions rather than deleted, since each
+one names the §2–§4 text it governs.
+
+1. ~~Structured conditions vs expression strings?~~ ✅ **Both surfaces, one representation**
+   (2026-09-14). Pages keep structured entries, `if` keeps its string, and the string is
+   parsed into the same structured condition — one evaluator, one predicate table, and `if`
+   gets the same static validation against the manifest that pages do. The cost is a real
+   parser in stage C, since `Expression` returns no tree. §2.2; solved-questions cluster 4,
+   question 16.
+2. ~~Mid-execution page switch?~~ ✅ **Defer to graph completion** (2026-09-14), with an
+   explicit **re-validate** command a graph can hit to force page selection to run at a beat
+   the author chooses. Prevents "the chest changed art halfway through its own cutscene"
+   without making a long ambient graph blind to a flag it just set. §2.3; solved-questions
+   cluster 7, question 23.
+3. ~~Gizmo undo?~~ ✅ **The snapshot stack, for now** (2026-09-14), keeping one model of when
+   a change hits disk rather than two. Accepted cost: `Ctrl+Z` does not cross between gizmo
+   and ordinary scene edits. Timebox it. §4.2; solved-questions cluster 6, question 22.
 4. ~~Do pages inherit?~~ — **decided 2026-09-08: no.** Pages are fully explicit; absent
    means default. The repetition goes to a "duplicate page" editor button instead. §2.
-5. **Route `wait` units** — steps or seconds? Steps are the natural unit in game 1 and mean
-   nothing in game 2. Profile-dependent, or unit-tagged like §2.2's conditions?
-6. **One document per event, or a map-level bundle?** Per-event files are easier to diff and
-   move between maps; a bundle avoids dozens of tiny files per map and lets the dock open a
-   whole map's events at once.
+5. ~~Route `wait` units — steps or seconds?~~ ✅ **Seconds**, in both games (2026-09-14), and
+   not the unit-tagged compromise: a tag would add a per-field discriminator to serve one
+   game only. `wait` is a plain number of seconds and the parser branches on nothing. "Wait
+   one step", if ever wanted, is its own command. solved-questions cluster 4, question 18.
+6. ~~One document per event, or a map-level bundle?~~ ✅ **Per-event files, in a per-map
+   folder** (2026-09-14). Each event diffs, moves and renames cleanly; the folder — not a
+   bundle — is what answers "dozens of tiny files", and it is exactly what the dock globs to
+   open a map's worth at once. solved-questions cluster 4, question 19.
 7. ~~Can a graph change its own page?~~ ✅ **No** (2026-09-14). There is no `set_page`
    command; page selection stays driven purely by §2.3's conditions, checked rather than
    assigned. A graph that wants a different page active sets the flag or variable the target

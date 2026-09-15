@@ -597,7 +597,15 @@ command is one dictionary entry plus one executor function.
 **Terse form.** The dock currently seeds new commands as `{"command": "mov n 2"}`. Worth
 keeping as sugar: `parse_route` expands a space-separated string through an alias table
 into the structured form, so hand-typing a move route stays fast while the graph editor
-always writes the long form. *Decision needed — see §12.*
+always writes the long form. ✅ **Decided 2026-09-14: kept** (§12.1).
+
+**`if` conditions work the same way** (question 16). The `if` command takes an expression
+string — `chapter >= 2 and not slime_a_dead` — and `parse_route` expands it into the same
+structured condition an event page's `conditions` list holds (event-pages.md §2.2), so there
+is one evaluator and one predicate table rather than two condition systems. This means a
+real tokenizer and precedence parser, with error positions the dock can show: Godot's
+built-in `Expression` executes but returns no tree, and the tree is what makes an `if`
+statically checkable against §12.3's manifest.
 
 ### 7.3 Command set (first pass)
 
@@ -883,9 +891,12 @@ Resolved 2026-09-08 and folded in above: **step timing** (both on commit, plus
 `wait_settle` — §5), **occupancy commits** (always transactional — §1, §5), **grid
 directions** (game 1 is 4-way — §1), and `visual_offset`'s home (`ActorView` — §4).
 
-1. **Terse command strings.** Keep `{"command": "mov n 2"}` as an accepted sugar form
-   (§7.2), or drop it now that the graph editor is the primary authoring surface? Keeping
-   it means an alias table and a second parse path to maintain.
+1. ~~**Terse command strings.**~~ ✅ **Kept, strictly as parse-time sugar** (2026-09-14).
+   `mov n 2` expands to the long form the instant it is read, so the alias table is the only
+   cost and nothing downstream — graph editor, runner, validator — ever sees the terse
+   spelling. One command shape in memory; a file saved after a round trip comes back long.
+   solved-questions cluster 4, question 15. The same rule now governs `if` conditions
+   (question 16): typed expression in, structured condition in memory.
 2. ~~**Sub-graphs.**~~ ✅ **Yes, own context, reachable through `parent_context`**
    (2026-09-14). `call` runs a whole other `.event.json`; the callee gets its own context
    rather than the caller's, but that context carries a `parent_context` key back to the
@@ -894,11 +905,14 @@ directions** (game 1 is 4-way — §1), and `visual_offset`'s home (`ActorView` 
    common case a condition or command signature should assume by default; strings, floats,
    arrays and dictionaries are declarable for the cases that need them. solved-questions
    cluster 3, question 14.
-4. **Save format.** Does a save capture in-flight ambient runners, or are ambient events
-   always restartable from the top? The second is much simpler and almost always enough.
-   **Kyle's 2026-09-14 tooling wishlist wants the harder version** — a save mid-step,
-   mid-command — noted in open-questions.md Cluster 6 rather than decided here, since
-   there is no `EventRunner` yet to capture. Revisit this recommendation once one exists.
+4. ~~**Save format.**~~ ✅ **An in-flight ambient runner records the node it was in**
+   (2026-09-14) — a middle position, not the simpler "always restartable from the top",
+   which would visibly snap a long patrol or idle loop back to its beginning on every load.
+   One identifier per runner. It stops short of full capture: the command *within* that node
+   re-runs from its start, and a `GridMotion` mid-step is not preserved. **Revisit once an
+   `EventRunner` exists** and it is clear how coarse a node really is — the mid-step,
+   mid-command version is on open-questions.md's wishlist. solved-questions cluster 7,
+   question 25.
 5. **`move_to` pathing.** Straight-line-then-stop, or A\* from the start? Recommend the
    former, with `path: "astar"` already in the schema so adding it later is not a format
    change. (The four-versus-eight half of this question is now settled — see §1.)

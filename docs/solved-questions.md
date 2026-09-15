@@ -7,8 +7,9 @@ the solved half had grown larger than the open one.
 **A question leaves [open-questions.md](open-questions.md) and arrives here the moment it
 is answered, keeping its number.** Numbers are never reused and never renumbered, so a
 reference to "question 27" in a commit message, a docstring or another document still finds
-exactly one thing. Some clusters live in both files: the cluster heading stays where its
-*open* questions are, and the answered members move here under it.
+exactly one thing. No cluster spans both files any more — as of 2026-09-14 every question is
+answered, so every cluster heading lives here. The rule stands for anything asked from now on:
+the heading stays where its *open* questions are, and answered members move here under it.
 
 Answered does not always mean built — cluster 9 is decided and unimplemented in part, and
 says so. [next-session.md](next-session.md) is the work queue; this is only the record.
@@ -620,10 +621,59 @@ subset of the same moment's payload or a different subset of the same moment's l
 
 ---
 
-## Cluster 4 — Authoring format details
+## Cluster 4 — Authoring format details ✅
 
-*15, 16, 18 and 19 are still open in [open-questions.md](open-questions.md).*
+*Fully answered as of 2026-09-14. Four of the five are the same rule — accept convenient
+shorthand at the boundary, normalise immediately, keep exactly one shape in memory — applied
+to commands (15), pages (17), and conditions (16).*
 
+15. ~~Keep the terse command string form `{"command": "mov n 2"}`?~~ ✅ **Yes** (2026-09-14),
+    as recommended: it stays, but strictly as **parse-time sugar**. `mov n 2` expands to the
+    long form the instant it is read, and nothing downstream — the graph editor, the runner,
+    the validator — ever sees or has to understand the terse spelling. What this buys is the
+    typing speed of the dock's seeded commands without a second command grammar to keep in
+    step with the first: there is exactly one command shape in memory, and the terse form is
+    a keyboard convenience at the boundary rather than an alternate representation. The cost
+    is that a file saved after a round trip comes back long — accepted, since the long form
+    is what the editor edits anyway.
+16. ~~Structured conditions vs expression strings — keep both, or unify?~~ ✅ **Both
+    surfaces, one representation** (2026-09-14). Pages keep structured entries and `if` keeps
+    its expression string, but **the string is parsed into the same structured condition the
+    pages use** — so the two are authoring surfaces over one shape, not two condition
+    systems. This is question 15's rule applied to conditions: `chapter >= 2 and not
+    slime_a_dead` is sugar typed at the boundary, expanded on read, and nothing downstream
+    sees a string.
+
+    **What it buys, beyond consistency.** One evaluator and **one predicate table** — the
+    list of what a condition can test (`flag`, `var`, `self_flag`, `item`, `party_has`, …)
+    lives in one place the way `EventCommand.definitions()` does for commands, so a predicate
+    cannot exist on the page side and not in `if`. That divergence is the specific failure
+    "keep both, fully separate" would have rotted into: add `party_has` next year, add it
+    twice or not at all. And because the parsed form is introspectable, an `if` gets the
+    same **static validation against question 14's manifest** that pages do — a graph testing
+    `chpater` is caught at validate time rather than mid-cutscene, when the player finally
+    reaches that branch. That argument did not exist when the "keep both" recommendation was
+    written; the manifest is what made it available.
+
+    **The cost, which is the real content of this decision.** Godot's built-in `Expression`
+    can no longer be the evaluator: it executes, but it will not hand back a tree, and the
+    tree is the entire point. So stage C owes a **real tokenizer and precedence parser**,
+    with error positions good enough to show in the dock. That is the largest single piece of
+    work this answer creates, and it buys nothing at runtime — only at validate time and for
+    later tooling. Accepted knowingly.
+
+    **Two consequences to design around.** The structured form has to express everything a
+    string can, so it grows `all` / `any` / `not` nesting; the flat AND list stays the *page*
+    authoring convention (the page form offers nothing else) rather than being the limit of
+    the format. And a typed string does not survive a round trip — the author's spelling and
+    parenthesisation are normalised away, exactly as 15's terse commands are. If arithmetic
+    inside a comparison (`gold - cost > 0`) turns out to be wanted, that is a new leaf kind
+    to add deliberately, not a reason to keep a second evaluator.
+
+    **Later tooling becomes additive**, which is the point of paying now: a condition builder
+    widget for `if`, a rename-this-flag-everywhere refactor, or a "what would make this branch
+    take" inspector are all things you can write against a tree and cannot write against a
+    string. None are owed in stage C.
 17. ~~Do pages inherit?~~ ✅ **No.** Pages are fully explicit and absent means default. The
     repetition inheritance would have saved goes to a "duplicate page" button in the page
     bar instead. What that buys: a page reads in isolation, diffs cleanly, and the in-memory
@@ -631,18 +681,80 @@ subset of the same moment's payload or a different subset of the same moment's l
     `ActorView.apply_art`. That is the same rule cluster 4 states for fields — *accept
     shorthand at the boundary, normalise immediately, keep one shape in memory* — applied to
     whole pages, which is the argument that settled it.
+18. ~~Route `wait` units — steps or seconds?~~ ✅ **Seconds** (2026-09-14). Not the
+    unit-tagged compromise that was recommended: a `wait` is simply a duration in seconds in
+    both games. The recommendation assumed steps were worth keeping because they read
+    naturally in game 1, but they are meaningless in game 2, and a tagged unit would have put
+    a per-field discriminator into the format to serve exactly one game — the opposite of
+    question 15's rule, which wants one shape in memory. Seconds are the unit both games can
+    always answer, so the field is a plain number and the parser has nothing to branch on. If
+    "wait one step" turns out to be genuinely wanted in game 1, it belongs as its own command
+    with its own name, not as a mode of `wait`.
+19. ~~One document per event, or a map-level bundle?~~ ✅ **Per-event files, in a per-map
+    folder** (2026-09-14) — the recommendation, plus the answer to the objection against it.
+    Each event is its own document, so it diffs, moves and renames cleanly and two people
+    editing two events never touch the same file; the "dozens of tiny files" cost is paid off
+    by **foldering them per map** rather than by bundling, so a map's events are one directory
+    listing instead of one document. The dock still opens a map's worth at once — that was
+    always a dock feature rather than a storage decision, and the folder is exactly what it
+    globs.
 
 ---
 
-## Cluster 7 — Deferred by design
+## Cluster 6 — Editor tooling ✅
 
-*23 and 25 are still open in [open-questions.md](open-questions.md).*
+*Fully answered as of 2026-09-14. The tooling **wishlist** stays in
+[open-questions.md](open-questions.md) — those are not questions, so they do not follow the
+cluster heading here.*
 
+22. ~~Gizmo undo strategy — internal snapshot stack, or `EditorUndoRedoManager`?~~ ✅
+    **The snapshot stack, for now** (2026-09-14), as recommended, and deliberately recorded
+    as provisional. Routes are small enough that snapshotting one whole is cheap, and the
+    event dock already treats the file as the source of truth with explicit Save/Reload — so
+    the stack keeps **one model of "when does my change hit disk"** rather than two
+    overlapping ones. The accepted cost: `Ctrl+Z` does not cross between a gizmo edit and an
+    ordinary scene edit, so undoing past a gizmo change means two separate undo histories.
+    This was the plan's largest implementation-risk unknown — not because the decision is
+    hard but because Godot's editor undo is object-property shaped while the data here is a
+    file — and "for now" is the point: **timebox it**, and if the split history proves
+    annoying in practice, revisiting means writing an `EditorUndoRedoManager` adapter over a
+    working feature rather than choosing blind.
+
+---
+
+## Cluster 7 — Deferred by design ✅
+
+*Fully answered as of 2026-09-14. Answered ahead of stage E, where they were originally
+deferred to — both answers are cheap to revisit and neither changes what stage C builds.*
+
+23. ~~Mid-execution page switch — defer, or swap immediately?~~ ✅ **Defer to graph
+    completion** (2026-09-14), as recommended, **with an explicit escape hatch**: a graph can
+    hit a dedicated **re-validate** command to force page selection to run at that point. The
+    default prevents "the chest changed art halfway through its own cutscene" — a running
+    graph keeps the page it started under, so the actor it is animating cannot swap sprite,
+    collision or page body underneath it. The re-validate command covers the case pure
+    deferral would have made impossible: a long ambient or cutscene graph that *should*
+    notice a flag it just set, at a beat the author chooses. Putting the switch behind an
+    explicit command keeps it authored and visible in the graph rather than an emergent
+    timing surprise, and it does not reintroduce question 13's `set_page` — re-validate
+    re-runs the ordinary conditional check, it does not name a page.
 24. ~~Does game 1 have a separate battle scene?~~ ✅ **Yes**, as Lufia 2 does, and as
     [slime_a.event.json](events/slime_a.event.json) already assumed with its `start_battle`
     command. **Consequence: `ModeStack` moves from the last stage into stage A**, since a
     Battle mode that keeps the field map resident is now a prerequisite for game 1 being
     playable end to end. It is also the arbiter question 27 needs.
+25. ~~Save format: in-flight ambient runners — captured, or restartable from the top?~~ ✅
+    **Record the node they were in** (2026-09-14) — a middle position, not the recommended
+    "always restartable". An ambient runner saves **which graph node it was processing**, and
+    resumes there rather than at the top. That costs one identifier per runner and avoids the
+    visible failure of pure restart, where a long ambient patrol or idle loop snaps back to
+    its beginning on every load. It stops short of full capture: the command *within* that
+    node re-runs from its start, and a `GridMotion` mid-step is not preserved. **"For now" is
+    meant literally** — revisit once stage C's runner exists and it is clear how coarse a node
+    actually is; the wishlist item in [open-questions.md](open-questions.md) tracks the harder
+    mid-command version. Saved regardless, per two-games.md §3.10: self flags, variables,
+    monster `credit`, **and route progress** (waypoint index plus `pingpong` direction) — the
+    last of which the original envelope omitted.
 26. ~~Do the two games share maps?~~ ✅ **No.** Separate map sets — game 1 is `Space2D` and
     game 2 is `Space3D`, and the art styles do not mix in any case. The simplification this
     earns: **a map belongs to exactly one profile**, so no map declares which presentations
