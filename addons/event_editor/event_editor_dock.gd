@@ -134,15 +134,17 @@ func _build_ui() -> void:
 	add_child(editing)
 
 	editing.add_child(_make_button("Add", _add_command))
-	editing.add_child(_make_button("Format", _format))
 	editing.add_child(_make_button("Unknown", _show_unknown))
 	editing.add_child(_make_button("Strip Unknown", _strip_unknown))
 
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	editing.add_child(spacer)
+	# Format and Validate get their own row: both re-read the whole buffer rather than
+	# make one targeted edit like the row above, which made them worth setting apart.
+	var running := HBoxContainer.new()
+	running.name = "ToolbarRun"
+	add_child(running)
 
-	editing.add_child(_make_button("Validate", _validate))
+	running.add_child(_make_button("Format", _format))
+	running.add_child(_make_button("Validate", _validate))
 
 	_title = Label.new()
 	_title.name = "Title"
@@ -187,8 +189,11 @@ func _build_ui() -> void:
 
 	_status = Label.new()
 	_status.name = "Status"
-	_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	# Trimmed text only survives as a tooltip if the label takes the mouse at all.
+	# Wraps rather than trims: a validation message naming several node ids, or a long
+	# repair message, used to run off the edge of the dock and be readable only from its
+	# tooltip. Autowrap grows the label to as many lines as it needs instead.
+	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_status.clip_text = false
 	_status.mouse_filter = Control.MOUSE_FILTER_PASS
 	add_child(_status)
 
