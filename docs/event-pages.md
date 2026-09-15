@@ -140,13 +140,17 @@ Polling every event every frame is wasteful with a few dozen events on a map. Re
 **event-driven invalidation**: `GameState` emits `changed(key)`, and each event subscribes to
 exactly the keys its conditions reference — a subscription list derivable automatically from
 the condition entries, so nothing is wired by hand and nothing can be forgotten. Re-evaluate
-only the events that reference a changed key, plus a full pass on map load and at round close
-(two-games.md §3.1), since a round can change state.
+only the events that reference a changed key, plus a full pass on map load. (This used to say
+"and at round close"; the round was struck on 2026-09-14, question 42, and the subscription
+was always the real mechanism — the full pass was belt and braces over a clock that no longer
+exists.)
 
 **Page switching mid-execution** must be deferred. If a page's graph is running and a flag
 change makes a different page active, swapping art and logic underneath the running graph is
-a bug factory. Recommend: mark the event dirty and swap when the graph completes, or at the
-next round close. See §6 Q2.
+a bug factory. Decided (§6 Q2, question 23): mark the event dirty and swap when the graph
+completes, with a `re_validate` command as the authored escape hatch for a long graph that
+should notice a flag it just set. "Or at the next round close" was the other candidate and
+went with the round.
 
 ---
 
@@ -173,8 +177,8 @@ distinct from the graph, which is what it does when triggered.
 | `mode` | `fixed` (never moves), `waypoints`, `steps`, `toward` / `away` (an actor id, default player), `random` |
 | `loop` | `none`, `cycle` (return to the first waypoint or the start of the step list), `pingpong` |
 | `on_blocked` | `wait`, `skip` (drop that waypoint or step), `reverse`, `repath` (A\*, `waypoints` only) |
-| `speed` | The speed class from two-games.md §3.1 — credit gained per pulse. `200` acts twice, `50` every other pulse. |
-| `waypoints` | `waypoints` mode only. `cell` is required; `face` and `wait` (in steps or seconds by profile) are optional per point. |
+| `speed` | World units per second, the same `MotionController.speed` every command means. Was a "speed class" (credit per pulse) until 2026-09-14; speed classes were struck with the pulse, question 42, so `speed` now has one meaning everywhere and the `100` / `200` values in the old examples are simply wrong numbers. |
+| `waypoints` | `waypoints` mode only. `cell` is required; `face` and `wait` (seconds — question 18) are optional per point. |
 | `steps` | `steps` mode only. A list of relative moves — see below. |
 
 **Absolute cells for `waypoints`, relative for `steps` — two modes, not one field with two
@@ -376,7 +380,8 @@ which keeps the "what is at this cell?" lookup uniform.
 - **two-games.md §3.3** — `ActorView` gains `apply_art(art: Dictionary)`, called on page
   activation.
 - **two-games.md §3.7** — capability tags now apply to route fields too: `mode: "toward"`
-  needs `grid_motion` or a pathfinder; `speed` classes need the step pulse.
+  needs `grid_motion` or a pathfinder. (`speed` classes needed `step_pulse`; both are struck —
+  question 42.)
 - **two-games.md §3.10** — self flags join the save envelope, and so does **route
   progress**: the current waypoint index and the `pingpong` direction. Active page is
   derivable from conditions, so it need not be saved. Self flags and route progress are the
@@ -398,7 +403,7 @@ one names the §2–§4 text it governs.
 2. ~~Mid-execution page switch?~~ ✅ **Defer to graph completion** (2026-09-14), with an
    explicit **re-validate** command a graph can hit to force page selection to run at a beat
    the author chooses. Prevents "the chest changed art halfway through its own cutscene"
-   without making a long ambient graph blind to a flag it just set. §2.3; solved-questions
+   without making a long background graph blind to a flag it just set. §2.3; solved-questions
    cluster 7, question 23.
 3. ~~Gizmo undo?~~ ✅ **The snapshot stack, for now** (2026-09-14), keeping one model of when
    a change hits disk rather than two. Accepted cost: `Ctrl+Z` does not cross between gizmo

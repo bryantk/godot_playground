@@ -35,10 +35,11 @@ duration units to disambiguate, and no bimodal event runner.
 
 What is genuinely missing:
 
-- **A step pulse and its round gate.** One new trigger source (`player moved`), a signal to
-  carry it, per-actor state for speed classes, and an input gate that holds
-  `InputIntent.step` until the round's blocking actions complete. A feature, not a layer.
-  (The watchdog this bullet used to call for was cut on 2026-09-13 — open-questions 8.) §3.1
+- ~~**A step pulse and its round gate.**~~ **Struck 2026-09-14** (question 42). What was
+  actually built and kept is the signal — `EventBus.actor_stepped`, fired unconditionally at
+  commit for every grid actor. The clock around it (speed classes, `credit`, the input gate
+  joining a round over completion keys) is gone, and "what drives a monster" is
+  [open question 46](open-questions.md). §3.1
 - **Transactional occupancy.** Not for turn ordering — for push chains and for the batch of
   monsters that all respond to the same pulse in the same frame. §3.2
 - **Presentation as its own axis.** Game 2 is sprites in a 3D world. The plan has no place
@@ -98,7 +99,7 @@ class_name GameProfile extends Resource
 
 enum Capability {
     GRID_MOTION, FREE_MOTION, HEIGHT, PATHFINDER,
-    STEP_PULSE, ROTATABLE_VIEW, BATTLE_SCENE,
+    ROTATABLE_VIEW, BATTLE_SCENE,          # STEP_PULSE deleted 2026-09-14, question 42
 }
 
 @export var id: StringName                      # "jrpg" — save envelope, §3.10
@@ -116,16 +117,18 @@ enum Capability {
 
 | Profile | Capabilities |
 | --- | --- |
-| `jrpg` | `GRID_MOTION, STEP_PULSE, PATHFINDER, BATTLE_SCENE` |
+| `jrpg` | `GRID_MOTION, PATHFINDER, BATTLE_SCENE` |
 | `isoish` | `FREE_MOTION, HEIGHT, ROTATABLE_VIEW` |
 
 **Capabilities are a closed enum, not the free strings §3.7 sketched.** With a growing
 command set, free strings drift into near-duplicates that silently never match a
 `requires` entry, and a capability that never matches fails open — the validator simply stops
-warning. Seven values is the cheapest possible moment to close it.
+warning. Six values is the cheapest possible moment to close it.
 
-`STEP_PULSE` is a capability *only*, with no parallel boolean field, so "does this game
-pulse?" has exactly one answer. `HEIGHT` does legitimately coexist with
+**`STEP_PULSE` was deleted on 2026-09-14** with the pulse itself (question 42). The values are
+positional and a `.tres` stores the raw ints, so removing one from the middle renumbers
+everything after it - both profiles were regenerated through `tools/make_profiles.tscn`
+rather than hand-edited. `HEIGHT` does legitimately coexist with
 `SpaceAdapter.supports_height()`: the capability is authoring-time validation, the method is
 the runtime warning in architecture.md §4.
 
@@ -167,6 +170,26 @@ and per-developer rather than per-build.
 ## 3. What is missing
 
 ### 3.1 The step pulse
+
+> **Struck 2026-09-14 — the pulse, the round and speed classes are gone from the design**
+> (question 42, [stage-c-plan.md](stage-c-plan.md)). Not deferred: removed. `RULES["pulse"]`
+> and `RULES["round"]` are deleted from `ModeStack` along with `suppresses_pulse()` and
+> `rounds_active()`, and `GameProfile.Capability.STEP_PULSE` is deleted with them. None of
+> the four had a caller outside a test.
+>
+> **What survives, because it was built and is real:** `EventBus.actor_stepped`, fired
+> unconditionally for every grid actor at commit, and its three siblings. A step is still a
+> published moment; it is simply no longer a *clock* that anything is required to march to.
+> `InputIntent.lock_step` survives too — an exclusive cutscene still has to stop the player
+> walking off — and stage C's event scheduler becomes its only caller.
+>
+> **What replaces it: nothing yet.** "What drives a monster" is
+> [open question 46](open-questions.md), deferred deliberately. Until it is answered, an
+> event's route runs as a background runner on delta, which is the only clock left.
+>
+> The text below is kept as the record of what was designed and why, in the project's usual
+> way. Read it as history, not as a specification.
+
 
 Game 1's monsters need to know the player took a step. That is the whole mechanism.
 
@@ -249,11 +272,24 @@ pause?" decision falls out for free.
 
 #### The round, and the input gate
 
+> **Struck 2026-09-14** with the rest of §3.1 (question 42). There is no round, no join over
+> completion keys gating input, and no `credit`. What the round was protecting — the player
+> cannot walk away mid-cutscene — is done by the event scheduler's exclusive slot pushing
+> `ModeStack.Mode.CUTSCENE` and `PlayerBrain` reading that into `InputIntent.lock_step`.
+>
+> **One paragraph below outlived the section**, and stage C depends on it: *every command
+> that can hold the gate must resolve its completion key on every path out, including failure
+> and cancellation.* There is still no watchdog, and a command that swallows its key still
+> hangs whatever is joined on it — now an `EventRunner` rather than a round. Planning stage C
+> found four existing violations in `GridMotion`; [stage-c-plan.md](stage-c-plan.md) segment 4
+> lists them.
+
+
 **Decided:** the player cannot commit another step until every action this pulse triggered
 has finished. Call that span a **round**.
 
 This is not a return to lockstep. The world still runs on `delta` — animations, particles,
-dialogue, ambient events all tween in seconds exactly as in game 2. What is gated is
+dialogue, background events all tween in seconds exactly as in game 2. What is gated is
 one field of one struct: `InputIntent.step`. The round is an input policy, not a clock.
 
 **A round is a join over completion keys.** Every long-running call in this architecture
@@ -600,8 +636,10 @@ field map resident is now a prerequisite for game 1 being playable end to end, s
 longer be the last thing built. §4.3's order is revised accordingly.
 
 **Proposal:** a small `ModeStack` autoload — `Field`, `Cutscene`, `Battle`, `Menu` — where
-each mode declares whether it pauses physics, whether it suppresses the step pulse, whether
-the map stays loaded, and who owns input. Battle becomes "push a mode that keeps the map in
+each mode declares whether it pauses physics, whether the map stays loaded, and who owns
+input. (It also declared whether it suppressed the step pulse and whether rounds ran; both
+keys were deleted on 2026-09-14 with the pulse itself, question 42, having never had a caller
+outside a test.) Battle becomes "push a mode that keeps the map in
 memory and hands input to the battle scene", not a bespoke lifecycle.
 
 The input target stack (§3.5, architecture.md §7.8) and the event scheduler's exclusive slot
@@ -675,7 +713,9 @@ retrofitting serialisation onto actors and occupancy is miserable.
 Occupancy is derivable from actor cells and need not be stored. These are not, and are all
 in the "small, easy to forget, visible if lost" category:
 
-- Monster `credit` values (§3.1).
+- ~~Monster `credit` values (§3.1).~~ Struck 2026-09-14 with speed classes (question 42).
+  Whatever answers open question 46 may reintroduce per-monster timing state; the envelope
+  should expect to grow a slot for it rather than assume there is none.
 - **Route progress** — the current waypoint index, and the `pingpong` direction
   (event-pages.md §3). A patrol reloading at waypoint 0 heading forward instead of waypoint
   3 heading back is exactly the kind of bug found weeks later.
@@ -719,9 +759,10 @@ would otherwise only show up as a puzzle that quietly stopped being solvable.
      forward from F — §3.8: game 1's separate battle scene needs it, and it is the arbiter
      the round gate, the input target stack and the exclusive slot should all consult).
      Plus the file moves in §3.9.
-   - **B. Game 1 vertical slice** — `GridMotion`, passability, the step pulse, one monster
-     with a speed class, `push`. Puts the most novel behaviour and the occupancy commit
-     under load first.
+   - **B. Game 1 vertical slice** — `GridMotion`, passability, `push`, one monster. Puts the
+     most novel behaviour and the occupancy commit under load first. (This said "the step
+     pulse, one monster with a speed class"; both were struck on 2026-09-14, question 42, and
+     what makes the monster act is open question 46.)
    - **C. Event system** — registry with capability tags, runner, scheduler, `EventDocument`
      and `GameEvent` including the `ActorStepped` trigger. Author a monster's AI as a graph; that is the test that the
      format is expressive enough.
@@ -791,7 +832,7 @@ would otherwise only show up as a puzzle that quietly stopped being solvable.
 
 The first version of this document read game 1 as turn-based and proposed a global
 `TurnScheduler` with energy-based ordering, a dual time base (ticks vs seconds), unit-tagged
-durations on every duration-taking command, a bimodal `EventRunner` for ambient events, and
+durations on every duration-taking command, a bimodal `EventRunner` for background events, and
 full two-phase propose/resolve on every move.
 
 All of that is deleted. Game 1 is real-time like game 2; its monsters respond to a

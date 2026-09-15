@@ -273,14 +273,18 @@ func _test_mode_stack() -> void:
 	_section("ModeStack -- the control arbiter")
 
 	_ok(ModeStack.is_field(), "starts in Field")
-	_ok(not ModeStack.suppresses_pulse(), "Field pulses")
-	_ok(ModeStack.rounds_active(), "Field has rounds")
+	_ok(not ModeStack.pauses_physics(), "Field runs physics")
 
 	ModeStack.push(ModeStack.Mode.CUTSCENE)
-	_ok(ModeStack.suppresses_pulse(), "a cutscene suppresses the pulse")
-	# The whole point of question 27: no round gate may run here, or it holds a step
-	# against a runner that is legitimately waiting on the player.
-	_ok(not ModeStack.rounds_active(), "a cutscene has no rounds, so no gate")
+	_ok(not ModeStack.pauses_physics(), "a cutscene still runs physics -- it is not a pause")
+	_ok(ModeStack.keeps_map_loaded(), "and keeps the map")
+
+	ModeStack.push(ModeStack.Mode.MENU)
+	# The only mode that stops the world. Both motion controllers check this and
+	# nothing else, which is why it is the only rule left with callers now that the
+	# pulse and the round are struck (question 42).
+	_ok(ModeStack.pauses_physics(), "a menu pauses physics")
+	ModeStack.pop()
 
 	ModeStack.push(ModeStack.Mode.BATTLE)
 	_ok(ModeStack.keeps_map_loaded(), "battle keeps the field map resident")
@@ -337,7 +341,6 @@ func _test_profiles() -> void:
 
 	_eq(jrpg.id, &"jrpg", "jrpg id survives the round trip")
 	_ok(jrpg.has(GameProfile.Capability.GRID_MOTION), "jrpg has grid motion")
-	_ok(jrpg.has(GameProfile.Capability.STEP_PULSE), "jrpg has the step pulse")
 	_ok(jrpg.has(GameProfile.Capability.BATTLE_SCENE), "jrpg has a battle scene")
 	_ok(not jrpg.has(GameProfile.Capability.HEIGHT), "jrpg has no height")
 

@@ -33,11 +33,11 @@ These are settled; the rest of the document follows from them.
 | Mode scope | Per map. A map is grid or free, decided when it loads. Transitions at map boundaries. `MapContext.default_motion` overrides `GameProfile.motion_script`. |
 | Event coordinates | Cells. Free-movement maps quantise to cells for event purposes only. |
 | Actor addressing | Map-unique string ids through a registry. |
-| Concurrency | One exclusive (input-locking) runner at a time, plus any number of ambient runners. |
+| Concurrency | One exclusive (input-locking) runner at a time, plus any number of background runners. |
 | Passability | Tile/geometry data **and** physics, together. |
 | Grid feel | The physics body snaps to the destination cell immediately; the visual tweens to catch up. |
 | Occupancy writes | Always through `Occupancy.commit(changes)`, never by mutating the dictionary in place — even for a single actor's step. |
-| Step timing | Occupancy commit, the step pulse and cell triggers all fire at **step commit**. `wait_settle` covers the land-on-it case. §5 |
+| Step timing | Occupancy commit, `actor_stepped` and cell triggers all fire at **step commit**. `wait_settle` covers the land-on-it case. §5 (This row said "the step pulse"; the pulse was struck 2026-09-14, question 42. The signal and its timing are unchanged.) |
 | Grid directions | Game 1 steps 4-way. Game 2 uses `FreeMotion`. |
 | Script shape | Graph node = one command. Flow ports are the successor links. Renders as JSON. |
 
@@ -299,9 +299,9 @@ up. Physics queries, occupancy, and event triggers therefore never see a half-ce
 and a cutscene that teleports an actor mid-step just cancels the tween.
 
 **Decided: everything fires at commit.** The body snapping to the destination cell is the
-one moment a step happens, and the occupancy commit, the step pulse
-(two-games.md §3.1) and any `EnterCell` trigger on the destination all fire there, in
-that order. Monsters and traps therefore observe identical world state, and there is exactly
+one moment a step happens, and the occupancy commit, `actor_stepped` and any cell trigger on
+the destination all fire there, in that order. (This named "the step pulse"; the pulse was
+struck on 2026-09-14, question 42, and the signal outlived it unchanged.) Monsters and traps therefore observe identical world state, and there is exactly
 one ordering to specify and test.
 
 RPG Maker fires on-enter triggers at visual arrival instead, and that reads better for some
@@ -462,8 +462,9 @@ land on, *before* anything drops. `GridMotion.fall_delay` is the window that ope
 seconds this actor hangs before the drop begins, **per actor** because it is characterisation
 rather than physics — how far anything may fall is the map's business, how long *this* actor
 dangles first is the actor's. It defaults to 0, which is the same-frame behaviour falling had
-before the hook existed. A hanging actor is still `is_busy()`, so no round closes underneath
-one, and `cancel()` clears the hang along with the fall.
+before the hook existed. A hanging actor is still `is_busy()` - which said "no round closes
+underneath one" before the round was struck (question 42), and now means no command joined on
+that actor resolves early - and `cancel()` clears the hang along with the fall.
 
 The signal announces; it cannot yet **replace** the fall — the default drop still follows.
 Taking it over is the next step, and this signature is the one that hook will use.
@@ -646,12 +647,12 @@ turns a runaway `goto` loop into an error with the node id instead of a frozen e
 
 - **Exclusive slot** — at most one runner. Locks player input, queues or drops competing
   requests by policy. Cutscenes, NPC conversations, doors.
-- **Ambient runners** — any number, no input lock. NPC patrol routines, fountains,
+- **Background runners** — any number, no input lock. NPC patrol routines, fountains,
   weather.
 - **Actor leases** — a runner takes a lease on each actor it drives. A second runner
   asking for a leased actor waits or is refused, which is what prevents a patrol routine
   and a cutscene fighting over the same guard's position.
-- Ambient runners are suspended while the exclusive slot is occupied (configurable per
+- Background runners are suspended while the exclusive slot is occupied (configurable per
   runner, so a background waterfall keeps going).
 
 ### 7.6 Triggers
@@ -845,7 +846,7 @@ all at the seams.
    an `EventSource` on interact. First real cutscene.
 7. **Branching:** `if`, `choice`, `goto`, plus `GameState` flags. Multiple flow ports in
    the graph editor.
-8. **`EventScheduler`:** exclusive vs ambient, actor leases, input stack. Ambient NPC
+8. **`EventScheduler`:** exclusive vs background, actor leases, input stack. Background NPC
    patrol running while the player walks.
 9. **`change_map`** across the 2D↔3D boundary, carrying party state and spawn cell.
 10. **Graph editor command UI** — a command dropdown and an args form per node, driven by
@@ -861,7 +862,7 @@ See [docs/events/](events/):
 
 - `greet_guard.event.json` — linear: face, say, wait, move.
 - `locked_door.event.json` — branch on a flag, with a choice menu.
-- `patrol_guard.event.json` — ambient, non-blocking, loops via `goto`.
+- `patrol_guard.event.json` — background, non-blocking, loops via `goto`.
 - `cliff_jump.event.json` — free-motion map: jump, camera work, blocking vs non-blocking
   running in parallel.
 
@@ -905,7 +906,7 @@ directions** (game 1 is 4-way — §1), and `visual_offset`'s home (`ActorView` 
    common case a condition or command signature should assume by default; strings, floats,
    arrays and dictionaries are declarable for the cases that need them. solved-questions
    cluster 3, question 14.
-4. ~~**Save format.**~~ ✅ **An in-flight ambient runner records the node it was in**
+4. ~~**Save format.**~~ ✅ **An in-flight background runner records the node it was in**
    (2026-09-14) — a middle position, not the simpler "always restartable from the top",
    which would visibly snap a long patrol or idle loop back to its beginning on every load.
    One identifier per runner. It stops short of full capture: the command *within* that node

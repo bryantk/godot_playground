@@ -11,7 +11,7 @@
 script = ExtResource("4_xtrlx")
 id = &"isoish"
 display_name = "Iso-ish"
-capabilities = Array[int]([1, 2, 5])
+capabilities = Array[int]([1, 2, 4])
 input_profile = ExtResource("2_h03vw")
 space_script = ExtResource("5_y1r3h")
 motion_script = ExtResource("3_g5sx0")

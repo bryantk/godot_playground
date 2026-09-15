@@ -15,13 +15,17 @@ class_name GameProfile extends Resource
 ## A closed enum, not the free strings this started as. With a growing command set,
 ## free strings drift into near-duplicates that silently never match a requirement -
 ## and a capability that never matches fails [i]open[/i], so the validator simply
-## stops warning. Seven values is the cheapest moment to close it.
+## stops warning. Six values is the cheapest moment to close it.
+##
+## [b]The values are positional and a .tres stores the raw ints.[/b] STEP_PULSE was
+## removed from the middle of this list on 2026-09-14 (question 42), which renumbered
+## everything after it - so the two profiles were regenerated rather than hand-edited.
+## Removing a value here always means re-running tools/make_profiles.tscn.
 enum Capability {
 	GRID_MOTION,
 	FREE_MOTION,
 	HEIGHT,
 	PATHFINDER,
-	STEP_PULSE,
 	ROTATABLE_VIEW,
 	BATTLE_SCENE,
 }

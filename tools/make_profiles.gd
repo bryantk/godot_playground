@@ -27,7 +27,6 @@ func _jrpg() -> GameProfile:
 	p.display_name = "JRPG"
 	p.capabilities = [
 		GameProfile.Capability.GRID_MOTION,
-		GameProfile.Capability.STEP_PULSE,
 		GameProfile.Capability.PATHFINDER,
 		GameProfile.Capability.BATTLE_SCENE,
 	]

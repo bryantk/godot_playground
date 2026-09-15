@@ -385,6 +385,21 @@ yet written. `Occupancy`, `Passability`, `Actor` and `GridMotion` all change.*
 *This cluster is fully answered as of 2026-09-14 — nothing is left open in
 [open-questions.md](open-questions.md).*
 
+> **Questions 6, 7, 8, 9 and 10 are about the round and the step pulse, which were struck
+> from the design later the same day** (question 42, [stage-c-plan.md](stage-c-plan.md)).
+> They keep their numbers and their reasoning, because a decision record that quietly drops
+> the questions it changed its mind about is not a record. Read them as answers to a question
+> the project no longer asks.
+>
+> **The parts that outlived the round**, and are still true: turning in place and bumping a
+> wall both **emit an event and change no cell** (6, 7); there is **no watchdog** and
+> therefore every command must resolve its completion key on every path out, cancellation
+> included (8); `actor_stepped` fires at **commit**, not at visual settle, and cell triggers
+> fire with it (10). What is gone is the framing — "opens a round", "pulses" — not those
+> behaviours.
+>
+> "What drives a monster" is now [open question 46](open-questions.md).
+
 5. ~~Camera ownership?~~ ✅ **The recommendation, plus a third mode.** The camera follows
    the player by default; events borrow it and must return it, via `CameraRig.lock()`
    (already built). Confirmed and extended: an event may also **follow something other than
@@ -734,7 +749,7 @@ deferred to — both answers are cheap to revisit and neither changes what stage
     default prevents "the chest changed art halfway through its own cutscene" — a running
     graph keeps the page it started under, so the actor it is animating cannot swap sprite,
     collision or page body underneath it. The re-validate command covers the case pure
-    deferral would have made impossible: a long ambient or cutscene graph that *should*
+    deferral would have made impossible: a long background or cutscene graph that *should*
     notice a flag it just set, at a beat the author chooses. Putting the switch behind an
     explicit command keeps it authored and visible in the graph rather than an emergent
     timing surprise, and it does not reintroduce question 13's `set_page` — re-validate
@@ -744,11 +759,11 @@ deferred to — both answers are cheap to revisit and neither changes what stage
     command. **Consequence: `ModeStack` moves from the last stage into stage A**, since a
     Battle mode that keeps the field map resident is now a prerequisite for game 1 being
     playable end to end. It is also the arbiter question 27 needs.
-25. ~~Save format: in-flight ambient runners — captured, or restartable from the top?~~ ✅
+25. ~~Save format: in-flight background runners — captured, or restartable from the top?~~ ✅
     **Record the node they were in** (2026-09-14) — a middle position, not the recommended
-    "always restartable". An ambient runner saves **which graph node it was processing**, and
+    "always restartable". An background runner saves **which graph node it was processing**, and
     resumes there rather than at the top. That costs one identifier per runner and avoids the
-    visible failure of pure restart, where a long ambient patrol or idle loop snaps back to
+    visible failure of pure restart, where a long background patrol or idle loop snaps back to
     its beginning on every load. It stops short of full capture: the command *within* that
     node re-runs from its start, and a `GridMotion` mid-step is not preserved. **"For now" is
     meant literally** — revisit once stage C's runner exists and it is clear how coarse a node
@@ -761,3 +776,76 @@ deferred to — both answers are cheap to revisit and neither changes what stage
     earns: **a map belongs to exactly one profile**, so no map declares which presentations
     it supports, `MapContext` needs no profile-compatibility field, and no "view two ways"
     mode has to exist.
+
+---
+
+## Cluster 10 — Stage C, the event system ✅
+
+*Decided 2026-09-14 while planning stage C. The plan itself is
+[stage-c-plan.md](stage-c-plan.md); this is the record of the decisions inside it.*
+
+39. ~~How savable is "savable at almost any moment"?~~ ✅ **Hybrid, by command.** Movement,
+    animation and `wait` resume **mid-command**; dialogue and anything that merely takes a
+    frame **restart from the top of their command** on load. Battle saving is refused
+    outright rather than left undefined.
+
+    **This is a structural constraint, not a preference.** A GDScript coroutine suspended
+    inside `await` keeps its resumption point in the engine's function stack, where nothing
+    can enumerate or rebuild it — so the `EventRunner` sketched in architecture.md §7.4 ("a
+    blocking command is awaited on its returned key") is *unsaveable as written*, not merely
+    awkward to save. The runner is a tick-driven state machine instead, and `to_save()` is a
+    straight read of its fields rather than a snapshot mechanism bolted on.
+
+    The asymmetry is deliberate and one-directional: **restart is always a legal downgrade.**
+    A command's base `restore()` calls `start()`, so if a command stops being resumable in a
+    later version, an old save's state is ignored and it simply re-runs. Shrinking the
+    resumable set can never break a save.
+40. ~~How are actors and other live things named in a command's args?~~ ✅ **`@` marks a
+    resolvable term.** `@player`, `@self`, `@npc_scout` are references resolved at runtime;
+    a bare string is a literal string and never an actor id. So `"actor": "npc_scout"` in the
+    old examples was wrong and becomes `"@npc_scout"`, and a bare string in an actor-typed
+    arg is a validator error that suggests the `@` form. One sigil, one rule, and a glance at
+    any arg says whether it is data or a reference.
+41. ~~What does `face` take?~~ ✅ **It splits into two commands.** `face_direction` takes a
+    compass direction (`n`/`s`/`e`/`w`, plus diagonals where there are eight), `random`, or a
+    relative turn; `face_to` takes a `@` term. The old single `face` was polymorphic — the
+    examples used `toward` for an actor and `direction` for a vector, in the same arg slot —
+    which is exactly the ambiguity two commands remove.
+
+    **Turns are named by handedness: `turn_cw`, `turn_ccw`, `turn_180`.** Not degrees,
+    because a `turn_cw` is 90° in game 1 and 45° in game 2, so any number in the name would
+    be wrong in one of the two games.
+42. ~~The round and the step pulse.~~ ✅ **Struck from the design**, not deferred. Speed
+    classes and `credit` go with them, which leaves **`speed` with exactly one meaning
+    everywhere**: world units per second. The `100` / `200` values on pages and routes in the
+    examples are therefore not a second unit system, just wrong numbers.
+
+    What this cost in code was nothing, which is itself the argument: `RULES["pulse"]`,
+    `RULES["round"]`, `suppresses_pulse()`, `rounds_active()` and
+    `GameProfile.Capability.STEP_PULSE` were **all uncalled outside a test**. What survives is
+    `EventBus.actor_stepped` and its three siblings — a step is still a published moment, it
+    is just no longer a clock — and `InputIntent.lock_step`, whose only caller will be stage
+    C's exclusive slot. Questions 6–10 keep their numbers with a superseded note; "what drives
+    a monster" is now open question 46.
+43. ~~What is a `"//"` key?~~ ✅ **A comment.** Preserved verbatim through a parse/stringify
+    round trip and ignored semantically, so the editor cannot eat an author's notes —
+    [slime_a.event.json](events/slime_a.event.json) already uses four of them.
+44. ~~What can trigger an event?~~ ✅ **Seven triggers.** `player_touch` (the player moves
+    into the event's cell, or onto it when the event is through-passable), `event_touch` (the
+    event moves into the player), `action` (the interact button, facing it or standing on a
+    through event), `auto` (exclusive or parallel), `on_load`, `leave_cell`, `on_flag`.
+
+    The last three were added on top of the first four because each covers a case that would
+    otherwise need a workaround: an opening cutscene without `on_load` is an `auto` page that
+    immediately sets a self flag to stop repeating; a pressure plate that releases needs
+    `leave_cell`; and an event reacting to something happening elsewhere on the map needs
+    `on_flag`, which falls out of the condition subscription page selection already requires.
+    The old `ActorStepped` trigger is gone with the pulse (42); `"trigger": "touch"` in the
+    examples normalises to `player_touch`.
+45. ~~Where are routes edited?~~ ✅ **A Routes panel plus a viewport gizmo.** The panel lists
+    every `res://events/routes/*.route.json` with its **user count** — dragging one guard's
+    handle moves all six, and the author has to know that before the drag, not after — and
+    edits the selected route as a step list or a waypoint table. The gizmo drags whichever
+    route the selected `GameEvent` is using, inline or shared. One place to browse, one place
+    to drag, and it keeps the event dock's file-is-the-truth model rather than adding a second
+    source.

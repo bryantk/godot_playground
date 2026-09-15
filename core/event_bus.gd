@@ -65,13 +65,17 @@ signal command_finished(key: String)
 # 2026-09-14: publishes_pulse is deleted, actor_stepped always fires, and cell_entered
 # is deleted because actor_stepped now does its job.
 #
-# What this means for "does event-driven movement drive the monsters" (question 9),
-# which the old gate used to answer at the emitter: that question did not go away, it
-# moved. EventBus stays a dumb hub with no state (architecture.md 7.7), so the answer
-# now lives in whatever listens for AI purposes - a future StepResponder checks
-# ModeStack.rounds_active() / suppresses_pulse() itself before reacting, the same way a
-# HUD or music cue simply never needed to check it at all. One signal, and the consumer
-# decides what it means to it - not the emitter deciding for every consumer at once.
+# What this meant for "does event-driven movement drive the monsters" (question 9),
+# which the old gate answered at the emitter: that question did not go away, it moved -
+# and then, on 2026-09-14, the thing it was going to move to was struck as well. The
+# round gate, the step pulse and speed classes are all gone from the design (question
+# 42), so there is no StepResponder to check anything, and "what drives a monster" is
+# open question 46 rather than something this file has an opinion about.
+#
+# What survives is the rule that made the gate removable in the first place: EventBus
+# is a dumb hub with no state (architecture.md 7.7), one signal per moment, and the
+# consumer decides what the moment means to it - rather than the emitter deciding for
+# every consumer at once. Whatever answers 46 will be a listener like any other.
 
 ## A committed step. Fired once per cell entered, at commit time - which is step
 ## [i]start[/i], since the body is authoritative and snaps to the destination

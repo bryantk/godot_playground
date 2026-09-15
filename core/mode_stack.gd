@@ -2,18 +2,17 @@ extends Node
 
 ## Who has control. Autoloaded as [code]ModeStack[/code].
 ##
-## This exists in stage A rather than stage F for two reasons. Game 1's battle is a
-## separate scene that keeps the field map resident, so a Battle mode is a
-## prerequisite for game 1 being playable at all. And there were three independent
-## answers to "is input locked" on paper - the round gate, the input target stack, and
-## the event scheduler's exclusive slot - which is one too many to leave unarbitrated.
+## This exists in stage A rather than stage F because game 1's battle is a separate
+## scene that keeps the field map resident, so a Battle mode is a prerequisite for game
+## 1 being playable at all.
 ##
-## The failure that made this urgent: the player steps onto a cell, the round opens, a
-## cell trigger takes the exclusive slot and puts up dialogue, and a round gate running
-## underneath it holds [code]InputIntent.step[/code] against a runner that is
-## legitimately waiting on the player. Everything below is one mechanism so that cannot
-## happen. (There is no watchdog - question 8 was cut on 2026-09-13, so nothing
-## force-closes a round on a timer.)
+## [b]It was also the arbiter between three answers to "is input locked".[/b] Two of
+## those three are gone: the round gate and the step pulse were struck from the design
+## on 2026-09-14 (question 42), so what remains is the input target stack and the event
+## scheduler's exclusive slot, and the mode stack is what keeps those two agreeing.
+## [member InputIntent.lock_step] survives the round that invented it - an exclusive
+## cutscene still has to stop the player walking off - and the exclusive slot will be
+## its only caller.
 
 enum Mode { FIELD, CUTSCENE, BATTLE, MENU }
 
@@ -21,13 +20,17 @@ signal mode_pushed(mode: Mode)
 signal mode_popped(mode: Mode)
 signal mode_changed(mode: Mode)
 
-## What each mode does. Read by the step pulse, the round gate, [FreeMotion] and
-## whoever owns input - rather than each of them keeping its own idea.
+## What each mode does. Read by [FreeMotion], [GridMotion] and whoever owns input -
+## rather than each of them keeping its own idea.
+##
+## [b]Two keys were removed on 2026-09-14[/b] (question 42): [code]pulse[/code] and
+## [code]round[/code], along with the step pulse and the round gate they described.
+## Neither had a caller. What is left is what is actually read.
 const RULES: Dictionary = {
-	Mode.FIELD:    {"pulse": true,  "physics": true,  "keeps_map": true,  "round": true},
-	Mode.CUTSCENE: {"pulse": false, "physics": true,  "keeps_map": true,  "round": false},
-	Mode.BATTLE:   {"pulse": false, "physics": true,  "keeps_map": true,  "round": false},
-	Mode.MENU:     {"pulse": false, "physics": false, "keeps_map": true,  "round": false},
+	Mode.FIELD:    {"physics": true,  "keeps_map": true},
+	Mode.CUTSCENE: {"physics": true,  "keeps_map": true},
+	Mode.BATTLE:   {"physics": true,  "keeps_map": true},
+	Mode.MENU:     {"physics": false, "keeps_map": true},
 }
 
 var _stack: Array[Mode] = [Mode.FIELD]
@@ -72,11 +75,6 @@ func reset() -> void:
 
 # -- What the current mode allows ---------------------------------------------
 
-## Suppressed outside FIELD, so a cutscene that walks the player past monsters does
-## not drive them. A move command may still opt in with [code]pulse: true[/code].
-func suppresses_pulse() -> bool:
-	return not bool(RULES[current()]["pulse"])
-
 
 func pauses_physics() -> bool:
 	return not bool(RULES[current()]["physics"])
@@ -84,10 +82,3 @@ func pauses_physics() -> bool:
 
 func keeps_map_loaded() -> bool:
 	return bool(RULES[current()]["keeps_map"])
-
-
-## The answer to question 27. The round gate only holds in a mode that has rounds.
-## Everywhere else the exclusive runner owns input, and no gate may sit underneath it
-## holding a step against a legitimate wait.
-func rounds_active() -> bool:
-	return bool(RULES[current()]["round"])
