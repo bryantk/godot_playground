@@ -21,7 +21,7 @@ extends Node2D
 ## [Passability] asks both cells of every step. It starts empty, which reads as open
 ## ground everywhere - see [method Passability.directions].
 ##
-## Controls: WASD/arrows step, Shift+direction turns in place, . wait a step,
+## Controls: WASD/arrows step, Shift runs, Q+direction turns in place, . wait a step,
 ## 1 pathing overlay, Esc back.
 
 const TILE := 16
@@ -65,7 +65,7 @@ func _process(_delta: float) -> void:
 			_steps, ctx.occupancy.size(), TILE],
 		"sides open here: %s" % _sides(ctx),
 		"",
-		"WASD/arrows step   Shift+dir turn   . wait",
+		"WASD/arrows step   Shift run   Q+dir turn   . wait",
 		"1 pathing overlay: %s   Esc back" % ["on" if _pathing.visible else "OFF"],
 	])
 

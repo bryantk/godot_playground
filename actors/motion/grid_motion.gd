@@ -49,6 +49,7 @@ var _step_key: String = ""
 var _queue: Array[Vector3i] = []
 var _route_key: String = ""
 var _step_intent: Vector3i = Vector3i.ZERO
+var _run_scale: float = 1.0
 
 ## The step in flight, and how much of it is left, in cells: 1 at commit, 0 at settle.
 ## The sprite's offset is this fraction of [member _step_back], so the remaining distance
@@ -106,6 +107,26 @@ func set_step_intent(dir: Vector3i) -> void:
 	_step_intent = dir
 
 
+## A run, as a multiplier on this actor's speed. Set per frame by [Brain] from
+## [member InputIntent.run]; 1.0 is a walk.
+##
+## [b]A grid run is a shorter step, not a longer one.[/b] A step always crosses exactly
+## one cell - that is the invariant the whole controller is built on - so the only thing
+## a run can change is how long the crossing takes. It therefore goes in beside
+## [member MotionController.speed] and the zone modifiers rather than anywhere near the
+## distance, and [method step_duration] answers with it included.
+##
+## [b]It applies to the player's own steps, not to a commanded route.[/b] A [code]
+## move_to[/code] in flight runs at the command's speed whatever the player is leaning
+## on - see [method _process].
+##
+## Read fresh every frame like everything else here, so letting go of the key halfway
+## across a cell slows the rest of that cell rather than the next one. Same reason the
+## remaining distance is the state and the elapsed time is not.
+func set_run_scale(scale: float) -> void:
+	_run_scale = maxf(0.0, scale)
+
+
 ## How long one step takes. A step always crosses exactly one cell, so compensation
 ## cannot change the distance - it shortens the [i]time[/i] instead, which comes to the
 ## same screen pixels per second. At pitch 30 with full compensation a north step takes
@@ -119,8 +140,20 @@ func set_step_intent(dir: Vector3i) -> void:
 ## step in flight is advanced frame by frame in [method _process] and re-reads the scale
 ## every frame, so a modifier that arrives mid-cell changes the step this returned a
 ## duration for.
+## The run multiplier, or 1.0 while a commanded route is in flight - a [code]move_to[/code]
+## crosses its cells at the speed the command asked for, not at the speed the player
+## happens to be holding down.
+##
+## [b]Known limit:[/b] a single scripted [method step] carries no route key, so a cutscene
+## that nudges the player one cell while they lean on the run key crosses that one cell
+## fast. One cell, once, and the alternative is the brain having to know whether anything
+## else is driving its actor - which is the coupling [Brain] exists to avoid.
+func _step_rate_scale() -> float:
+	return 1.0 if _route_key != "" else _run_scale
+
+
 func step_duration(dir: Vector3i = Vector3i.ZERO) -> float:
-	var base := 1.0 / maxf(0.01, speed * speed_scale(Vector3(dir)))
+	var base := 1.0 / maxf(0.01, speed * _step_rate_scale() * speed_scale(Vector3(dir)))
 	if dir == Vector3i.ZERO:
 		return base
 	var d := Vector3(dir)
@@ -398,7 +431,7 @@ func _process(delta: float) -> void:
 	# long as the flat step beside it, and a fall - which is horizontally zero - would
 	# divide by zero in the compensation below.
 	var d := Space.flatten(Vector3(_step_to - _step_from))
-	var rate := maxf(0.0, speed) * speed_scale(d)
+	var rate := maxf(0.0, speed) * _step_rate_scale() * speed_scale(d)
 	if d.length_squared() > 0.0:
 		# The same depth compensation the nominal duration uses, re-read each frame
 		# because the camera's yaw stop can change mid-step.

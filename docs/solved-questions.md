@@ -362,7 +362,8 @@ yet written. `Occupancy`, `Passability`, `Actor` and `GridMotion` all change.*
 
     **Release is `jump`.** `GridMotion.jump` currently does nothing but warn that jump needs
     free motion — the action is already bound and dead in a grid game, so letting go costs no
-    new binding in either profile. Same trick as `turn_in_place` sharing Shift with `run`.
+    new binding in either profile. The same trick `turn_in_place` used to play with Shift and
+    `run`, before game 1 gained a run of its own on 2026-09-14 and turning moved to Q.
 
     **Release ignores `max_fall_cells`.** Letting go is a deliberate act, so it drops however
     far the column goes. This keeps the limit meaning exactly one thing — *may this actor

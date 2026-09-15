@@ -66,7 +66,7 @@ func _check_brains(ctx: MapContext, player: Actor) -> void:
 	_ok(idle.cell() == was_idle, "the brainless NPC stayed put")
 
 
-## Shift plus a direction turns to face it and takes no step. Held, not tapped: there is
+## Q plus a direction turns to face it and takes no step. Held, not tapped: there is
 ## no grace timer left to race, so this is a plain press-and-check.
 func _check_turn(player: Actor, dir_action: String) -> void:
 	var cell := player.cell()
@@ -76,7 +76,7 @@ func _check_turn(player: Actor, dir_action: String) -> void:
 	for i in 10:
 		await get_tree().process_frame
 
-	_ok(player.facing() != before, "Shift+direction turned (%s -> %s)" % [
+	_ok(player.facing() != before, "Q+direction turned (%s -> %s)" % [
 		before, player.facing()])
 	_ok(player.cell() == cell, "turning in place changed no cell")
 
@@ -175,6 +175,29 @@ func _top_speed(player: Actor, walk: String, modifier: String, from: Vector3) ->
 	return best
 
 
+## What one step in [param dir] would take right now, with [param modifier] held.
+##
+## Read from [method GridMotion.step_duration] rather than timed with a stopwatch, and
+## deliberately: a step is 167 ms at the default speed, so a timed crossing measures the
+## process frame it happened to settle on about as much as it measures the cadence. The
+## key is pressed for real and a frame is allowed to pass, so the brain has actually run
+## and the number reflects the whole chain rather than a field set by the test.
+func _step_cadence(player: Actor, dir: Vector3i, modifier: String) -> float:
+	if modifier != "":
+		Input.action_press(modifier)
+	for i in 3:
+		await get_tree().process_frame
+
+	var grid := player.motion() as GridMotion
+	var out := grid.step_duration(dir) if grid != null else 0.0
+
+	if modifier != "":
+		Input.action_release(modifier)
+	for i in 3:
+		await get_tree().process_frame
+	return out
+
+
 func _check(path: String, label: String, walk: String, grid: bool) -> void:
 	print("  -- %s" % label)
 	var demo := (load(path) as PackedScene).instantiate()
@@ -251,7 +274,20 @@ func _check(path: String, label: String, walk: String, grid: bool) -> void:
 	# the brain multiplied the direction vector by it and FreeMotion.set_intent quantised
 	# that vector on the next line, normalising the magnitude off. Every unit test of the
 	# field's value would have passed while the player walked.
-	if not grid:
+	if grid:
+		# A grid run shortens the step rather than lengthening it, so the thing to check
+		# is the cadence. Asked through the real input path - press the key, let the
+		# brain's _process see it - so this covers the binding, PlayerBrain, Brain and
+		# GridMotion, everything the free-motion check covers except the frame-by-frame
+		# advance, which reads the same _step_rate_scale() the duration does.
+		var dir := player.facing()
+		var walk_step := await _step_cadence(player, dir, "")
+		var run_step := await _step_cadence(player, dir, "run")
+		_ok(run_step < walk_step * 0.8,
+			"holding run shortens the step (%.0f -> %.0f ms, %.2fx)"
+				% [walk_step * 1000.0, run_step * 1000.0,
+					walk_step / maxf(run_step, 0.0001)])
+	else:
 		var from := player.world_position()
 		var walk_speed := await _top_speed(player, walk, "", from)
 		var run_speed := await _top_speed(player, walk, "run", from)

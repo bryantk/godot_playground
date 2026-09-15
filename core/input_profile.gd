@@ -20,7 +20,7 @@ class_name InputProfile extends Resource
 ## where screen up should always mean world north.
 @export var view_relative: bool = true
 
-## Turning in place is a held modifier - the [code]turn_in_place[/code] action, Shift -
+## Turning in place is a held modifier - the [code]turn_in_place[/code] action, Q -
 ## rather than a tap under a grace timer, so there is nothing to tune here.
 ##
 ## [b]Why the tap went.[/b] A tap-versus-hold rule makes the first frames of every step
