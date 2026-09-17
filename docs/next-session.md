@@ -9,10 +9,45 @@ work queue; [open-questions.md](open-questions.md) is what is still undecided,
 
 ## Start here tomorrow
 
-**Segment 6 of [stage-c-plan.md](stage-c-plan.md): `EventScheduler` policy, `GameEvent`, and
-the seven triggers.** Segments 0–4 are built, tested (`tests/event_runner_test.gd`, 20
-assertions) and committed (`b244ac4`), on top of the four motion-key defects (`e81e38b`) and
-questions 48–52's planning session (`5d344ef`). All nine suites are green.
+**Segment 7 of [stage-c-plan.md](stage-c-plan.md): routes compile to commands.** Segments
+0–6 are built, tested and committed — segment 6 (`273066e`) added `tests/event_scheduler_test.gd`
+(33 assertions), on top of segment 4 (`b244ac4`), the four motion-key defects (`e81e38b`) and
+questions 48–52's planning session (`5d344ef`). All ten suites are green.
+
+### What segment 6 actually built
+
+`EventScheduler` gained actor leases (`try_lease`/`release_lease` — a patrol and a cutscene
+cannot both drive one guard), `EventRunner.keeps_running` as the waterfall opt-out from
+"background suspends while exclusive is held", and a test-only `reset_for_test()`.
+
+`events/game_event.gd` is new: owns a document, evaluates the active page via
+`EventDocument.active_page`, applies its art through `ActorView.apply_art`, registers its cell
+with `MapContext`, and starts a runner through `EventScheduler` when one of the seven triggers
+fires — `player_touch`/`event_touch`/`leave_cell` off `actor_stepped`, `action` off a new
+`EventBus.player_interacted` (`Brain` now actually reads `InputIntent.interact`, which nothing
+consumed before this), `on_load`/`auto` at `_ready()`, `on_flag` off `GameState.changed`. A page
+switch defers to graph completion (question 23); `re_validate` is **not** wired to force one
+early yet — still segment 4's generic no-op fallback.
+
+**Fixed the `apply_art` defect the plan named**, and it was worse than described: both
+`SpriteView2D` and `SpriteView3D` only ever looked for an `AnimatedSprite2D`/`3D` and did
+nothing for a `SpriteSheet`/`SpriteSheet3D` visual — which is **every actor prefab this project
+ships**, so `apply_art` was a complete no-op in both demos before this. Both now read
+`"sheet"` (a texture path) for the sheet-driven visual alongside the existing `"frames"` (a
+`SpriteFrames` path); 2D also reads `"directions"`/`"idle"`, silently ignored before.
+
+`PlayerBrain` now calls `intent.lock_step(not ModeStack.is_field())` — segment 0's `lock_step`
+hook finally has a caller.
+
+**Wired into both demo scenes, confirmed by hand**: an NPC with no brain (`Npc_17_9` in
+`jrpg_demo`, `Event__1` in `isoish_grid_demo`) gets a `GameEvent` with an action-triggered
+`face_to`/`say` graph and reconciled sheet art, at `res://events/<map_id>/<event_id>.event.json`
+— the real-event layout the plan calls for, distinct from `docs/events/`, which stays
+documentation-only.
+
+**Left for later, unchanged from segment 4**: `follow`, `close_window`, `fade`, `shake`,
+`camera_to`, `camera_follow`, `play_anim`, `play_sound`, `play_music`, `start_battle` still have
+no executor; `change_map` is still a named placeholder with no real map loader behind it.
 
 ### What segment 4 actually built, and what it deliberately left unbuilt
 
@@ -113,11 +148,11 @@ for the shape it ended up taking and where it deliberately stopped. The resumabi
 or have no committed side effects before then) are designed for but not yet exercised —
 segment 5 is what will actually call `capture()`/`restore()` on anything.
 
-**Run the full suite before starting segment 6**, to confirm nothing upstream drifted:
+**Run the full suite before starting segment 7**, to confirm nothing upstream drifted:
 
 ```bash
 GODOT="/c/Users/kyle/Desktop/Godot_v4.7-stable_win64_console.exe"
-for t in stage_a areas demo_scenes height event_command actor_naming event_condition event_document event_runner; do
+for t in stage_a areas demo_scenes height event_command actor_naming event_condition event_document event_runner event_scheduler; do
   timeout 110 "$GODOT" --headless --path . res://tests/${t}_test.tscn
 done
 ```
@@ -173,12 +208,12 @@ silently stripped every `command`, `args`, `blocking`, `key` and `flows` in the 
 
 ```bash
 GODOT="/c/Users/kyle/Desktop/Godot_v4.7-stable_win64_console.exe"
-for t in stage_a areas demo_scenes height event_command actor_naming event_condition event_document event_runner; do
+for t in stage_a areas demo_scenes height event_command actor_naming event_condition event_document event_runner event_scheduler; do
   timeout 110 "$GODOT" --headless --path . res://tests/${t}_test.tscn
 done
 ```
 
-**779 assertions, all green** as of the last commit (231+31+147+112+71+107+60+20, plus
+**812 assertions, all green** as of the last commit (231+31+147+112+71+107+60+20+33, plus
 demo_scenes' unnumbered checks). Godot is not on PATH; use the
 `_console` build or a headless run prints nothing.
 
