@@ -51,6 +51,18 @@ var _route_key: String = ""
 var _step_intent: Vector3i = Vector3i.ZERO
 var _run_scale: float = 1.0
 
+## The key minted for the step [method step] just committed, if any - kept past the
+## point [member _step_key] itself is cleared. A viewless actor settles synchronously
+## inside [method _commit_step], which clears [member _step_key] before [method step]
+## returns, so that field alone cannot be read by a caller. This one is not cleared on
+## settle, only re-armed at the start of the next [method step_keyed] call, so it
+## survives exactly the window a caller needs it for.
+var _last_step_key: String = ""
+
+## The key for a fall started by [method jump] releasing a ladder - "" for a fall paid
+## out from an ordinary step off a ledge, which nothing awaits.
+var _fall_key: String = ""
+
 ## The step in flight, and how much of it is left, in cells: 1 at commit, 0 at settle.
 ## The sprite's offset is this fraction of [member _step_back], so the remaining distance
 ## is the state and the elapsed time is not - which is what lets the speed change mid-cell.
@@ -211,6 +223,17 @@ func step(dir: Vector3i) -> bool:
 	return true
 
 
+## Like [method step], but returns the key for the step just taken instead of a bare
+## bool - "" if it was refused. What makes a stepped route joinable: [method step]'s own
+## key is unobtainable once a viewless actor has already settled synchronously inside
+## this call, and a route compiles to exactly this call per cell (segment 7).
+func step_keyed(dir: Vector3i) -> String:
+	_last_step_key = ""
+	if not step(dir):
+		return ""
+	return _last_step_key
+
+
 ## Walk to [param cell]. Straight-line-then-stop: the actor takes single steps toward
 ## the target and stops when one is refused. [code]path: "astar"[/code] is accepted in
 ## the schema and not yet implemented, so adding it later is not a format change.
@@ -236,9 +259,13 @@ func move_to(cell: Vector3i, opts: Dictionary = {}) -> String:
 	_queue = _line_to(cell)
 	_route_key = _next_key("move")
 	if _queue.is_empty():
-		EventBus.command_finished.emit(_route_key)
+		# Deferred, not emitted here: a caller that does `key = move_to(...); await
+		# wait_for_command(key)` has not connected to the key yet at the point this
+		# returns it, so emitting inline would resolve a key nothing is listening for
+		# yet and the await would hang forever.
 		var done := _route_key
 		_route_key = ""
+		EventBus.command_finished.emit.call_deferred(done)
 		return done
 
 	_advance()
@@ -262,6 +289,17 @@ func cancel() -> void:
 		var key := _route_key
 		_route_key = ""
 		EventBus.command_finished.emit(key)
+	# Orphaned otherwise: a step in flight has a key of its own, distinct from the
+	# route's, and a cutscene seizing the actor mid-step used to leave it outstanding
+	# forever - a permanently unresolved join for whatever was waiting on it.
+	if _step_key != "":
+		var skey := _step_key
+		_step_key = ""
+		EventBus.command_finished.emit(skey)
+	if _fall_key != "":
+		var fkey := _fall_key
+		_fall_key = ""
+		EventBus.command_finished.emit(fkey)
 
 
 ## Dead in a grid game, with one exception: [b]on a ladder, jump is the release[/b]
@@ -277,10 +315,16 @@ func jump(_strength: float) -> String:
 		if drop > 0:
 			_falling = drop
 			_fall_begun = false
+			var key := _next_key("fall")
+			_fall_key = key
 			# Announced like any other fall, but never delayed. fall_delay is the hang
 			# an actor does after walking off something by accident; letting go of a
-			# ladder is the one fall that was asked for, and it drops at once.
+			# ladder is the one fall that was asked for, and it drops at once. For a
+			# viewless actor this settles synchronously and may already have resolved
+			# and cleared _fall_key before this returns - key is read from the local,
+			# not the field, so the caller gets it either way.
 			_begin_fall(ctx, false)
+			return key
 		return ""
 
 	push_warning("GridMotion('%s'): jump needs free motion." % _actor.actor_id if _actor != null else "?")
@@ -315,6 +359,7 @@ func _commit_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> void:
 
 	_moving = true
 	_step_key = _next_key("step")
+	_last_step_key = _step_key
 
 	# 3. actor_stepped, at commit rather than at settle, so monsters move *with* the
 	#    player rather than a beat behind - for whichever listener chooses to act on it.
@@ -492,6 +537,14 @@ func _settle() -> void:
 				_begin_fall(ctx)
 			return
 		_falling = 0
+
+	# The fall is over - resolved here rather than where it started, because a fall is
+	# paid out one settle at a time and this is the settle that did not find another
+	# cell to drop. A jump-started fall is the only kind with a key to resolve.
+	if _fall_key != "":
+		var fkey := _fall_key
+		_fall_key = ""
+		EventBus.command_finished.emit(fkey)
 
 	# A route in progress owns the actor, so it wins over whatever is holding a
 	# direction - otherwise player input would steer an actor mid-cutscene.
