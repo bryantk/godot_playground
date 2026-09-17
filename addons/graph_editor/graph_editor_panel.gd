@@ -1673,18 +1673,16 @@ func _map_event_dir(map_root: Node) -> String:
 	var map_id := scene_path.get_file().get_basename() if scene_path != "" else "map"
 	return "res://events/%s" % map_id
 
-## Where a newly-linked actor's event file goes, under [method _map_event_dir].
-## [param actor]'s id names the file when it has one; an unnamed actor falls back to
-## its node name, same as [method ActorNaming]'s own fallback reasoning.
-func _default_event_path(actor: Actor) -> String:
+## Where a newly-linked actor's or event's file goes, under [method _map_event_dir].
+## [param event_id] names the file - [member Actor.actor_id] (falling back to the node
+## name) for an actor, [method GameEvent.event_id] for an event.
+func _default_event_path(event_id: String) -> String:
 	var map_root := EditorInterface.get_edited_scene_root()
-	var event_id := String(actor.actor_id) if actor.actor_id != &"" else actor.name
 	return "%s/%s.event.json" % [_map_event_dir(map_root), event_id]
 
-## Loads the selected actor's event file into the graph, wiring [member Actor.event_path]
-## to a default location first if it has none, and creating an empty-but-valid file if
-## nothing is there yet - so linking a brand new actor opens straight into an empty
-## graph instead of a file-not-found error.
+## Loads the selected actor's event file into the graph - the toolbar's own "Load Actor
+## Event" menu item, which reads the editor's current selection rather than taking a
+## node directly (see [method _selected_actor]).
 func _on_load_actor_event() -> void:
 	if not _live():
 		return
@@ -1695,16 +1693,50 @@ func _on_load_actor_event() -> void:
 			_status_color(false))
 		return
 
+	open_or_create_actor_event(actor)
+
+## Opens [param actor]'s event file in the graph, wiring [member Actor.event_path] to a
+## default location first if it has none, and creating an empty-but-valid file if
+## nothing is there yet - so linking a brand new actor opens straight into an empty
+## graph instead of a file-not-found error.
+##
+## Public and takes the node directly, unlike [method _on_load_actor_event]: the
+## inspector button [code]actor_event_inspector.gd[/code] adds calls this for whichever
+## [Actor] its own inspector is showing, which is not necessarily the current scene
+## selection the toolbar menu reads.
+func open_or_create_actor_event(actor: Actor) -> void:
+	if not _live() or actor == null:
+		return
+
 	if actor.event_path == "":
-		actor.event_path = _default_event_path(actor)
+		var event_id := String(actor.actor_id) if actor.actor_id != &"" else actor.name
+		actor.event_path = _default_event_path(event_id)
 		if EditorInterface.has_method("mark_scene_as_unsaved"):
 			EditorInterface.mark_scene_as_unsaved()
 
-	if not FileAccess.file_exists(actor.event_path):
-		if not _create_empty_event_file(actor.event_path):
-			return
+	_open_or_create(actor.event_path)
 
-	_load(actor.event_path)
+## The [GameEvent] equivalent of [method open_or_create_actor_event] - its own
+## [member GameEvent.document_path], defaulting to its own [method GameEvent.event_id]
+## the same way an actor's file defaults to its [member Actor.actor_id].
+func open_or_create_game_event(event: GameEvent) -> void:
+	if not _live() or event == null:
+		return
+
+	if event.document_path == "":
+		event.document_path = _default_event_path(String(event.event_id()))
+		if EditorInterface.has_method("mark_scene_as_unsaved"):
+			EditorInterface.mark_scene_as_unsaved()
+
+	_open_or_create(event.document_path)
+
+## Shared tail of both methods above: create an empty-but-valid file there if nothing
+## exists yet, then load it into the graph.
+func _open_or_create(path: String) -> void:
+	if not FileAccess.file_exists(path):
+		if not _create_empty_event_file(path):
+			return
+	_load(path)
 
 ## An empty [code][][/code] - the bare-array shorthand [method _load] already accepts
 ## for a one-page graph - written to [param path], making its parent folder first.

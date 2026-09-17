@@ -11,15 +11,25 @@ extends EditorPlugin
 ## same graphs.
 
 const PanelScript := preload("res://addons/graph_editor/graph_editor_panel.gd")
+const InspectorScript := preload("res://addons/graph_editor/actor_event_inspector.gd")
 
 var _panel: Control = null
 var _button: Button = null
+var _inspector: EditorInspectorPlugin = null
 
 func _enter_tree() -> void:
 	_panel = PanelScript.new()
 	_button = add_control_to_bottom_panel(_panel, "Graph")
 
+	_inspector = InspectorScript.new()
+	_inspector.setup(_panel, func() -> void: make_bottom_panel_item_visible(_panel))
+	add_inspector_plugin(_inspector)
+
 func _exit_tree() -> void:
+	if _inspector != null:
+		remove_inspector_plugin(_inspector)
+		_inspector = null
+
 	if _panel == null:
 		return
 
