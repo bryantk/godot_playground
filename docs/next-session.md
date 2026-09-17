@@ -9,21 +9,52 @@ work queue; [open-questions.md](open-questions.md) is what is still undecided,
 
 ## Start here tomorrow
 
-**Segment 4 of [stage-c-plan.md](stage-c-plan.md): the runner core.** Segments 0–3 are built,
-tested and committed. Between segment 3 and segment 4, this session also did the editor/schema
-work below (question 47), and a later session (2026-09-17) planned segment 4's shape in real
-detail before writing it — questions 48–52 in `solved-questions.md`, superseding 12, plus 53
-parked open. None of that later session's design changed any already-committed file except
-`actors/motion/grid_motion.gd`; see below.
+**Segment 6 of [stage-c-plan.md](stage-c-plan.md): `EventScheduler` policy, `GameEvent`, and
+the seven triggers.** Segments 0–4 are built, tested (`tests/event_runner_test.gd`, 20
+assertions) and committed (`b244ac4`), on top of the four motion-key defects (`e81e38b`) and
+questions 48–52's planning session (`5d344ef`). All nine suites are green.
 
-**The four motion-key defects are already fixed, uncommitted**
-(`actors/motion/grid_motion.gd`, 2026-09-17) — done first since nothing else in segment 4 can
-be tested without them: `step_keyed(dir) -> String` beside `step()`, backed by `_last_step_key`;
-`move_to`'s empty-queue emit deferred past the point it returns its key; `jump` mints and
-returns a `_fall_key`, resolved when the fall lands; `cancel()` now resolves `_step_key` and
-`_fall_key` alongside `_route_key`. All eight existing suites still pass green with these in.
-**Run them again before building on top, and commit them first** — they're a clean, isolated
-diff and shouldn't get tangled into the runner's own commit.
+### What segment 4 actually built, and what it deliberately left unbuilt
+
+`events/event_context.gd`, `events/key_latch.gd`, `events/event_command_exec.gd` (the executor
+interface), `events/commands/*.gd`, `events/event_runner.gd`, `core/event_scheduler.gd` (the
+fifth autoload — clock only, no leases/triggers yet) and `core/debug_flags.gd` (question 48),
+plus a small registry revision to `events/event_command.gd`: `change_map`'s `flows` is now
+`["next"]` and a new `exit_call` entry exists (question 49/51).
+
+**`EventRunner` is iterative, not recursive** — a trampoline loop (`_drive`), because the first
+draft called `_enter_node`/`_advance`/`_pop_frame` back and forth and a goto cycle ran the node
+budget a thousand real GDScript call frames deep before it ever tripped, throwing engine-level
+"Stack underflow" errors. Worth remembering for anything that walks a graph: bound the *call
+stack depth*, not just the iteration count, or the guard you wrote is not the thing that stops
+it.
+
+**A `call` frame popping must resume the caller's own `call` node, not just vanish** — the
+first draft of `exit_call`/`end` popped a frame and left the frame beneath sitting on its
+unresolved `call` node, which the trampoline re-entered and pushed right back: an infinite loop
+disguised as a cycle. `_pop_frame()` now always cascades into `_advance_cursor` on whatever is
+exposed beneath, which is what actually resumes the caller at `call`'s own `next`.
+
+**A fifth motion-key defect, found while wiring `move_by` into an executor:**
+`GridMotion.move_to`'s non-empty-queue path read `_route_key` *after* calling `_advance()`,
+which can itself walk the whole queue to completion synchronously for a viewless actor and
+clear that same field as part of emitting it — so the method returned `""` for a route that
+had, in fact, already resolved a real key. Same family as the four fixed before segment 4
+started; fixed the same way (read into a local before the call that might race it).
+
+**Left unbuilt, deliberately, with no executor and a fallback to report-and-carry-on:**
+`follow`, `close_window`, `fade`, `shake`, `camera_to`, `camera_follow`, `play_anim`,
+`play_sound`, `play_music`, `start_battle` — each needs a subsystem that doesn't exist yet
+(a background/lease system, a force-close hook, a camera rig hookup for events, an animation
+hookup, an audio subsystem, a battle scene). None of the five worked examples' *tested* paths
+need them; `cliff_jump.event.json` uses `camera_to`/`camera_follow` and is not exercised
+end-to-end by the current suite because of it — worth building a real executor for those two
+before that example is anyone's regression test.
+
+**`change_map`'s executor is a named placeholder, not the real thing.** It warns once and
+resolves immediately; the actual map load, and the `EventContext` rebind that goes with it
+(question 51), need a map loader that doesn't exist yet. The registry shape (`"next"` port) is
+already right for whenever that lands.
 
 ### Editor and schema work — the `start` node (question 47, `docs/solved-questions.md`)
 
@@ -76,42 +107,17 @@ empty). The start node cannot be deleted or duplicated (`_on_delete_nodes_reques
 `_on_duplicate_nodes_request` both skip it), has no input slot (nothing may flow into where
 execution begins), and is always green rather than blocking-red.
 
-**What's left to build in segment 4**, now that the motion-key defects are done — see the
-plan's Segment 4 section for the full detail on each:
+Segment 4 is now built exactly along those lines — see "What segment 4 actually built" above
+for the shape it ended up taking and where it deliberately stopped. The resumability rules
+(restart is always a legal downgrade; a restart command must finish inside the tick it starts
+or have no committed side effects before then) are designed for but not yet exercised —
+segment 5 is what will actually call `capture()`/`restore()` on anything.
 
-- `events/event_context.gd` — identity (`map_id`/`event_id`, fixed for the runner's life,
-  never reassigned by a `call` or a `change_map`) split from a live `MapContext` reference
-  (rebound only on `change_map` completion, question 51); `resolve()` for `@`-refs;
-  `condition_ctx()` feeding both `EventDocument.active_page()` and a running `if`/`eval` node
-  from one function.
-- `core/debug_flags.gd` (question 48) — `DebugFlags.is_fast_forward()`, held on backtick,
-  read directly off `Input` rather than through `InputManager`'s owned-input stack, plus a
-  `force_fast_forward` override for the test suite.
-- `events/key_latch.gd` — one per runner, catches a key resolved synchronously inside
-  `start()` (every headless test actor is viewless) without a mirror `EventBus` signal.
-- `events/event_command_exec.gd` and `events/commands/*.gd` — the executor interface
-  (`start()`, `tick(delta) -> Status`, `flow_port()`, `cancel()`, `resumable()`/`capture()`/
-  `restore()`), with every blocking `RESUME_STATE` executor checking `DebugFlags` at the top
-  of its own `tick()` per question 48.
-- `events/event_runner.gd` — walks a page's graph node by node, owns a `KeyLatch`, and now
-  also owns a **call stack** (question 49): `call` clones its target graph and pushes a
-  `{nodes, cursor}` frame rather than spawning a second runner; `exit_call` (new registry
-  entry, no args, no flow ports) pops the most-nested frame early.
-- `core/event_scheduler.gd` — the fifth autoload; also, per question 51, the **owner of the
-  exclusive runner's reference** once it acquires the slot, so a `GameEvent`'s map unloading
-  can't destroy a runner still mid-chain across a `change_map`.
-- A small registry revision to already-built `events/event_command.gd`: `change_map`'s
-  `"flows"` becomes `["next"]` (was `[]`), and a new `exit_call` entry.
-
-See the plan for the resumability rules — restart is always a legal downgrade, and a restart
-command must finish inside the tick it starts or have no committed side effects before then.
-
-**Run the full suite before starting**, including `event_document`, to confirm nothing
-upstream drifted:
+**Run the full suite before starting segment 6**, to confirm nothing upstream drifted:
 
 ```bash
 GODOT="/c/Users/kyle/Desktop/Godot_v4.7-stable_win64_console.exe"
-for t in stage_a areas demo_scenes height event_command actor_naming event_condition event_document; do
+for t in stage_a areas demo_scenes height event_command actor_naming event_condition event_document event_runner; do
   timeout 110 "$GODOT" --headless --path . res://tests/${t}_test.tscn
 done
 ```
@@ -167,12 +173,12 @@ silently stripped every `command`, `args`, `blocking`, `key` and `flows` in the 
 
 ```bash
 GODOT="/c/Users/kyle/Desktop/Godot_v4.7-stable_win64_console.exe"
-for t in stage_a areas demo_scenes height event_command actor_naming event_condition event_document; do
+for t in stage_a areas demo_scenes height event_command actor_naming event_condition event_document event_runner; do
   timeout 110 "$GODOT" --headless --path . res://tests/${t}_test.tscn
 done
 ```
 
-**753 assertions, all green** as of the last commit (231+31+147+105+71+107+61, plus
+**779 assertions, all green** as of the last commit (231+31+147+112+71+107+60+20, plus
 demo_scenes' unnumbered checks). Godot is not on PATH; use the
 `_console` build or a headless run prints nothing.
 
