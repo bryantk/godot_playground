@@ -1682,7 +1682,10 @@ func _default_event_path(event_id: String) -> String:
 
 ## Loads the selected actor's event file into the graph - the toolbar's own "Load Actor
 ## Event" menu item, which reads the editor's current selection rather than taking a
-## node directly (see [method _selected_actor]).
+## node directly (see [method _selected_actor]). An [Actor] carries no document path of
+## its own (that is [GameEvent]'s business); this finds the [GameEvent] sibling
+## [method GameEvent._find_actor]'s own fallback expects, creating one there first if
+## none exists yet.
 func _on_load_actor_event() -> void:
 	if not _live():
 		return
@@ -1693,32 +1696,47 @@ func _on_load_actor_event() -> void:
 			_status_color(false))
 		return
 
-	open_or_create_actor_event(actor)
+	open_or_create_game_event(find_or_create_game_event_for_actor(actor))
 
-## Opens [param actor]'s event file in the graph, wiring [member Actor.event_path] to a
-## default location first if it has none, and creating an empty-but-valid file if
-## nothing is there yet - so linking a brand new actor opens straight into an empty
-## graph instead of a file-not-found error.
-##
-## Public and takes the node directly, unlike [method _on_load_actor_event]: the
-## inspector button [code]actor_event_inspector.gd[/code] adds calls this for whichever
-## [Actor] its own inspector is showing, which is not necessarily the current scene
-## selection the toolbar menu reads.
-func open_or_create_actor_event(actor: Actor) -> void:
-	if not _live() or actor == null:
-		return
+## The [GameEvent] already sitting beside [param actor] - a sibling under the same
+## parent, which is the shape [method GameEvent._find_actor]'s own fallback checks for
+## an actor prefab that predates having one - or null if there is none yet.
+func _sibling_game_event(actor: Actor) -> GameEvent:
+	var parent := actor.get_parent() if actor != null else null
+	if parent == null:
+		return null
+	for child in parent.get_children():
+		if child is GameEvent:
+			return child
+	return null
 
-	if actor.event_path == "":
-		var event_id := String(actor.actor_id) if actor.actor_id != &"" else actor.name
-		actor.event_path = _default_event_path(event_id)
+## [method _sibling_game_event], creating one there if none exists yet. Named after the
+## actor's own identity ([member Actor.actor_id], falling back to its node name) so its
+## default event file ([method open_or_create_game_event]) keeps the name an author
+## already associates with this actor, rather than every auto-created GameEvent
+## defaulting to the same generic filename. Never returns null for a non-null
+## [param actor]: a fresh GameEvent always lands as a sibling in the same parent.
+func find_or_create_game_event_for_actor(actor: Actor) -> GameEvent:
+	var existing := _sibling_game_event(actor)
+	if existing != null:
+		return existing
+
+	var event := GameEvent.new()
+	event.name = String(actor.actor_id) if actor.actor_id != &"" else actor.name
+
+	var parent := actor.get_parent()
+	if parent != null:
+		parent.add_child(event)
+		event.owner = EditorInterface.get_edited_scene_root()
 		if EditorInterface.has_method("mark_scene_as_unsaved"):
 			EditorInterface.mark_scene_as_unsaved()
 
-	_open_or_create(actor.event_path)
+	return event
 
-## The [GameEvent] equivalent of [method open_or_create_actor_event] - its own
-## [member GameEvent.document_path], defaulting to its own [method GameEvent.event_id]
-## the same way an actor's file defaults to its [member Actor.actor_id].
+## Opens [param event]'s document in the graph, wiring [member GameEvent.document_path]
+## to a default location first if it has none, and creating an empty-but-valid file if
+## nothing is there yet - so a brand new event opens straight into an empty graph
+## instead of a file-not-found error.
 func open_or_create_game_event(event: GameEvent) -> void:
 	if not _live() or event == null:
 		return
@@ -1774,8 +1792,10 @@ func _on_delete_actor() -> void:
 		return
 
 	var archived_path := ""
-	if actor.event_path != "" and FileAccess.file_exists(actor.event_path):
-		archived_path = _archive_event_file(actor.event_path)
+	var sibling_event := _sibling_game_event(actor)
+	if sibling_event != null and sibling_event.document_path != "" \
+			and FileAccess.file_exists(sibling_event.document_path):
+		archived_path = _archive_event_file(sibling_event.document_path)
 
 	var node := ActorNaming.placement_root(actor)
 	var node_name := node.name
@@ -1835,8 +1855,23 @@ func _event_files_in(dir_path: String) -> Array[String]:
 	dir.list_dir_end()
 	return found
 
-## Finds every event file under the edited scene's map folder that no [Actor] in the
-## scene points at, and asks - through [member _orphan_dialog] - whether to archive
+## Every [GameEvent] under [param root], recursively - the [method
+## ActorNaming.actors_under] equivalent for events, since nothing else in the project
+## needs one yet.
+func _game_events_under(root: Node) -> Array[GameEvent]:
+	var found: Array[GameEvent] = []
+	if root != null:
+		_collect_game_events(root, found)
+	return found
+
+func _collect_game_events(node: Node, into: Array[GameEvent]) -> void:
+	if node is GameEvent:
+		into.append(node as GameEvent)
+	for child in node.get_children():
+		_collect_game_events(child, into)
+
+## Finds every event file under the edited scene's map folder that no [GameEvent] in
+## the scene points at, and asks - through [member _orphan_dialog] - whether to archive
 ## them. Nothing is moved here; [method _on_orphan_dialog_confirmed] does that, only if
 ## the author confirms.
 func _on_find_orphaned_events() -> void:
@@ -1849,9 +1884,9 @@ func _on_find_orphaned_events() -> void:
 		return
 
 	var used := {}
-	for actor in ActorNaming.actors_under(map_root):
-		if actor.event_path != "":
-			used[actor.event_path] = true
+	for event in _game_events_under(map_root):
+		if event.document_path != "":
+			used[event.document_path] = true
 
 	var map_dir := _map_event_dir(map_root)
 	var orphans: Array[String] = []
