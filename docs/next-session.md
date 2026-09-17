@@ -9,11 +9,21 @@ work queue; [open-questions.md](open-questions.md) is what is still undecided,
 
 ## Start here tomorrow
 
-**Segment 4 of [stage-c-plan.md](stage-c-plan.md): the runner core, and four motion-key
-defects.** Segments 0–3 are built, tested and committed. Between segment 3 and segment 4,
-this session also did the editor/schema work below (question 47) — not part of the plan's
-numbered segments, but load-bearing for segment 4's runner, which now has an explicit entry
-point to start from.
+**Segment 4 of [stage-c-plan.md](stage-c-plan.md): the runner core.** Segments 0–3 are built,
+tested and committed. Between segment 3 and segment 4, this session also did the editor/schema
+work below (question 47), and a later session (2026-09-17) planned segment 4's shape in real
+detail before writing it — questions 48–52 in `solved-questions.md`, superseding 12, plus 53
+parked open. None of that later session's design changed any already-committed file except
+`actors/motion/grid_motion.gd`; see below.
+
+**The four motion-key defects are already fixed, uncommitted**
+(`actors/motion/grid_motion.gd`, 2026-09-17) — done first since nothing else in segment 4 can
+be tested without them: `step_keyed(dir) -> String` beside `step()`, backed by `_last_step_key`;
+`move_to`'s empty-queue emit deferred past the point it returns its key; `jump` mints and
+returns a `_fall_key`, resolved when the fall lands; `cancel()` now resolves `_step_key` and
+`_fall_key` alongside `_route_key`. All eight existing suites still pass green with these in.
+**Run them again before building on top, and commit them first** — they're a clean, isolated
+diff and shouldn't get tangled into the runner's own commit.
 
 ### Editor and schema work — the `start` node (question 47, `docs/solved-questions.md`)
 
@@ -66,13 +76,35 @@ empty). The start node cannot be deleted or duplicated (`_on_delete_nodes_reques
 `_on_duplicate_nodes_request` both skip it), has no input slot (nothing may flow into where
 execution begins), and is always green rather than blocking-red.
 
-Segment 4 needs `event_runner.gd`, `event_command_exec.gd`, `key_latch.gd`,
-`event_context.gd`, `events/commands/*.gd` and `core/event_scheduler.gd`, plus the four
-named motion-key fixes in `actors/motion/*.gd` (unobtainable step keys, an emit-before-
-return race in `move_to`, `jump` never returning a fall key, and `cancel()` orphaning
-`_step_key`). See the plan for the executor interface and the resumability rules —
-restart is always a legal downgrade, and a restart command must finish inside the tick
-it starts or have no committed side effects before then.
+**What's left to build in segment 4**, now that the motion-key defects are done — see the
+plan's Segment 4 section for the full detail on each:
+
+- `events/event_context.gd` — identity (`map_id`/`event_id`, fixed for the runner's life,
+  never reassigned by a `call` or a `change_map`) split from a live `MapContext` reference
+  (rebound only on `change_map` completion, question 51); `resolve()` for `@`-refs;
+  `condition_ctx()` feeding both `EventDocument.active_page()` and a running `if`/`eval` node
+  from one function.
+- `core/debug_flags.gd` (question 48) — `DebugFlags.is_fast_forward()`, held on backtick,
+  read directly off `Input` rather than through `InputManager`'s owned-input stack, plus a
+  `force_fast_forward` override for the test suite.
+- `events/key_latch.gd` — one per runner, catches a key resolved synchronously inside
+  `start()` (every headless test actor is viewless) without a mirror `EventBus` signal.
+- `events/event_command_exec.gd` and `events/commands/*.gd` — the executor interface
+  (`start()`, `tick(delta) -> Status`, `flow_port()`, `cancel()`, `resumable()`/`capture()`/
+  `restore()`), with every blocking `RESUME_STATE` executor checking `DebugFlags` at the top
+  of its own `tick()` per question 48.
+- `events/event_runner.gd` — walks a page's graph node by node, owns a `KeyLatch`, and now
+  also owns a **call stack** (question 49): `call` clones its target graph and pushes a
+  `{nodes, cursor}` frame rather than spawning a second runner; `exit_call` (new registry
+  entry, no args, no flow ports) pops the most-nested frame early.
+- `core/event_scheduler.gd` — the fifth autoload; also, per question 51, the **owner of the
+  exclusive runner's reference** once it acquires the slot, so a `GameEvent`'s map unloading
+  can't destroy a runner still mid-chain across a `change_map`.
+- A small registry revision to already-built `events/event_command.gd`: `change_map`'s
+  `"flows"` becomes `["next"]` (was `[]`), and a new `exit_call` entry.
+
+See the plan for the resumability rules — restart is always a legal downgrade, and a restart
+command must finish inside the tick it starts or have no committed side effects before then.
 
 **Run the full suite before starting**, including `event_document`, to confirm nothing
 upstream drifted:

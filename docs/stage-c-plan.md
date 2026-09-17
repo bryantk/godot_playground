@@ -67,6 +67,28 @@ route compilation, the runner or the save format.
 
 ---
 
+## Decisions taken while planning segment 4 in detail, 2026-09-17
+
+Recorded in [solved-questions.md](solved-questions.md) as questions 48–52, superseding 12.
+None of segment 4's code exists yet — these are additions to the shape it will take, worked
+out before writing it rather than discovered midway through.
+
+| # | Decision |
+| --- | --- |
+| 48 | **A debug fast-forward flag**, held on backtick (`DebugFlags.is_fast_forward()`). Every blocking `RESUME_STATE` command collapses to its end state on its first tick when held; `GridMotion` and the dialogue window read the same flag themselves since they aren't `tick()`-shaped. |
+| 49 | **`call` clones its target graph and runs it as a frame on the runner's own call stack** — not a shared reference, not a second runner. `EventContext` identity (`map_id`/`event_id`, so self flags) never changes across a `call`. New command `exit_call` pops the most-nested frame early. Supersedes 12's "own context with `parent_context`." |
+| 50 | **Page `conditions` accepts the same string form `if` already has**, both compiling through `EventCondition.parse_expression` to the one tree. |
+| 51 | **An exclusive runner can survive a `change_map` and keep running on the destination map.** `change_map` gains a `next` port (was terminal). The exclusive runner is owned by `EventScheduler` itself once it holds the slot, not by the `GameEvent`/`Actor` that spawned it, so a map unload can't destroy it. `EventContext` splits fixed identity from a live `MapContext` reference, rebound on arrival; actor refs re-resolve fresh by role. The arriving map's own `on_load`/background start-up is never gated on the traveling runner. |
+| 52 | **A background route's pause/resume point is carried on the `Actor`** (`suspended_route: Dictionary`), not the runner or the scheduler — segment 5a's restart-vs-resume rule, applied to a route's own identity hash instead of a whole document's. |
+
+**53 is open, not answered — parked in [open-questions.md](open-questions.md).** A raw
+`Expression`-evaluated condition leaf and graph node (`eval`), for logic the structured tree
+can't express. Leaning toward a read-only `State` facade bound into the expression rather than
+the live `GameState` autoload, and an author-supplied `watch` list for the keys the tree side
+gets for free — neither is decided.
+
+---
+
 ## Segment 0 — strike the round
 
 **Files:** two-games.md, solved-questions.md, architecture.md, `core/mode_stack.gd`,
@@ -186,6 +208,12 @@ for the data-loss bug; a bare array reads as one page; page priority picks the r
 set of flags; the unreachable-page warning fires; `//` keys survive; a malformed page is
 repaired and reported rather than rejected.
 
+**Pending small addition (question 50), not yet built:** `EventDocument`'s page-conditions
+reader should accept a bare string alongside the structured array, routed through
+`EventCondition.parse_expression` — the exact grammar `if` already has, just usable at the page
+level too. **Parked, not built (question 53):** a raw `Expression`-evaluated `eval` leaf/node,
+for logic outside that grammar entirely — see [open-questions.md](open-questions.md).
+
 ---
 
 ## Segment 4 — the runner core, and four motion-key defects
@@ -220,7 +248,54 @@ every headless test actor is viewless — is already latched by the first `tick`
 signal is added to `EventBus`: the project's rule is one moment, one signal, and the consumer
 decides what it means. The latch is the consumer deciding.
 
-**Four defects block the runner and are fixed here.** The invariant they violate is the one
+**`EventContext` (question 49, 51) is what a runner carries instead of reaching for globals
+piecemeal.** `GameState` (flags, vars) needs no threading at all — it is a global autoload,
+read directly by any executor or condition. What does need to travel is everything that
+isn't global:
+
+- **Identity** — `map_id`, `event_id`, fixed at the moment a runner first acquires the
+  exclusive slot (or is created for a background/ambient trigger) and never reassigned after,
+  including across a `call` (49) or a `change_map` (51, segment 6). Every `self_flag` read or
+  written for the life of this runner resolves against this identity, not whatever document or
+  map happens to be executing at the time.
+- **A live reference** — the current `MapContext`, for `@`-resolution and cell lookups. Fixed
+  for an ordinary runner; rebound exactly once, on `change_map` completion, for a runner that
+  survives a map change (51).
+- `resolve(ref: String) -> Actor` for `@player`/`@self`/`@npc_x`, and `condition_ctx() ->
+  Dictionary` producing the exact `{map:, event:, has_item:, party_has:}` shape
+  `EventCondition.evaluate`/`keys` already expect — one function feeding both a page's
+  `active_page()` check and a running `if`/`eval` node, so the two can never disagree about
+  what "self" means.
+
+**`call` (question 49) runs inline: one runner, a call stack, not a second runner.** On a
+`call` node, the runner loads the target `EventDocument`, resolves its `active_page(ctx)`
+once, and takes a **deep copy** of that page's node array as a new `{nodes, cursor}` frame
+pushed onto its own stack — the original parsed document is never aliased or mutated by
+execution, so two actors calling into the same shared subroutine each get a private copy.
+Reaching that frame's `end` pops back to the call site's own `next` port; the new command
+**`exit_call`** (no args, no flow ports) pops the most-nested frame early from anywhere inside
+it, and behaves like `end` when there is no frame to pop. `EventContext` is untouched by any of
+this — self flags inside a called graph always belong to whoever originally triggered the
+runner. A call-depth guard is a separate, smaller counter from the `goto`/node-budget one, so a
+call cycle (A calls B calls A) is reported as that, not as a generic budget overrun.
+
+**A debug fast-forward flag (question 48), read the same way `ModeStack.pauses_physics()` is —
+by the consumer, not pushed at it.** `DebugFlags.is_fast_forward()`, held on backtick,
+independent of `InputManager`'s owned-input stack since it has to keep working precisely when
+nothing owns input (mid-cutscene, mid-dialogue). Every blocking `RESUME_STATE` executor
+(`fade`, `shake`, `camera_to`, `camera_follow`, `play_anim`, `say`/`ask`/`close_window`, `wait`)
+checks it at the top of `tick()` and collapses to its own end state on that tick if held —
+a `fade` snaps to `to`, a `camera_to` snaps to its target cell, `play_anim` seeks to its last
+frame where the visual can seek deterministically and otherwise just stops blocking. `wait`
+has no end state to preserve, so it simply finishes. `GridMotion` and the dialogue window
+aren't `tick()`-shaped, so they read the flag themselves — a route under fast-forward still
+commits and settles every cell (occupancy, `actor_stepped`, every moment a monster would
+otherwise see), just with zero tween time per cell, and the dialogue window reveals text
+instantly and auto-advances anything that isn't a real choice.
+
+**Four defects block the runner, and are already fixed** (`actors/motion/grid_motion.gd`,
+uncommitted as of 2026-09-17 — done ahead of the rest of segment 4 since nothing else in this
+segment can be tested without them). The invariant they violate is the one
 two-games.md §3.1 stated when it cut the watchdog: *every command that can hold the gate must
 resolve its completion key on every path out, including failure and cancellation.* With no
 watchdog, a swallowed key is a permanently soft-locked game that still animates.
@@ -263,6 +338,18 @@ and wiring, never `title` or `position`**, which are explicitly editor bookkeepi
 bytes would invalidate every save in the game the first time someone drags a node two pixels. A
 hash mismatch **restarts the runner from its entry** rather than dropping it: re-running a
 cutscene is recoverable, skipping one can leave a flag unset and a door shut forever.
+
+**Consequence of question 49 (`call` clones and stacks):** a runner captured mid-`call` has to
+serialise its **whole frame stack** — each frame's document reference, its cloned node array,
+and its cursor — not just the top one. The clone means a restore cannot just reload the
+document and replay from `start`; the cloned copy *is* what was running, and a hash mismatch on
+any one frame restarts only that frame from its own entry, not the whole stack.
+
+**Consequence of question 51 (an exclusive runner can outlive a map):** the save envelope for
+such a runner records its **identity** (`map_id`/`event_id`, question 49/51's fixed fields), not
+the live `MapContext` it happens to be pointed at — the live reference is never saved, since it
+is always re-derived by loading whichever map the identity says is current and rebinding, the
+same rebind a real `change_map` does at runtime.
 
 **5b — mid-command resume.** `to_save()`/`from_save()` on both motion controllers, on `Actor`
 and on `ActorView`, plus the restore ordering.
@@ -311,6 +398,24 @@ and no brain left suspended.
   runners, actor leases so a patrol and a cutscene cannot fight over one guard, and background
   suspension while exclusive is held with a per-runner `keeps_running` opt-out for the
   waterfall case.
+- **The exclusive slot's runner is owned by `EventScheduler` itself (question 51), not by
+  whichever `GameEvent`/`Actor` spawned it.** The moment a runner acquires the slot, the
+  scheduler takes and holds its own reference for as long as it holds the slot — a
+  `GameEvent` is a child of the map scene it's placed on, so if it (or the `Actor`) stayed the
+  thing keeping the `RefCounted` runner alive, the runner would be destroyed the instant its
+  map unloads, whatever its graph still had left to do. Background/ambient runners keep the
+  old, map-scoped ownership; this is exclusive-only.
+- **`change_map` gets a `next` port** (`"flows": ["next"]`, a small revision to segment 1's
+  already-built registry — was `[]`). Its executor stays busy across the actual map load and
+  resolves onto `next` once the destination is ready, same as any other multi-tick blocking
+  command. On completion it rebinds `EventContext`'s live `MapContext` reference (identity —
+  `map_id`/`event_id` — is untouched, per question 51) and re-resolves every `@`-reference the
+  rest of the chain needs fresh, by role, against the new map — `@player` looked up again
+  rather than a stale node pointer carried over, which is correct whether the player's `Actor`
+  turns out to persist across a load or gets respawned fresh each time (not yet decided; no
+  map loader exists yet to decide it). Nothing on the new map waits for this runner to finish:
+  `on_load`, `GameEvent` registration and background/ambient start-up proceed on their own
+  schedule regardless.
 - `GameEvent` per event-pages.md §4.3: owns the document path, evaluates pages, applies art on
   switch, registers cells with `MapContext.add_event_at` (which already exists).
 - **The seven triggers (decision 44):** `player_touch` (player moves into the event's cell, or
@@ -357,6 +462,16 @@ command stream the runner already executes, and runs as a background runner.
   released. There is no separate "route bookmark": interruption and saving are one path, which
   is the thing to get right, because two-games.md §3.10 names route progress as one of the two
   things easiest to lose and latest to notice.
+- **The resume point is carried on `Actor`, not the runner or the scheduler (question 52).**
+  `Actor.suspended_route: Dictionary` is written from `capture()` at the moment a lease seizes
+  it, alongside a hash of the route's own compiled command stream (segment 5a's `doc_hash`
+  idea, at route granularity) — and the background runner is discarded. On release, a matching
+  hash resumes verbatim via `restore()`; a mismatch (a different route assigned, or the route
+  file changed while the lease was held) restarts from the route's own beginning instead, same
+  "restart is always a legal downgrade" rule as 5a. Carried on the actor because it's what
+  everything else, including the save envelope, already treats as authoritative — whatever
+  later drives that actor, a fresh `RouteBrain` or a reload from disk, finds its resume point
+  by reading the actor rather than needing a back-channel to whatever used to own the route.
 - Shared routes at `res://events/routes/<name>.route.json`, referenced `{"use": "patrol_ns"}`,
   **resolved at parse** so the in-memory page never holds a `use` string. A missing target is a
   validator error — otherwise it reads in-game as a monster that simply stands still, the

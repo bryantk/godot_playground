@@ -4,18 +4,21 @@ Every **unresolved** decision from [architecture.md](architecture.md),
 [two-games.md](two-games.md) and [event-pages.md](event-pages.md), gathered here.
 Assembled 2026-09-07.
 
-## One question is open
+## Two questions are open
 
 **Question 46 — what drives a monster?** Opened 2026-09-14, deferred the same day.
+**Question 53 — the `eval` leaf/node's binding and subscription shape.** Opened 2026-09-17,
+parked the same day while planning segment 4 in detail.
 
-Every other numbered question is answered; all 45 live in
-[solved-questions.md](solved-questions.md) with their reasoning. This file emptied entirely
-that morning when question 16 closed cluster 4, and re-opened that afternoon when planning
-stage C struck the step pulse (question 42) and left a hole where game 1's monster timing
-used to be.
+Every other numbered question is answered — 50 of the 52 asked so far — and live in
+[solved-questions.md](solved-questions.md) with their reasoning (questions 48–52 were added
+and answered the same day 53 was opened, while planning segment 4 — see
+[stage-c-plan.md](stage-c-plan.md)). This file emptied entirely on 2026-09-14 when question 16
+closed cluster 4, and re-opened that afternoon when planning stage C struck the step pulse
+(question 42) and left a hole where game 1's monster timing used to be.
 
 The numbering rules still govern everything asked from here on. **The next question asked is
-47.** Numbers are never reused and never renumbered, so "question 27" in a commit message or
+54.** Numbers are never reused and never renumbered, so "question 27" in a commit message or
 a docstring still finds exactly one thing. A question added here takes the next number, gets
 a recommendation, and moves to [solved-questions.md](solved-questions.md) the moment it is
 answered — keeping its number, and keeping the reasoning so the decision is not re-argued.
@@ -58,11 +61,47 @@ answered — keeping its number, and keeping the reasoning so the decision is no
 
 ---
 
+## Cluster 12 — The `eval` escape hatch 🟡
+
+*Blocks: nothing in segment 4 as scoped — `eval` is additive, not on the path any existing
+worked example needs. Wanted before an author reaches for logic the structured condition tree
+can't express.*
+
+53. **`eval` — a raw `Expression`-evaluated condition leaf and graph node, for logic outside
+    the structured tree's grammar entirely** (e.g. `"chapter * 2 + State.gold > 200"`).
+    Opened and parked 2026-09-17 while planning segment 4 — Kyle's call to resolve the shape
+    later rather than now, leaning toward the recommendation below rather than deciding it.
+
+    Confirmed already: it composes with `all`/`any`/`not` as a leaf (`{"eval": "..."}"`) and
+    also exists as a standalone graph node mirroring `if`'s two-port shape, both backed by one
+    execution function using Godot's real `Expression` class — deliberately not the hand-rolled
+    tokenizer question 16 built, since the whole point is arithmetic and method calls the
+    structured grammar doesn't have.
+
+    **Not yet decided:**
+    - **What `State` binds to inside the expression.** Leaning toward a small read-only facade
+      (`_get(property)` proxying to `GameState.var_get`) rather than the live `GameState`
+      autoload itself, so a condition can't reach a mutating method — but exposing the full
+      autoload (flags, self flags, everything) is the more powerful alternative and hasn't been
+      ruled out.
+    - **How it answers `keys()`.** An `eval` string can't be statically analysed for what it
+      reads the way a structured leaf can. Leaning toward an optional, author-supplied `watch`
+      list (`{"eval": "...", "watch": ["chapter", "gold"]}`) — absent means the condition
+      contributes no subscription keys, with a parse-time warning, the same "absent means
+      false, and says so once" pattern `item`/`party_has` already use.
+    - **Validation depth.** Only a syntax check (`Expression.parse()` succeeds) seems honest —
+      no manifest cross-check the way `var`/`flag` leaves get, since the expression can
+      reference arbitrary properties a manifest can't enumerate. Not yet confirmed as the final
+      word on it.
+
+---
+
 Build stages referenced in both files are two-games.md §4.3: **A** shared spine, **B** game 1
 slice, **C** event system, **D** game 2, **E** saves/battle/modes. Stage A is built and green,
 and stage C is being built now to [stage-c-plan.md](stage-c-plan.md). **Nothing gates stage B
-or C** — 46 is wanted before game 1 has a monster worth fighting, and nothing sooner.
-[next-session.md](next-session.md) is the work queue; solved-questions.md is only the record.
+or C** — 46 is wanted before game 1 has a monster worth fighting, 53 before an author needs
+`eval`'s expressive power, and nothing sooner. [next-session.md](next-session.md) is the work
+queue; solved-questions.md is only the record.
 
 ---
 
