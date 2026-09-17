@@ -1,0 +1,37 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Texture2D" uid="uid://dn8h81c1yph03" path="res://resources/test/plant.png" id="1_tex"]
+[ext_resource type="Script" path="res://core/grid_obstacle.gd" id="2_obstacle"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1"]
+size = Vector3(0.6, 0.6, 0.6)
+
+[node name="Plant" type="StaticBody3D"]
+script = ExtResource("2_obstacle")
+through = true
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+shape = SubResource("BoxShape3D_1")
+
+[node name="SpriteA" type="Sprite3D" parent="."]
+rotation_degrees = Vector3(0, 45, 0)
+texture = ExtResource("1_tex")
+centered = true
+offset = Vector2(0, 16)
+pixel_size = 0.03125
+billboard = 0
+shaded = false
+alpha_cut = 1
+double_sided = true
+
+[node name="SpriteB" type="Sprite3D" parent="."]
+rotation_degrees = Vector3(0, -45, 0)
+texture = ExtResource("1_tex")
+centered = true
+offset = Vector2(0, 16)
+pixel_size = 0.03125
+billboard = 0
+shaded = false
+alpha_cut = 1
+double_sided = true

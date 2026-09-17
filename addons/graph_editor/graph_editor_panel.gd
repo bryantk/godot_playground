@@ -17,6 +17,12 @@ extends VBoxContainer
 ##   of ports may point at the same node;
 ## - a node's ports come from its command ([method EventCommand.flows_of]), not from
 ##   anything this panel lets an author add or remove directly.
+##
+## [b]The page inspector, left of the graph[/b], is the exception to "the graph is the
+## document": art, speed, route and conditions belong to the page (event-pages.md §2),
+## not to any node, so there is nothing on screen to read them back from at save time.
+## Each field writes straight into [member _doc]'s current page as it changes instead -
+## see [method _build_page_inspector].
 
 const Doc := preload("res://addons/graph_editor/graph_document.gd")
 const EventDoc := preload("res://events/event_document.gd")
@@ -24,11 +30,13 @@ const EventDoc := preload("res://events/event_document.gd")
 const METADATA_SECTION := "graph_editor"
 const METADATA_PATH_KEY := "last_file"
 
-## Name of the first row of a graph node - the one carrying the input port and the
-## title field. Output rows follow it, so an output's port index is its child index
-## minus one, which is what keeps ports and connections lined up.
-const HEAD_ROW := "Head"
-const OUT_ROW_PREFIX := "Out"
+## Items behind the toolbar's dropdowns, grouped by what they act on rather than left
+## as one long row of buttons. The enum values double as [PopupMenu] item ids, so a
+## dropdown's [signal PopupMenu.id_pressed] handler can [code]match[/code] on them
+## directly instead of comparing against the label text.
+enum FileAction { NEW, OPEN, RELOAD, SAVE }
+enum GraphAction { ADD_COMMAND, ARRANGE, VALIDATE, VIEW_JSON }
+enum ActorAction { LOAD_EVENT, DELETE_ACTOR, FIND_ORPHANS }
 
 ## Where a node dropped by the Add button lands, before the offset below spreads
 ## repeated presses out instead of stacking them.
@@ -38,15 +46,6 @@ const ADD_STEP := Vector2(40, 30)
 ## Where an auto-added start node lands - left of [constant ADD_POSITION], since it is
 ## conventionally the leftmost node in a graph read left to right.
 const _START_POSITION := Vector2(-160, 80)
-
-## A blocking node's [member GraphNode.self_modulate] - a tint on the whole node, panel
-## included, since [GraphNode] has no simpler "colour the background" knob than that.
-const _BLOCKING_COLOR := Color(1.0, 0.55, 0.55)
-
-## [constant EventCommand.START_COMMAND]'s colour, always - it overrides
-## [constant _BLOCKING_COLOR] rather than combining with it, so the one node every graph
-## has exactly one of stays visually distinct from an ordinary blocking command.
-const _START_COLOR := Color(0.55, 1.0, 0.55)
 
 var _path := ""
 var _dirty := false
@@ -66,13 +65,55 @@ var _wrapped := false
 var _current_page := 0
 
 var _graph: GraphEdit
+## The last node an "Add Command" press created, for [method _chain_from_node] to
+## fall back on when nothing is selected - cleared whenever the graph is rebuilt from
+## data ([method _clear]), since a node from a page or file no longer showing must
+## never be auto-wired into a new one.
+var _last_spawned: GraphNode = null
 var _title: Label
 var _page_selector: OptionButton
 var _results: ItemList
 var _status: Label
-var _save_button: Button
-var _reload_button: Button
+## The File dropdown - kept, unlike the others, because [method _refresh_title]
+## enables and disables its Save and Reload items.
+var _file_menu: MenuButton
+## Quick-access save, beside [member _file_menu] rather than buried in it - enabled
+## and disabled in step with the dropdown's own Save item, by [method _refresh_title].
+var _save_icon_button: Button
 var _file_dialog: EditorFileDialog
+
+## The panel to the left of the graph - page data no node carries: art, speed, route
+## and conditions. See [method _build_page_inspector] and [method _load_page_inspector].
+var _art_picker: EditorResourcePicker
+var _speed_spin: SpinBox
+var _conditions_list: VBoxContainer
+## Toggled between "Edit Route" and "Back to Graph" - see [method _on_route_button_pressed].
+var _route_button: Button
+## True while [member _graph] is showing the current page's [code]route[/code] instead
+## of its [code]graph[/code] - both are node arrays [method _load_page] can point the
+## same [GraphEdit] at, so editing a route needs no editor of its own.
+var _editing_route := false
+
+## The type-to-search popup [method _open_command_picker] shows - see
+## [method _build_command_picker].
+var _command_picker: PopupPanel
+var _command_search: LineEdit
+var _command_list: ItemList
+
+## Where [method _on_command_picked] lands the next node - a real graph position when
+## the picker was opened by right-clicking the canvas ([method _on_popup_request]), or
+## [constant Vector2.INF] to fall back to [method _spawn_node]'s own incrementing
+## default when it was opened from the toolbar instead, which has no click to go by.
+var _spawn_position := Vector2.INF
+
+## The confirmation popup [method _on_find_orphaned_events] shows - see
+## [method _build_orphan_dialog].
+var _orphan_dialog: ConfirmationDialog
+var _orphan_list: ItemList
+## What [method _on_orphan_dialog_confirmed] archives - set by
+## [method _on_find_orphaned_events] just before the dialog pops up, since a
+## [ConfirmationDialog]'s [signal confirmed] carries no argument of its own.
+var _pending_orphans: Array[String] = []
 
 func _init() -> void:
 	name = "Graph"
@@ -103,14 +144,30 @@ func _bind() -> bool:
 		_build_ui()
 		return true
 
-	_graph = get_node_or_null(^"Graph") as GraphEdit
-	_title = get_node_or_null(^"Title") as Label
+	_graph = get_node_or_null(^"Body/Graph") as GraphEdit
+	_title = get_node_or_null(^"Toolbar/Title") as Label
 	_page_selector = get_node_or_null(^"Toolbar/PageSelector") as OptionButton
 	_results = get_node_or_null(^"Results") as ItemList
 	_status = get_node_or_null(^"Status") as Label
-	_save_button = get_node_or_null(^"Toolbar/Save") as Button
-	_reload_button = get_node_or_null(^"Toolbar/Reload") as Button
+	_file_menu = get_node_or_null(^"Toolbar/File") as MenuButton
+	_save_icon_button = get_node_or_null(^"Toolbar/SaveIcon") as Button
 	_file_dialog = get_node_or_null(^"FileDialog") as EditorFileDialog
+
+	_art_picker = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/ArtSheet") as EditorResourcePicker
+	_speed_spin = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/Speed") as SpinBox
+	_conditions_list = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/Conditions") as VBoxContainer
+	_route_button = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/Edit Route") as Button
+
+	_command_picker = get_node_or_null(^"CommandPicker") as PopupPanel
+	_command_search = get_node_or_null(^"CommandPicker/Box/CommandSearch") as LineEdit
+	_command_list = get_node_or_null(^"CommandPicker/Box/CommandList") as ItemList
+
+	_orphan_dialog = get_node_or_null(^"OrphanDialog") as ConfirmationDialog
+	_orphan_list = get_node_or_null(^"OrphanDialog/OrphanList") as ItemList
 
 	if is_instance_valid(_graph):
 		# The path lives in project metadata as well as in _path precisely so that it
@@ -143,12 +200,24 @@ func _build_ui() -> void:
 	toolbar.name = "Toolbar"
 	add_child(toolbar)
 
-	toolbar.add_child(_make_button("New", _new_document))
-	toolbar.add_child(_make_button("Open", _open))
-	_reload_button = _make_button("Reload", _reload)
-	toolbar.add_child(_reload_button)
-	_save_button = _make_button("Save", _save)
-	toolbar.add_child(_save_button)
+	_file_menu = _make_menu_button("File", [
+		[FileAction.NEW, "New"],
+		[FileAction.OPEN, "Open"],
+		[FileAction.RELOAD, "Reload"],
+		[FileAction.SAVE, "Save"],
+	], _on_file_menu_id_pressed)
+	toolbar.add_child(_file_menu)
+
+	# A one-click save beside the dropdown rather than only inside it - Save is common
+	# enough to earn a permanent spot, the same reasoning the editor's own save icon in
+	# its main toolbar follows.
+	_save_icon_button = Button.new()
+	_save_icon_button.name = "SaveIcon"
+	_save_icon_button.flat = true
+	_save_icon_button.tooltip_text = "Save"
+	_save_icon_button.icon = EditorInterface.get_editor_theme().get_icon(&"Save", &"EditorIcons")
+	_save_icon_button.pressed.connect(_save)
+	toolbar.add_child(_save_icon_button)
 
 	_title = Label.new()
 	_title.name = "Title"
@@ -167,12 +236,29 @@ func _build_ui() -> void:
 	_page_selector.visible = false
 	toolbar.add_child(_page_selector)
 
-	toolbar.add_child(_make_button("Add Node", _add_node))
-	toolbar.add_child(_make_button("Arrange", _arrange))
-	toolbar.add_child(_make_button("Validate", _validate))
+	toolbar.add_child(_make_menu_button("Graph", [
+		[GraphAction.ADD_COMMAND, "Add Command"],
+		[GraphAction.ARRANGE, "Arrange"],
+		[GraphAction.VALIDATE, "Validate"],
+		[GraphAction.VIEW_JSON, "View JSON"],
+	], _on_graph_menu_id_pressed))
+
+	toolbar.add_child(_make_menu_button("Actor", [
+		[ActorAction.LOAD_EVENT, "Load Actor Event"],
+		[ActorAction.DELETE_ACTOR, "Delete Actor"],
+		[ActorAction.FIND_ORPHANS, "Find Orphaned Events"],
+	], _on_actor_menu_id_pressed))
+
+	var body := HBoxContainer.new()
+	body.name = "Body"
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	add_child(body)
+
+	body.add_child(_build_page_inspector())
 
 	_graph = GraphEdit.new()
 	_graph.name = "Graph"
+	_graph.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_graph.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_graph.custom_minimum_size = Vector2(0, 260)
 	_graph.show_grid = true
@@ -183,6 +269,8 @@ func _build_ui() -> void:
 	_graph.disconnection_request.connect(_on_disconnection_request)
 	_graph.delete_nodes_request.connect(_on_delete_nodes_request)
 	_graph.duplicate_nodes_request.connect(_on_duplicate_nodes_request)
+	# Right-click (or the context-menu key) opens the same command picker "Add
+	# Command" does - see _on_popup_request().
 	_graph.popup_request.connect(_on_popup_request)
 	# Dragging a node is an edit like any other, but it arrives once per drag rather
 	# than once per pixel, so it is cheap to mark dirty on.
@@ -191,7 +279,10 @@ func _build_ui() -> void:
 	# Every output may land on an input, which is the only thing type 0 is used for.
 	_graph.add_valid_connection_type(Doc.FLOW_SLOT_TYPE, 0)
 
-	add_child(_graph)
+	body.add_child(_graph)
+
+	add_child(_build_command_picker())
+	add_child(_build_orphan_dialog())
 
 	_results = ItemList.new()
 	_results.name = "Results"
@@ -222,139 +313,587 @@ func _make_button(text: String, handler: Callable) -> Button:
 	button.pressed.connect(handler)
 	return button
 
+## A toolbar dropdown grouping related actions under one label, instead of one button
+## each - [param items] is [code][[id, label], ...][/code], [param id] being an entry
+## of whichever [code]*Action[/code] enum the dropdown is for. [param handler] receives
+## that id from [signal PopupMenu.id_pressed] and dispatches on it, the same shape for
+## every dropdown so adding one is copy the call, not write a new pattern.
+func _make_menu_button(text: String, items: Array, handler: Callable) -> MenuButton:
+	var menu := MenuButton.new()
+	# Named as well as labelled so _bind() can find it again after a script reload -
+	# only [member _file_menu] actually needs that, but every dropdown gets the same
+	# treatment rather than one being the exception.
+	menu.name = text
+	menu.text = text
+	menu.switch_on_hover = true
+	# MenuButton defaults to flat - reads as a label, not a control - which is what
+	# made these hard to tell apart from the title text next to them.
+	menu.flat = false
+
+	var popup := menu.get_popup()
+	for entry in items:
+		popup.add_item(entry[1], entry[0])
+	popup.id_pressed.connect(handler)
+
+	return menu
+
+# --- Page inspector -------------------------------------------------------------
+#
+# The panel to the left of the graph, for page data no node carries: art, speed, route
+# and conditions (event-pages.md §2). Unlike the graph, there is no on-screen copy this
+# reads back from at save time - each field writes straight into the current page's
+# entry in [member _doc] as it changes, since these are plain values with nothing like
+# port wiring to reconcile. [method _load_page_inspector] is the other direction,
+# called wherever [method _load_page] is so the panel always matches what page is open.
+
+func _build_page_inspector() -> Control:
+	var scroll := ScrollContainer.new()
+	scroll.name = "PageInspector"
+	scroll.custom_minimum_size = Vector2(220, 0)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+
+	var box := VBoxContainer.new()
+	box.name = "PageInspectorBox"
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(box)
+
+	box.add_child(_section_label("Art"))
+	_art_picker = EditorResourcePicker.new()
+	_art_picker.name = "ArtSheet"
+	_art_picker.base_type = "Texture2D"
+	_art_picker.tooltip_text = "The page's art.sheet - what the actor looks like while this page is active."
+	_art_picker.resource_changed.connect(_on_art_sheet_changed)
+	box.add_child(_art_picker)
+
+	box.add_child(_section_label("Speed"))
+	_speed_spin = SpinBox.new()
+	_speed_spin.name = "Speed"
+	_speed_spin.min_value = 0
+	_speed_spin.max_value = 1000
+	_speed_spin.step = 1
+	_speed_spin.tooltip_text = "The page's settings.speed. 0 means absent - the page does not set one."
+	_speed_spin.value_changed.connect(_on_speed_changed)
+	box.add_child(_speed_spin)
+
+	box.add_child(HSeparator.new())
+
+	# The route gizmo event-pages.md §4.2 describes is a separate, larger effort; this
+	# is the stopgap until then - the same node graph editor as the page's own command
+	# graph, pointed at "route" instead of "graph" (see the class docstring's note on
+	# a route being a node array too).
+	_route_button = _make_button("Edit Route", _on_route_button_pressed)
+	box.add_child(_route_button)
+
+	box.add_child(HSeparator.new())
+
+	box.add_child(_section_label("Conditions"))
+	_conditions_list = VBoxContainer.new()
+	_conditions_list.name = "Conditions"
+	box.add_child(_conditions_list)
+
+	box.add_child(_make_button("+ Condition", _on_add_condition))
+
+	return scroll
+
+func _section_label(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_color_override(&"font_color", _muted_color())
+	return label
+
+## The current page's dictionary in [member _doc], or [code]{}[/code] if there is none -
+## every field this section touches is read and written through this, since the page
+## dictionaries in [member _doc.pages] are always the live ones (Dictionary is a
+## reference type here), never copies.
+func _current_page_dict() -> Dictionary:
+	var pages: Array = _doc.get("pages", [])
+	if _current_page < 0 or _current_page >= pages.size():
+		return {}
+	return pages[_current_page]
+
+## Refreshes every field in the page inspector from page [param index] - the inverse of
+## the handlers below, called wherever [method _load_page] is so the panel to the left
+## never shows the previous page's data.
+func _load_page_inspector(index: int) -> void:
+	if not is_instance_valid(_art_picker):
+		return
+
+	var pages: Array = _doc.get("pages", [])
+	var page: Dictionary = pages[index] if index >= 0 and index < pages.size() else {}
+
+	var art: Dictionary = page.get("art", {})
+	var sheet := str(art.get("sheet", ""))
+	_art_picker.edited_resource = load(sheet) if sheet != "" and ResourceLoader.exists(sheet) else null
+
+	var settings: Dictionary = page.get("settings", {})
+	_speed_spin.set_value_no_signal(float(settings.get("speed", 0)))
+
+	_refresh_conditions()
+
+func _on_art_sheet_changed(resource: Resource) -> void:
+	if not _live():
+		return
+
+	var art: Dictionary = _current_page_dict().get("art", {})
+	if resource != null and resource.resource_path != "":
+		art["sheet"] = resource.resource_path
+	else:
+		art.erase("sheet")
+	_mark_dirty()
+
+func _on_speed_changed(value: float) -> void:
+	if not _live():
+		return
+
+	var settings: Dictionary = _current_page_dict().get("settings", {})
+	if value > 0:
+		settings["speed"] = value
+	else:
+		settings.erase("speed")
+	_mark_dirty()
+
+## Toggles [member _editing_route] and reloads the current page, which is all that is
+## needed: [method _load_page] and [method _commit_current_page] already read and
+## write whichever of "route" or "graph" [member _editing_route] names, so this button
+## does not touch the graph itself - the same node editor, command picker, Arrange
+## and Validate all keep working unchanged, just aimed at a different array.
+func _on_route_button_pressed() -> void:
+	if not _live():
+		return
+
+	_commit_current_page()
+	_set_editing_route(not _editing_route)
+	if _load_page(_current_page):
+		_mark_dirty()
+	else:
+		_refresh_title()
+
+	# Explicit, checkable feedback on what actually loaded - an empty route with only
+	# its forced start node looks identical to "nothing happened" at a glance, so this
+	# says in words what the canvas alone might not get across.
+	if _editing_route:
+		_set_status("Editing route for page %d: %d node(s)."
+			% [_current_page + 1, _graph_nodes().size()], _status_color(true))
+	else:
+		_set_status("Back to the command graph for page %d." % [_current_page + 1],
+			_status_color(true))
+
+## A lighter, bluer version of the editor's own dark panel colour, for
+## [method _set_editing_route] to tint [member _route_button] and [member _graph]'s
+## background with - close in tone to the surrounding dark theme rather than a bright
+## colour that would clash with it, "lighter" and "blue" both read relative to it.
+func _route_tint() -> Color:
+	var theme := EditorInterface.get_editor_theme()
+	var base := theme.get_color(&"dark_color_2", &"Editor") if theme.has_color(&"dark_color_2", &"Editor") \
+		else Color(0.14, 0.15, 0.18)
+	return base.lightened(0.2).lerp(Color(0.3, 0.45, 0.75), 0.4)
+
+## Sets [member _editing_route] and keeps the on-screen state that flag alone does not
+## update in step with it: [member _route_button]'s label and tint, and a lighter blue
+## background on [member _graph] itself - so which array is on screen is obvious at a
+## glance, not just from the button text.
+func _set_editing_route(editing: bool) -> void:
+	_editing_route = editing
+	var tint := _route_tint()
+
+	if is_instance_valid(_route_button):
+		_route_button.text = "Back to Graph" if editing else "Edit Route"
+		_route_button.modulate = tint if editing else Color.WHITE
+
+	if is_instance_valid(_graph):
+		if editing:
+			var panel := StyleBoxFlat.new()
+			panel.bg_color = tint
+			_graph.add_theme_stylebox_override(&"panel", panel)
+		else:
+			_graph.remove_theme_stylebox_override(&"panel")
+
+# --- Conditions -----------------------------------------------------------------
+#
+# The flat AND list event-pages.md §2.2 calls the page convention - leaves only, no
+# all/any/not nesting, which is what a typed `if` expression is for instead. A page
+# hand-typed with a branch in it still round-trips (nothing here rewrites what it does
+# not understand); it just shows read-only, since this form has no widgets for it.
+
+## Rebuilds every row in [member _conditions_list] from the current page.
+func _refresh_conditions() -> void:
+	if not is_instance_valid(_conditions_list):
+		return
+
+	for child in _conditions_list.get_children():
+		_conditions_list.remove_child(child)
+		child.queue_free()
+
+	var conditions: Array = _current_page_dict().get("conditions", [])
+	for i in conditions.size():
+		_conditions_list.add_child(_build_condition_row(conditions[i], i))
+
+func _build_condition_row(entry: Variant, index: int) -> Control:
+	var row := HBoxContainer.new()
+
+	var kind := _condition_kind(entry) if typeof(entry) == TYPE_DICTIONARY else ""
+	if kind == "":
+		var label := Label.new()
+		label.text = "(complex condition)"
+		label.tooltip_text = JSON.stringify(entry)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		label.add_theme_color_override(&"font_color", _muted_color())
+		row.add_child(label)
+		row.add_child(_make_remove_condition_button(index))
+		return row
+
+	var leaf: Dictionary = entry
+
+	var kind_option := OptionButton.new()
+	for candidate in EventCondition.LEAVES:
+		kind_option.add_item(str(candidate))
+	kind_option.select(EventCondition.LEAVES.keys().find(kind))
+	kind_option.item_selected.connect(_on_condition_kind_selected.bind(index))
+	row.add_child(kind_option)
+
+	var name_field := LineEdit.new()
+	name_field.placeholder_text = "name"
+	name_field.text = str(leaf.get(kind, ""))
+	name_field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_field.text_changed.connect(_on_condition_name_changed.bind(index))
+	row.add_child(name_field)
+
+	if kind == "var":
+		var op_option := OptionButton.new()
+		for op in EventCondition.OPERATORS:
+			op_option.add_item(op)
+		op_option.select(EventCondition.OPERATORS.find(str(leaf.get("op", "=="))))
+		op_option.item_selected.connect(_on_condition_op_selected.bind(index))
+		row.add_child(op_option)
+
+		var value_field := LineEdit.new()
+		value_field.placeholder_text = "value"
+		value_field.text = str(leaf.get("value", ""))
+		value_field.custom_minimum_size = Vector2(56, 0)
+		value_field.text_changed.connect(_on_condition_value_changed.bind(index))
+		row.add_child(value_field)
+	else:
+		var is_check := CheckBox.new()
+		is_check.text = "is"
+		is_check.button_pressed = bool(leaf.get("is", true))
+		is_check.toggled.connect(_on_condition_is_toggled.bind(index))
+		row.add_child(is_check)
+
+	row.add_child(_make_remove_condition_button(index))
+	return row
+
+func _make_remove_condition_button(index: int) -> Button:
+	var button := Button.new()
+	button.text = "x"
+	button.tooltip_text = "Remove this condition."
+	button.pressed.connect(_on_remove_condition.bind(index))
+	return button
+
+## The one leaf key [param entry] tests, or "" if it is not a single-leaf entry this
+## form can edit - a branch ([code]all[/code]/[code]any[/code]/[code]not[/code]) or a
+## leaf naming more than one test.
+func _condition_kind(entry: Dictionary) -> String:
+	var kind := ""
+	for key in EventCondition.LEAVES:
+		if entry.has(key):
+			if kind != "":
+				return ""
+			kind = str(key)
+	return kind
+
+func _on_condition_kind_selected(selected: int, index: int) -> void:
+	if not _live():
+		return
+
+	var conditions: Array = _current_page_dict().get("conditions", [])
+	if index < 0 or index >= conditions.size():
+		return
+
+	var old_leaf: Dictionary = conditions[index]
+	var old_kind := _condition_kind(old_leaf)
+	var new_kind := str(EventCondition.LEAVES.keys()[selected])
+	conditions[index] = {new_kind: old_leaf.get(old_kind, "")}
+	_mark_dirty()
+	_refresh_conditions()
+
+func _on_condition_name_changed(text: String, index: int) -> void:
+	if not _live():
+		return
+
+	var conditions: Array = _current_page_dict().get("conditions", [])
+	if index < 0 or index >= conditions.size():
+		return
+
+	var leaf: Dictionary = conditions[index]
+	var kind := _condition_kind(leaf)
+	if kind == "":
+		return
+
+	leaf[kind] = text
+	_mark_dirty()
+
+func _on_condition_op_selected(selected: int, index: int) -> void:
+	if not _live():
+		return
+
+	var conditions: Array = _current_page_dict().get("conditions", [])
+	if index < 0 or index >= conditions.size():
+		return
+
+	(conditions[index] as Dictionary)["op"] = EventCondition.OPERATORS[selected]
+	_mark_dirty()
+
+func _on_condition_value_changed(text: String, index: int) -> void:
+	if not _live():
+		return
+
+	var conditions: Array = _current_page_dict().get("conditions", [])
+	if index < 0 or index >= conditions.size():
+		return
+
+	(conditions[index] as Dictionary)["value"] = _coerce_condition_value(text)
+	_mark_dirty()
+
+## A [LineEdit] only ever hands back a string, but [code]value[/code] wants whatever
+## type the variable actually holds - the same coercion [method GraphDocument._read_args]
+## already does for a node's own arguments, done here for a condition's.
+func _coerce_condition_value(text: String) -> Variant:
+	if text == "true":
+		return true
+	if text == "false":
+		return false
+	if text.is_valid_float():
+		return float(text) if text.contains(".") else int(text)
+	return text
+
+func _on_condition_is_toggled(pressed: bool, index: int) -> void:
+	if not _live():
+		return
+
+	var conditions: Array = _current_page_dict().get("conditions", [])
+	if index < 0 or index >= conditions.size():
+		return
+
+	(conditions[index] as Dictionary)["is"] = pressed
+	_mark_dirty()
+
+func _on_add_condition() -> void:
+	if not _live():
+		return
+
+	var conditions: Array = _current_page_dict().get("conditions", [])
+	conditions.append({"flag": ""})
+	_refresh_conditions()
+	_refresh_page_selector()
+	_mark_dirty()
+
+func _on_remove_condition(index: int) -> void:
+	if not _live():
+		return
+
+	var conditions: Array = _current_page_dict().get("conditions", [])
+	if index < 0 or index >= conditions.size():
+		return
+
+	conditions.remove_at(index)
+	_refresh_conditions()
+	_refresh_page_selector()
+	_mark_dirty()
+
+# --- Add-command picker ---------------------------------------------------------
+#
+# The type-to-search replacement for a plain "Add Node" button (event-pages.md §4.1:
+# "no UI for choosing a command"). [constant EventCommand.COMMANDS] is the one list -
+# nothing here names a command twice - filtered live as the search box changes and
+# read back into a new node the same way [method _spawn_node] always placed one.
+
+## Builds [member _command_picker] once, at panel construction - see [method _bind]
+## for how it is found again after a script reload.
+func _build_command_picker() -> PopupPanel:
+	_command_picker = PopupPanel.new()
+	_command_picker.name = "CommandPicker"
+
+	var box := VBoxContainer.new()
+	box.name = "Box"
+	_command_picker.add_child(box)
+
+	_command_search = LineEdit.new()
+	_command_search.name = "CommandSearch"
+	_command_search.placeholder_text = "Search commands..."
+	_command_search.custom_minimum_size = Vector2(280, 0)
+	_command_search.text_changed.connect(_on_command_search_changed)
+	_command_search.gui_input.connect(_on_command_search_gui_input)
+	box.add_child(_command_search)
+
+	_command_list = ItemList.new()
+	_command_list.name = "CommandList"
+	_command_list.custom_minimum_size = Vector2(280, 240)
+	_command_list.item_activated.connect(_on_command_picked)
+	box.add_child(_command_list)
+
+	return _command_picker
+
+## The list-and-confirm popup [method _on_find_orphaned_events] pops up, naming what it
+## found before anything is moved - the same "show, then ask" shape [ConfirmationDialog]
+## exists for, since archiving is a file move an author cannot undo from inside the
+## editor.
+func _build_orphan_dialog() -> ConfirmationDialog:
+	_orphan_dialog = ConfirmationDialog.new()
+	_orphan_dialog.name = "OrphanDialog"
+	_orphan_dialog.title = "Archive Orphaned Events"
+	_orphan_dialog.min_size = Vector2(360, 260)
+	_orphan_dialog.confirmed.connect(_on_orphan_dialog_confirmed)
+
+	_orphan_list = ItemList.new()
+	_orphan_list.name = "OrphanList"
+	_orphan_list.custom_minimum_size = Vector2(340, 200)
+	_orphan_dialog.add_child(_orphan_list)
+
+	return _orphan_dialog
+
+func _open_command_picker() -> void:
+	if not _live():
+		return
+
+	_spawn_position = Vector2.INF
+	_command_search.text = ""
+	_refresh_command_list()
+	_command_picker.popup_centered(Vector2i(320, 320))
+	_command_search.grab_focus.call_deferred()
+
+## Every command the picker offers, blank-command placeholder first, alphabetical
+## after. [constant EventCommand.START_COMMAND] never appears - it is not something an
+## author adds; [method _ensure_start_node] is the only thing that ever places one.
+func _command_entries() -> Array[Dictionary]:
+	var entries: Array[Dictionary] = [
+		{"name": "", "label": "(no command)", "blurb": "A blank node, command chosen later."},
+	]
+
+	var names := EventCommand.definitions().keys()
+	names.sort()
+	for name: Variant in names:
+		if str(name) == EventCommand.START_COMMAND:
+			continue
+		entries.append({"name": str(name), "label": str(name),
+			"blurb": EventCommand.description(str(name))})
+
+	return entries
+
+## [param query]'s matches, ranked name-prefix first, then name-contains, then
+## blurb-contains, alphabetical within each tier - so typing "mov" surfaces "move_to"
+## and "move_by" before a command that only mentions moving in its blurb.
+func _filtered_command_entries(query: String) -> Array[Dictionary]:
+	var trimmed := query.strip_edges()
+	if trimmed == "":
+		return _command_entries()
+
+	var q := trimmed.to_lower()
+	var prefix: Array[Dictionary] = []
+	var name_hit: Array[Dictionary] = []
+	var blurb_hit: Array[Dictionary] = []
+
+	for entry in _command_entries():
+		var name: String = entry["name"]
+		if name == "":
+			continue
+		var lname := name.to_lower()
+		if lname.begins_with(q):
+			prefix.append(entry)
+		elif lname.contains(q):
+			name_hit.append(entry)
+		elif str(entry["blurb"]).to_lower().contains(q):
+			blurb_hit.append(entry)
+
+	var by_name := func(a: Dictionary, b: Dictionary) -> bool:
+		return str(a["name"]) < str(b["name"])
+	prefix.sort_custom(by_name)
+	name_hit.sort_custom(by_name)
+	blurb_hit.sort_custom(by_name)
+
+	var out: Array[Dictionary] = []
+	out.append_array(prefix)
+	out.append_array(name_hit)
+	out.append_array(blurb_hit)
+	return out
+
+func _refresh_command_list(query: String = "") -> void:
+	_command_list.clear()
+	for entry in _filtered_command_entries(query):
+		var index := _command_list.add_item("%s - %s" % [entry["label"], entry["blurb"]])
+		_command_list.set_item_metadata(index, entry["name"])
+		_command_list.set_item_tooltip(index, str(entry["blurb"]))
+
+	if _command_list.item_count > 0:
+		_command_list.select(0)
+
+func _on_command_search_changed(text: String) -> void:
+	_refresh_command_list(text)
+
+## Arrow keys and Enter reach [member _command_list] from here rather than from the
+## list itself, since focus stays in the search field the whole time an author types -
+## moving it to the list on every keystroke would fight the text cursor.
+func _on_command_search_gui_input(event: InputEvent) -> void:
+	if not (event is InputEventKey) or not (event as InputEventKey).pressed:
+		return
+
+	var key := (event as InputEventKey).keycode
+	match key:
+		KEY_DOWN:
+			_move_command_selection(1)
+			_command_search.accept_event()
+		KEY_UP:
+			_move_command_selection(-1)
+			_command_search.accept_event()
+		KEY_ENTER, KEY_KP_ENTER:
+			_activate_selected_command()
+			_command_search.accept_event()
+		KEY_ESCAPE:
+			_command_picker.hide()
+			_command_search.accept_event()
+
+func _move_command_selection(delta: int) -> void:
+	if _command_list.item_count == 0:
+		return
+
+	var selected := _command_list.get_selected_items()
+	var current := selected[0] if not selected.is_empty() else -1
+	var next := clampi(current + delta, 0, _command_list.item_count - 1)
+	_command_list.select(next)
+	_command_list.ensure_current_is_visible()
+
+func _activate_selected_command() -> void:
+	var selected := _command_list.get_selected_items()
+	if not selected.is_empty():
+		_on_command_picked(selected[0])
+
+func _on_command_picked(index: int) -> void:
+	if index < 0 or index >= _command_list.item_count:
+		return
+
+	var command := str(_command_list.get_item_metadata(index))
+	_command_picker.hide()
+	_spawn_node(command, _spawn_position)
+	_spawn_position = Vector2.INF
+
 # --- Graph nodes --------------------------------------------------------------
 
-## Builds the [GraphNode] for one entry of the document. Its wiring is not applied
-## here - targets are ids, which cannot be resolved until every node exists - see
-## [method _apply_connections].
-##
-## [b]Output ports come from the command, not from [param node]'s own [code]outputs[/code].[/b]
-## [method EventCommand.flows_of] is authoritative for how many ports a node has and what
-## each is named - a linear command has one "next", "if" has "true"/"false", "ask" has one
-## per choice - so a port is never something this panel offers to add or remove; it
-## follows from choosing a command, same as the arguments it takes. There is still no UI
-## for choosing a command (event-pages.md §4.1), so today that means whatever the file
-## already said, or [constant EventCommand.START_COMMAND] for the one every graph is
-## guaranteed to have - see [method _ensure_start_node].
-func _make_graph_node(node: Dictionary) -> GraphNode:
-	var id: String = node["id"]
-	var graph_node := GraphNode.new()
-	graph_node.name = _scene_name(id)
-	graph_node.title = node.get("title", Doc.DEFAULT_TITLE)
-	graph_node.position_offset = node.get("position", Vector2.ZERO)
-	# The scene name is sanitised and can collide, so the id travels separately. Every
-	# lookup goes through _id_of() rather than reading the name back.
-	graph_node.set_meta(&"graph_id", id)
-	# Everything this panel has no field for - command, args, blocking, key, and whatever
-	# _unknown carries - rides along as meta rather than being dropped. This is the fix
-	# for the data-loss bug: a graph opened and saved here used to keep only id, title,
-	# position and outputs.
-	graph_node.set_meta(&"graph_extra", _extra_of(node))
-
-	var id_label := Label.new()
-	id_label.text = id
-	id_label.add_theme_color_override(&"font_color", _muted_color())
-	id_label.tooltip_text = "Node id - generated, and what other nodes target."
-	id_label.mouse_filter = Control.MOUSE_FILTER_PASS
-	graph_node.get_titlebar_hbox().add_child(id_label)
-
-	_add_head_row(graph_node)
-	for flow in EventCommand.flows_of(node):
-		_add_output_row(graph_node, flow)
-	_refresh_slots(graph_node)
-
-	# Green for the start node, always - never red, even though "start" blocks by its own
-	# registry entry; red for any other blocking command, so a glance at the graph says
-	# which nodes hold the runner up and which fire and carry on.
-	if str(node.get("command", "")) == EventCommand.START_COMMAND:
-		graph_node.self_modulate = _START_COLOR
-	elif EventCommand.is_blocking(node):
-		graph_node.self_modulate = _BLOCKING_COLOR
-	else:
-		graph_node.self_modulate = Color.WHITE
-
+## Builds an [EventGraphNode] for [param node] and wires its
+## [signal EventGraphNode.changed] to mark this document dirty - the one thing every
+## construction site needs done alongside creating the node. Everything about what a
+## node looks like and how its fields are edited lives on that class now; this panel
+## only owns the document (which page, which array) and the canvas (wiring,
+## selection, layout) - see [method _ensure_start_node] for the one node every graph
+## is guaranteed to have.
+func _make_graph_node(node: Dictionary) -> EventGraphNode:
+	var graph_node := EventGraphNode.create(node)
+	graph_node.changed.connect(_mark_dirty)
 	return graph_node
-
-## True for a [GraphNode] built from a [constant EventCommand.START_COMMAND] node - read
-## from meta, since the command lives there rather than in any field this panel edits.
-func _is_start_node(graph_node: GraphNode) -> bool:
-	return str(_extra_of_node(graph_node).get("command", "")) == EventCommand.START_COMMAND
-
-## The input row. Also holds the title field, so the row that has no output port is
-## the one carrying the only per-node value worth editing.
-func _add_head_row(graph_node: GraphNode) -> void:
-	var row := HBoxContainer.new()
-	row.name = HEAD_ROW
-
-	var field := LineEdit.new()
-	field.name = "TitleField"
-	field.text = graph_node.title
-	field.placeholder_text = Doc.DEFAULT_TITLE
-	field.custom_minimum_size = Vector2(120, 0)
-	field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	field.text_changed.connect(_on_node_title_changed.bind(graph_node))
-	row.add_child(field)
-
-	graph_node.add_child(row)
-
-## One output port: a label naming its flow, and nothing else. No type to pick, no
-## button to remove it - [method _make_graph_node]'s docstring says why.
-func _add_output_row(graph_node: GraphNode, flow: String) -> void:
-	var row := HBoxContainer.new()
-	# Numbered by the ports already present, which is also the port index this row
-	# will answer to once _refresh_slots() runs.
-	row.name = OUT_ROW_PREFIX + str(_output_rows(graph_node).size())
-	row.set_meta(&"flow", flow)
-
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(spacer)
-
-	var label := Label.new()
-	label.name = "Flow"
-	label.text = flow if flow != "" else "(unnamed)"
-	label.add_theme_color_override(&"font_color", _muted_color())
-	row.add_child(label)
-
-	graph_node.add_child(row)
-
-## Re-applies every slot on [param graph_node] from its rows.
-##
-## [GraphNode] indexes slots by child index, and numbers ports by counting the enabled
-## slots before them - so with the head row at index 0, an output's port index is always
-## its child index minus one. Every output is a flow port now, so there is one slot type
-## and one colour rather than a per-row choice.
-##
-## [b]The start node has no input slot.[/b] Nothing may flow into the node execution
-## begins at - that would make it reachable from somewhere else too, which is exactly
-## the ambiguity a single named entry point exists to remove.
-func _refresh_slots(graph_node: GraphNode) -> void:
-	var has_input := not _is_start_node(graph_node)
-	for i in graph_node.get_child_count():
-		var row := graph_node.get_child(i)
-		var is_head: bool = row.name == HEAD_ROW
-		var is_output: bool = str(row.name).begins_with(OUT_ROW_PREFIX)
-
-		graph_node.set_slot(i,
-			is_head and has_input, 0, Doc.UNTYPED_COLOR,
-			is_output, Doc.FLOW_SLOT_TYPE, Doc.FLOW_COLOR)
-
-## The flow name [method _add_output_row] gave this row, for [method _serialize] to read
-## back - see [method _make_graph_node]'s docstring for why a port's identity is its flow
-## name rather than a stored type.
-func _row_flow(row: Node) -> String:
-	return row.get_meta(&"flow", "")
-
-func _output_rows(graph_node: GraphNode) -> Array[Node]:
-	var rows: Array[Node] = []
-	for child in graph_node.get_children():
-		if str(child.name).begins_with(OUT_ROW_PREFIX):
-			rows.append(child)
-	return rows
 
 # --- Reading the graph back ---------------------------------------------------
 
-## The document as it stands on screen, in the order the nodes were created.
+## The document as it stands on screen, start node first and the rest in the order
+## they were created - see [method EventGraphNode.create]'s docstring on why the
+## start node is never something an author reorders by hand.
 func _serialize() -> Array[Dictionary]:
 	# Connections are held by node name and port; targets are written as ids. Building
 	# the map once keeps _serialize() linear rather than rescanning per port.
@@ -366,51 +905,35 @@ func _serialize() -> Array[Dictionary]:
 	var nodes: Array[Dictionary] = []
 	for graph_node in _graph_nodes():
 		var outputs: Array[Dictionary] = []
-		var rows := _output_rows(graph_node)
+		var rows := graph_node.output_rows()
 		for i in rows.size():
 			outputs.append({
-				"flow": _row_flow(rows[i]),
+				"flow": graph_node.row_flow(rows[i]),
 				"target": targets.get("%s:%d" % [graph_node.name, i], ""),
 			})
 
-		# Start from whatever this node carried that the panel has no field for, so
-		# command/args/blocking/key/_unknown ride through untouched, then overwrite the
-		# four the UI actually owns.
-		var entry: Dictionary = _extra_of_node(graph_node).duplicate(true)
-		entry["id"] = _id_of(graph_node)
-		entry["title"] = graph_node.title
-		entry["position"] = graph_node.position_offset
-		entry["outputs"] = outputs
-		nodes.append(entry)
+		var entry := graph_node.to_entry(outputs)
+
+		if graph_node.is_start():
+			nodes.push_front(entry)
+		else:
+			nodes.append(entry)
 
 	return nodes
 
-func _graph_nodes() -> Array[GraphNode]:
-	var nodes: Array[GraphNode] = []
+func _graph_nodes() -> Array[EventGraphNode]:
+	var nodes: Array[EventGraphNode] = []
 	for child in _graph.get_children():
-		if child is GraphNode:
+		if child is EventGraphNode:
 			nodes.append(child)
 	return nodes
 
 func _id_of(graph_node: Node) -> String:
-	if graph_node == null:
-		return ""
-	return graph_node.get_meta(&"graph_id", "")
+	return (graph_node as EventGraphNode).id if graph_node is EventGraphNode else ""
 
-## Everything in [param node] this panel has no UI for - every key besides id, title,
-## position and outputs, which are the ones a [GraphNode] can actually show and edit.
-func _extra_of(node: Dictionary) -> Dictionary:
-	var extra: Dictionary = node.duplicate(true)
-	extra.erase("id")
-	extra.erase("title")
-	extra.erase("position")
-	extra.erase("outputs")
-	return extra
-
-func _extra_of_node(graph_node: Node) -> Dictionary:
-	if graph_node == null:
-		return {}
-	return graph_node.get_meta(&"graph_extra", {})
+## True for a [GraphNode] built from a [constant EventCommand.START_COMMAND] node.
+func _is_start_node(graph_node: GraphNode) -> bool:
+	return graph_node is EventGraphNode and (graph_node as EventGraphNode).is_start()
 
 func _node_by_id(id: String) -> GraphNode:
 	for graph_node in _graph_nodes():
@@ -424,30 +947,109 @@ func _used_ids() -> Dictionary:
 		ids[_id_of(graph_node)] = true
 	return ids
 
-## A scene name for [param id]. Node names cannot hold [code]. : @ / " %[/code], and
-## two different ids could sanitise to the same string, so the name is for the scene
-## tree and [GraphEdit] only - the id itself lives in metadata.
-func _scene_name(id: String) -> String:
-	var name_hint := id.validate_node_name()
-	return name_hint if name_hint != "" else "Node"
-
 # --- Editing ------------------------------------------------------------------
 
-func _add_node() -> void:
+## Starting args for a freshly spawned node, command by command - just enough to open
+## on something an author would plausibly want rather than a wall of blank fields.
+## Every command not named here still opens to [method Doc.default_node]'s plain
+## [code]{}[/code], same as always.
+func _default_args_for(command: String) -> Dictionary:
+	match command:
+		"move_by":
+			# North, one step, at EventGraphNode's own "Normal" speed preset - a step
+			# in some direction at some speed is the whole shape of this command, so
+			# it opens already saying one instead of empty.
+			return {"cells": [0, 0, -1], "speed": EventGraphNode.normal_speed()}
+		_:
+			return {}
+
+## Places a new node with [param command] - "" for the blank node the picker also
+## offers - at [param at], or [constant ADD_POSITION]'s own incrementing default when
+## [param at] is [constant Vector2.INF] (the toolbar's "Add Command", which has no
+## click position to land on). [method _on_popup_request] passes a real one. Then the
+## same tail every edit that can leave a graph without a start node runs:
+## [method _ensure_start_node] repairs it, then dirty and re-validate.
+func _spawn_node(command: String, at: Vector2 = Vector2.INF) -> void:
 	if not _live():
 		return
 
 	var id := Doc.generate_id(_used_ids())
-	var position := ADD_POSITION + ADD_STEP * _added + _graph.scroll_offset / _graph.zoom
-	_added += 1
+	var position := at
+	if position == Vector2.INF:
+		position = ADD_POSITION + ADD_STEP * _added + _graph.scroll_offset / _graph.zoom
+		_added += 1
 
-	var graph_node := _make_graph_node(Doc.default_node(id, position))
+	var node := Doc.default_node(id, position)
+	node["command"] = command
+	node["args"] = _default_args_for(command)
+
+	# Found before the new node exists, so it is never a candidate for its own source.
+	var chain_from := _chain_from_node()
+
+	var graph_node := _make_graph_node(node)
 	_graph.add_child(graph_node)
+
+	if chain_from != null:
+		_auto_connect(chain_from, graph_node)
+
+	# Selected so the next "Add Command" chains from this one in turn - clicking an
+	# earlier node first overrides that, which is what lets an author branch instead
+	# of only ever extending the last thing they added.
+	for other in _graph_nodes():
+		other.selected = other == graph_node
+	_last_spawned = graph_node
+
 	# The first node in what was an empty (route-only) page's graph turns it into a real
 	# graph, which needs its start node - see _ensure_start_node()'s force parameter.
 	_ensure_start_node()
 	_mark_dirty()
 	_validate()
+
+## The node a new one should chain from: the graph's own single selected node if
+## exactly one is selected, otherwise [member _last_spawned], otherwise the start
+## node - the only node "most recent" can mean before a first command exists.
+func _chain_from_node() -> EventGraphNode:
+	var selected := _selected_graph_node()
+	if selected != null:
+		return selected
+	if is_instance_valid(_last_spawned):
+		return _last_spawned
+	for graph_node in _graph_nodes():
+		if graph_node.is_start():
+			return graph_node
+	return null
+
+## The graph's own selected node, if exactly one is. Two or more selected reads as
+## none: which one a chain should follow from is genuinely ambiguous then, so nothing
+## is auto-wired rather than guessing.
+func _selected_graph_node() -> EventGraphNode:
+	var found: EventGraphNode = null
+	for graph_node in _graph_nodes():
+		if graph_node.selected:
+			if found != null:
+				return null
+			found = graph_node
+	return found
+
+## Connects [param from]'s first output with nothing already wired from it to
+## [param to]'s input - so a chain of "Add Command" presses reads as the chain of
+## steps it usually is, the same shape every hand-typed demo file already chains its
+## nodes in, without an author dragging a wire for each one. Does nothing if every
+## output [param from] has is already spoken for.
+func _auto_connect(from: EventGraphNode, to: EventGraphNode) -> void:
+	var rows := from.output_rows()
+	if rows.is_empty():
+		return
+
+	var wired := {}
+	for connection in _graph.get_connection_list():
+		if connection["from_node"] == from.name:
+			wired[int(connection["from_port"])] = true
+
+	for i in rows.size():
+		if not wired.has(i):
+			_graph.connect_node(from.name, i, to.name, 0)
+			return
 
 ## Adds a [constant EventCommand.START_COMMAND] node if [member _graph] does not already
 ## have one. Every graph with anything in it has exactly one - not a button an author
@@ -472,13 +1074,9 @@ func _ensure_start_node(force: bool = false) -> bool:
 	if existing.is_empty() and not force:
 		return false
 
-	# "start" when it is free, matching the worked examples, otherwise a generated id -
-	# the name is cosmetic either way, since the command is what makes it the start node.
-	var used := _used_ids()
-	var id := "start" if not used.has("start") else Doc.generate_id(used)
-
-	var node := Doc.default_node(id, _START_POSITION)
-	node["title"] = "Start"
+	# "" always - the start node is the one node allowed a blank id (question 47
+	# follow-up), so it never needs one generated.
+	var node := Doc.default_node("", _START_POSITION)
 	node["command"] = EventCommand.START_COMMAND
 
 	_graph.add_child(_make_graph_node(node))
@@ -582,19 +1180,22 @@ func _on_duplicate_nodes_request() -> void:
 	if not copies.is_empty():
 		_mark_dirty()
 
+## Right-click (or the context-menu key) on the canvas - opens the same picker "Add
+## Command" does, rather than dropping a bare node the way this used to, since a
+## command still has to be chosen from the picker or the search either way.
 func _on_popup_request(at_position: Vector2) -> void:
 	if not _live():
 		return
 
-	# Right-click drops a node where the pointer is. at_position is in the control's
-	# own space, which the offset and zoom turn back into graph coordinates.
-	var id := Doc.generate_id(_used_ids())
-	var position := (at_position + _graph.scroll_offset) / _graph.zoom
+	# at_position is in the control's own space; the offset and zoom turn it back
+	# into graph coordinates, same conversion [method _spawn_node]'s own default
+	# position already does for [constant ADD_POSITION].
+	_spawn_position = (at_position + _graph.scroll_offset) / _graph.zoom
 
-	_graph.add_child(_make_graph_node(Doc.default_node(id, position)))
-	_ensure_start_node()
-	_mark_dirty()
-	_validate()
+	_command_search.text = ""
+	_refresh_command_list()
+	_command_picker.popup(Rect2i(Vector2i(get_global_mouse_position()), Vector2i(320, 320)))
+	_command_search.grab_focus.call_deferred()
 
 ## Lays the nodes out in a grid, in document order. A way back from a graph that has
 ## been dragged into a pile, or from a hand-written file where nothing has a position.
@@ -621,9 +1222,11 @@ func _new_document() -> void:
 	_wrapped = false
 	_doc = EventDoc.default_document()
 	_current_page = 0
+	_set_editing_route(false)
 	_clear()
 	_ensure_start_node(true)
 	_refresh_page_selector()
+	_load_page_inspector(0)
 	_dirty = false
 	_results.clear()
 	_set_status("New graph - Save to choose a path.", _status_color(true))
@@ -636,6 +1239,7 @@ func _clear() -> void:
 
 	_graph.clear_connections()
 	_added = 0
+	_last_spawned = null
 
 func _open() -> void:
 	if not _live():
@@ -660,6 +1264,7 @@ func _load(path: String) -> void:
 	_doc = EventDoc.parse(text)
 
 	_path = path
+	_set_editing_route(false)
 	# A repair - the file loaded without a start node and this added one - leaves the
 	# buffer differing from disk, so it must not be reported clean.
 	var repaired := _load_page(0)
@@ -705,30 +1310,80 @@ func _apply_connections(nodes: Array[Dictionary]) -> void:
 			if to != null:
 				_graph.connect_node(from.name, i, to.name, 0)
 
-## Replaces whatever the [GraphEdit] shows with page [param index]'s graph. Does not
-## touch [member _dirty] itself - opening a page you are not editing is not an edit -
-## but returns whether [method _ensure_start_node] had to add one, which is.
+## "route" while [member _editing_route], otherwise "graph" - the key
+## [method _load_page] and [method _commit_current_page] read and write, so a route
+## and a graph are the same kind of array read and written through the same code, just
+## under a different name.
+func _target_key() -> String:
+	return "route" if _editing_route else "graph"
+
+## [param page]'s [param key] as a list of nodes this panel can build a graph from.
+##
+## [b]Copied entry by entry into a typed array rather than assigned across.[/b]
+## GDScript refuses an untyped [Array] assigned to an [code]Array[Dictionary][/code]
+## at run time, and the pages reaching here do not all carry a typed one:
+## [method EventDocument.default_page]'s literal is untyped, and the bare-array
+## document path only ever replaces that default's [code]graph[/code] - so every
+## single-page file (which is most of them) has an untyped [code]route[/code] sitting
+## there waiting to abort the load half way through, after the button has already
+## recoloured and before the graph is cleared.
+##
+## Anything that is not a list of nodes reads as no nodes: a page whose route is still
+## event-pages.md §3's [code]{mode, loop, waypoints}[/code] object opens as an empty
+## route to author rather than erroring, which is the same "repair, never reject" rule
+## [method EventDocument.parse] follows.
+func _nodes_of(page: Variant, key: String) -> Array[Dictionary]:
+	var nodes: Array[Dictionary] = []
+	if typeof(page) != TYPE_DICTIONARY:
+		return nodes
+
+	var raw: Variant = (page as Dictionary).get(key, [])
+	if typeof(raw) != TYPE_ARRAY:
+		return nodes
+
+	for entry in raw as Array:
+		if entry is Dictionary:
+			nodes.append(entry)
+	return nodes
+
+## Replaces whatever the [GraphEdit] shows with page [param index]'s [method _target_key]
+## array. Does not touch [member _dirty] itself - opening a page you are not editing is
+## not an edit - but returns whether [method _ensure_start_node] had to add one, which is.
 func _load_page(index: int) -> bool:
 	var pages: Array = _doc.get("pages", [])
 	var nodes: Array[Dictionary] = []
 	if index >= 0 and index < pages.size():
-		nodes = (pages[index] as Dictionary).get("graph", [])
+		nodes = _nodes_of(pages[index], _target_key())
 
 	_current_page = index
 	_clear()
 	for node in nodes:
 		_graph.add_child(_make_graph_node(node))
 	_apply_connections(nodes)
-	return _ensure_start_node()
+	_load_page_inspector(index)
 
-## Writes the graph on screen back into [member _doc] before it is abandoned for another
-## page, or for saving - the file (here, [member _doc]) stays the source of truth, and
-## the [GraphEdit] is a view onto one page of it at a time.
+	# Back to the origin regardless of where the view was left - loading a different
+	# array (a different page, or the graph/route swap) with the scroll position of
+	# whatever was on screen before is how a reload can look like nothing happened:
+	# the new content is there, just off screen.
+	_graph.scroll_offset = Vector2.ZERO
+
+	# Forced while editing a route: an author who just pressed "Edit Route" asked to
+	# see and edit it, so an empty one should show up as a graph with a start node
+	# ready to build on, not a blank canvas indistinguishable from the switch having
+	# done nothing. A graph, unforced, may still legitimately have no start node at
+	# all - event-pages.md §2's route-only decoration - see this method's docstring.
+	return _ensure_start_node(_editing_route)
+
+## Writes the graph on screen back into [member _doc] before it is abandoned for
+## another page, another view of the same page, or for saving - the file (here,
+## [member _doc]) stays the source of truth, and the [GraphEdit] is a view onto one
+## array of one page at a time.
 func _commit_current_page() -> void:
 	var pages: Array = _doc.get("pages", [])
 	if _current_page < 0 or _current_page >= pages.size():
 		return
-	(pages[_current_page] as Dictionary)["graph"] = _serialize()
+	(pages[_current_page] as Dictionary)[_target_key()] = _serialize()
 
 ## Rebuilds the dropdown from [member _doc]'s pages, with a one-line condition summary
 ## per entry (event-pages.md §4.1's page bar, minus reorder/add/duplicate/delete - those
@@ -826,10 +1481,18 @@ func _refresh_title() -> void:
 		return
 
 	var label := _path if _path != "" else "(unsaved)"
+	if _editing_route:
+		label += " (route)"
 	_title.text = ("* " if _dirty else "") + label
 	_title.tooltip_text = label
-	_save_button.disabled = not _dirty and _path != ""
-	_reload_button.disabled = _path == ""
+
+	var save_disabled := not _dirty and _path != ""
+	if is_instance_valid(_file_menu):
+		var popup := _file_menu.get_popup()
+		popup.set_item_disabled(popup.get_item_index(FileAction.SAVE), save_disabled)
+		popup.set_item_disabled(popup.get_item_index(FileAction.RELOAD), _path == "")
+	if is_instance_valid(_save_icon_button):
+		_save_icon_button.disabled = save_disabled
 
 # --- Validation ---------------------------------------------------------------
 
@@ -896,6 +1559,265 @@ func _on_result_selected(index: int) -> void:
 	# than the panel it may well be off screen.
 	_graph.scroll_offset = graph_node.position_offset * _graph.zoom \
 		- (_graph.size - graph_node.size * _graph.zoom) * 0.5
+
+# --- Toolbar dropdowns ---------------------------------------------------------
+
+func _on_file_menu_id_pressed(id: int) -> void:
+	match id:
+		FileAction.NEW: _new_document()
+		FileAction.OPEN: _open()
+		FileAction.RELOAD: _reload()
+		FileAction.SAVE: _save()
+
+func _on_graph_menu_id_pressed(id: int) -> void:
+	match id:
+		GraphAction.ADD_COMMAND: _open_command_picker()
+		GraphAction.ARRANGE: _arrange()
+		GraphAction.VALIDATE: _validate()
+		GraphAction.VIEW_JSON: _view_json()
+
+func _on_actor_menu_id_pressed(id: int) -> void:
+	match id:
+		ActorAction.LOAD_EVENT: _on_load_actor_event()
+		ActorAction.DELETE_ACTOR: _on_delete_actor()
+		ActorAction.FIND_ORPHANS: _on_find_orphaned_events()
+
+# --- Actor wiring ---------------------------------------------------------------
+#
+# The graph editor has no scene tree of its own - these read the Godot editor's
+# selection instead, so "the actor" always means whatever is selected in the Scene
+# dock, the same way [method EditorInterface.get_selection] drives the inspector.
+
+## The [Actor] the selection means: the selected node itself, or the first [Actor]
+## found under it. The "under it" half is what lets an author select an actor's
+## placement root - [method ActorNaming.placement_root], the node the Scene dock
+## actually shows a name for - and have it mean the [Actor] inside, the same node
+## [member Actor.actor_id] and this file's other actor-facing tools already agree on.
+func _selected_actor() -> Actor:
+	var selection := EditorInterface.get_selection().get_selected_nodes()
+	if selection.is_empty():
+		return null
+
+	var node: Node = selection[0]
+	if node is Actor:
+		return node as Actor
+
+	var found := ActorNaming.actors_under(node)
+	return found[0] if not found.is_empty() else null
+
+## The folder a map's event files live in: one per map, named for the edited scene's
+## own file - stage-c-plan.md's [code]res://events/<map_id>/<event_id>.event.json[/code]
+## layout. Falls back to "map" for a scene with no file yet, so the helpers built on
+## this still have somewhere to point rather than failing outright.
+func _map_event_dir(map_root: Node) -> String:
+	var scene_path := map_root.scene_file_path if map_root != null else ""
+	var map_id := scene_path.get_file().get_basename() if scene_path != "" else "map"
+	return "res://events/%s" % map_id
+
+## Where a newly-linked actor's event file goes, under [method _map_event_dir].
+## [param actor]'s id names the file when it has one; an unnamed actor falls back to
+## its node name, same as [method ActorNaming]'s own fallback reasoning.
+func _default_event_path(actor: Actor) -> String:
+	var map_root := EditorInterface.get_edited_scene_root()
+	var event_id := String(actor.actor_id) if actor.actor_id != &"" else actor.name
+	return "%s/%s.event.json" % [_map_event_dir(map_root), event_id]
+
+## Loads the selected actor's event file into the graph, wiring [member Actor.event_path]
+## to a default location first if it has none, and creating an empty-but-valid file if
+## nothing is there yet - so linking a brand new actor opens straight into an empty
+## graph instead of a file-not-found error.
+func _on_load_actor_event() -> void:
+	if not _live():
+		return
+
+	var actor := _selected_actor()
+	if actor == null:
+		_set_status("Select an Actor, or a node containing one, to load its event file.",
+			_status_color(false))
+		return
+
+	if actor.event_path == "":
+		actor.event_path = _default_event_path(actor)
+		if EditorInterface.has_method("mark_scene_as_unsaved"):
+			EditorInterface.mark_scene_as_unsaved()
+
+	if not FileAccess.file_exists(actor.event_path):
+		if not _create_empty_event_file(actor.event_path):
+			return
+
+	_load(actor.event_path)
+
+## An empty [code][][/code] - the bare-array shorthand [method _load] already accepts
+## for a one-page graph - written to [param path], making its parent folder first.
+## Returns whether it succeeded.
+func _create_empty_event_file(path: String) -> bool:
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		_set_status("Could not create %s: %s" % [
+			path, error_string(FileAccess.get_open_error())], _status_color(false))
+		return false
+
+	file.store_string("[]\n")
+	file.close()
+	EditorInterface.get_resource_filesystem().update_file(path)
+	return true
+
+## Archives the selected actor's event file (if it has one) and removes the actor's
+## placement node from the edited scene.
+##
+## [b]A button, not a delete-notification hook.[/b] Godot gives a tool script no
+## reliable "a node was deleted" signal - only [constant NOTIFICATION_PREDELETE], which
+## also fires for a script reload's own teardown and for undo/redo churn, none of which
+## should archive anything. An explicit button is the same trade [ActorNaming.assign_all]
+## already makes for the same reason (see its docstring): predictable over automatic.
+func _on_delete_actor() -> void:
+	if not _live():
+		return
+
+	var actor := _selected_actor()
+	if actor == null:
+		_set_status("Select an Actor, or a node containing one, to delete it.",
+			_status_color(false))
+		return
+
+	var archived_path := ""
+	if actor.event_path != "" and FileAccess.file_exists(actor.event_path):
+		archived_path = _archive_event_file(actor.event_path)
+
+	var node := ActorNaming.placement_root(actor)
+	var node_name := node.name
+	node.get_parent().remove_child(node)
+	node.queue_free()
+
+	if EditorInterface.has_method("mark_scene_as_unsaved"):
+		EditorInterface.mark_scene_as_unsaved()
+
+	var note := " Archived event to %s." % archived_path if archived_path != "" else ""
+	_set_status("Deleted %s.%s" % [node_name, note], _status_color(true))
+
+## Moves [param path] into a "removed" folder beside it - within the same map folder
+## [method _default_event_path] would have written it under - named with the moment it
+## was moved so a second deletion of a same-named actor never collides with the first.
+## Returns where the file ended up, or "" if the move failed.
+func _archive_event_file(path: String) -> String:
+	var map_dir := path.get_base_dir()
+	var removed_dir := map_dir.path_join("removed")
+	DirAccess.make_dir_recursive_absolute(removed_dir)
+
+	var filename := path.get_file()
+	var stem := filename.trim_suffix(".event.json")
+	if stem == filename:
+		# Not the conventional name - still archive it, just without assuming the
+		# ".event.json" suffix is there to strip.
+		stem = filename.get_basename()
+
+	var stamp := Time.get_datetime_string_from_system(false, true).replace(":", "-")
+	var archived_path := removed_dir.path_join("%s_%s.event.json" % [stem, stamp])
+
+	var error := DirAccess.rename_absolute(path, archived_path)
+	if error != OK:
+		_set_status("Could not archive %s: %s" % [path, error_string(error)], _status_color(false))
+		return ""
+
+	EditorInterface.get_resource_filesystem().update_file(path)
+	EditorInterface.get_resource_filesystem().update_file(archived_path)
+	return archived_path
+
+## Every [code]*.event.json[/code] directly under [param dir_path] - not its "removed"
+## subfolder, which holds files already dealt with, not candidates. Returns empty for a
+## map with no event folder yet rather than erroring, since that is simply a map with
+## nothing to orphan.
+func _event_files_in(dir_path: String) -> Array[String]:
+	var found: Array[String] = []
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return found
+
+	dir.list_dir_begin()
+	var entry_name := dir.get_next()
+	while entry_name != "":
+		if not dir.current_is_dir() and entry_name.ends_with(".event.json"):
+			found.append(dir_path.path_join(entry_name))
+		entry_name = dir.get_next()
+	dir.list_dir_end()
+	return found
+
+## Finds every event file under the edited scene's map folder that no [Actor] in the
+## scene points at, and asks - through [member _orphan_dialog] - whether to archive
+## them. Nothing is moved here; [method _on_orphan_dialog_confirmed] does that, only if
+## the author confirms.
+func _on_find_orphaned_events() -> void:
+	if not _live():
+		return
+
+	var map_root := EditorInterface.get_edited_scene_root()
+	if map_root == null:
+		_set_status("Open a scene to search its map for orphaned events.", _status_color(false))
+		return
+
+	var used := {}
+	for actor in ActorNaming.actors_under(map_root):
+		if actor.event_path != "":
+			used[actor.event_path] = true
+
+	var map_dir := _map_event_dir(map_root)
+	var orphans: Array[String] = []
+	for path in _event_files_in(map_dir):
+		if not used.has(path):
+			orphans.append(path)
+
+	if orphans.is_empty():
+		_set_status("No orphaned events under %s." % map_dir, _status_color(true))
+		return
+
+	_pending_orphans = orphans
+	_orphan_list.clear()
+	for path in orphans:
+		_orphan_list.add_item(path.get_file())
+
+	_orphan_dialog.dialog_text = "%d event file(s) under %s have no actor pointing at them. Archive them?" \
+		% [orphans.size(), map_dir]
+	_orphan_dialog.popup_centered()
+
+## Archives every file [method _on_find_orphaned_events] listed, once the author
+## confirms.
+func _on_orphan_dialog_confirmed() -> void:
+	var archived := 0
+	for path in _pending_orphans:
+		if FileAccess.file_exists(path) and _archive_event_file(path) != "":
+			archived += 1
+
+	_pending_orphans.clear()
+	_set_status("Archived %d orphaned event file(s)." % archived, _status_color(true))
+
+# --- Cross-panel navigation ---------------------------------------------------
+
+## Preloaded rather than looked up by name: the Events dock is a fixed addon file,
+## same reasoning as [constant Doc] and [constant EventDoc] above.
+const EventDockScript := preload("res://addons/event_editor/event_editor_dock.gd")
+
+func _view_json() -> void:
+	if not _live() or _path == "":
+		return
+
+	var dock := _find_by_script(get_tree().root, EventDockScript)
+	if dock != null:
+		dock._load(_path)
+
+## Walks the whole scene tree for a node running [param script] exactly - not by
+## name, since the panel's own name ("Graph") collides with the [GraphEdit] child
+## inside it, and editor dock layout is otherwise unversioned internal structure
+## not worth depending on.
+func _find_by_script(node: Node, script: Script) -> Node:
+	if node.get_script() == script:
+		return node
+	for child in node.get_children():
+		var found := _find_by_script(child, script)
+		if found != null:
+			return found
+	return null
 
 # --- Theme --------------------------------------------------------------------
 

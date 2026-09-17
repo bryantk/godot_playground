@@ -66,6 +66,14 @@ const DEFAULT_TITLE := "Node"
 ## Prefix for generated ids. See [method generate_id].
 const ID_PREFIX := "n"
 
+## Mirrors [constant EventCommand.START_COMMAND] - the one command whose node is
+## allowed a blank id, since a graph's start node is found by command, not by name,
+## and never needs one. Duplicated rather than imported: this file stays UI- and
+## domain-free, so it knows this one command string the way it already knows
+## "outputs" and "target" are its business, without pulling in the rest of what
+## EventCommand means by "start".
+const _START_COMMAND := "start"
+
 ## Node keys this file understands. Anything else in a raw node object is passenger
 ## data, kept under [code]_unknown[/code] rather than dropped - see [method _extract_unknown].
 const NODE_KEYS: PackedStringArray = [
@@ -159,7 +167,22 @@ static func parse_nodes(data: Array) -> Dictionary:
 		nodes.append(node)
 
 	_resolve_targets(nodes, ids, problems)
+	_move_start_first(nodes, problems)
 	return {"nodes": nodes, "problems": problems}
+
+## Moves the start node - found by [constant _START_COMMAND], not by id - to the front
+## of [param nodes] if it is not there already, and reports the repair. A reader (and a
+## diff) should find it first without having to search; [method GraphEditorPanel._serialize]
+## keeps the same rule for a graph built fresh in the editor.
+static func _move_start_first(nodes: Array[Dictionary], problems: Array[String]) -> void:
+	for i in nodes.size():
+		if str(nodes[i].get("command", "")) == _START_COMMAND:
+			if i > 0:
+				var start_node: Dictionary = nodes[i]
+				nodes.remove_at(i)
+				nodes.push_front(start_node)
+				problems.append("The start node was not first - moved to the top of the list.")
+			return
 
 ## Every string the document uses as an id or a target, as a set. Deliberately loose
 ## about the shapes it walks: it runs before validation, on data that may be malformed
@@ -204,8 +227,9 @@ static func _read_node(raw: Variant, index: int, ids: Dictionary, reserved: Dict
 
 	var source: Dictionary = raw
 	var id := str(source.get("id", ""))
+	var start_node := str(source.get("command", "")) == _START_COMMAND
 
-	if id == "":
+	if id == "" and not start_node:
 		id = generate_id(reserved)
 		problems.append("%s has no id - generated \"%s\"." % [where, id])
 	elif ids.has(id):
@@ -401,10 +425,12 @@ static func validate(nodes: Array[Dictionary]) -> Array[String]:
 
 	for node in nodes:
 		var id: String = node["id"]
-		if id == "":
+		var start_node: bool = str(node.get("command", "")) == _START_COMMAND
+		if id == "" and not start_node:
 			problems.append("A node has an empty id.")
 		elif ids.has(id):
-			problems.append("Duplicate id \"%s\"." % id)
+			problems.append("Duplicate id \"%s\"." % id if id != "" \
+				else "More than one node has a blank id.")
 		ids[id] = true
 
 	for node in nodes:

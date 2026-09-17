@@ -1,0 +1,28 @@
+[gd_scene format=3 uid="uid://6ddmnpdglqam"]
+
+[ext_resource type="Texture2D" uid="uid://vgtcw8vnwe03" path="res://resources/test/tree.png" id="1_tex"]
+[ext_resource type="Script" path="res://core/grid_obstacle.gd" id="2_obstacle"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1"]
+size = Vector3(0.5, 0.9, 0.5)
+
+[node name="Tree" type="StaticBody3D" unique_id=1446113534]
+script = ExtResource("2_obstacle")
+
+[node name="TrunkCollision" type="CollisionShape3D" parent="." unique_id=1076192566]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0)
+shape = SubResource("BoxShape3D_1")
+
+[node name="SpriteA" type="Sprite3D" parent="." unique_id=378610075]
+transform = Transform3D(-4.3711385e-08, 0, 0.99999994, 0, 1, 0, -0.99999994, 0, -4.3711385e-08, 0, -0.17582178, 0)
+offset = Vector2(0, 48)
+pixel_size = 0.0375
+alpha_cut = 1
+texture = ExtResource("1_tex")
+
+[node name="SpriteB" type="Sprite3D" parent="." unique_id=1511968960]
+transform = Transform3D(0.99999994, 0, 0, 0, 1, 0, 0, 0, 0.99999994, 0, -0.17582178, 0)
+offset = Vector2(0, 48)
+pixel_size = 0.0375
+alpha_cut = 1
+texture = ExtResource("1_tex")

@@ -77,7 +77,9 @@ const SPACE_FREE := "free"
 ## [code]args[/code] maps an argument name to one of the [code]T_*[/code] types, with a
 ## trailing [code]?[/code] for optional. [code]flows[/code] names the flow ports in port
 ## order - one for a linear command, several for a branch, none for a command that ends
-## the path. [code]blocking[/code] is the default a node may override.
+## the path. [code]blocking[/code] is the default a node may override. [code]blurb[/code]
+## is one line for an author choosing a command, not a spec - the graph editor's add-node
+## picker is its only reader today (see [method description]).
 ##
 ## [b]`actor` is optional on every actor command and defaults to [code]@self[/code][/b],
 ## because the overwhelmingly common case is an event moving itself, and writing
@@ -93,28 +95,33 @@ const COMMANDS: Dictionary = {
 		"args": {},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "The node every graph begins at.",
 	},
 	"wait": {
 		"args": {"seconds": T_SECONDS},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_STATE,
+		"blurb": "Pause for a duration.",
 	},
 	"goto": {
 		# No args: the flow port IS the jump. patrol_guard.event.json used to write the
 		# target twice, in args and in the port, which is two sources that can disagree.
 		"args": {},
-		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Jump to another node in the graph.",
 	},
 	"label": {
 		"args": {"name": T_STRING},
-		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "A named point another node can jump to.",
 	},
 	"if": {
 		"args": {"condition": T_CONDITION},
-		"flows": ["true", "false"], "blocking": true, "space": SPACE_ANY,
+		"flows": ["true", "false"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Branch on a condition.",
 	},
 	"ask": {
 		# The flow ports are the choices, so `flows` here is only the fallback for a node
@@ -122,29 +129,34 @@ const COMMANDS: Dictionary = {
 		"args": {"text": T_STRING, "choices": T_CHOICES, "location": T_INT + "?"},
 		"flows": [], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Present a choice menu, one flow port per choice.",
 	},
 	"call": {
 		"args": {"document": T_STRING, "entry": T_STRING + "?"},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Run another event's graph inline.",
 	},
 	"wait_for": {
 		"args": {"key": T_KEY},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Pause until a matching key command finishes.",
 	},
 	"end": {
 		"args": {},
 		"flows": [], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Stop the graph here.",
 	},
 	"re_validate": {
 		# Question 23's escape hatch: force page selection to run now, rather than at
 		# graph completion. Re-runs the ordinary conditional check; it does not name a
 		# page, so it is not question 13's rejected `set_page`.
 		"args": {},
-		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Re-check which page should be active, right now.",
 	},
 
 	# -- Actor -----------------------------------------------------------------
@@ -153,53 +165,63 @@ const COMMANDS: Dictionary = {
 			"path": T_STRING + "?"},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_STATE,
+		"blurb": "Walk an actor to a specific cell.",
 	},
 	"move_by": {
 		"args": {"actor": T_ACTOR + "?", "cells": T_CELL, "speed": T_FLOAT + "?",
 			"path": T_STRING + "?"},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_STATE,
+		"blurb": "Walk an actor a relative number of cells.",
 	},
 	"step": {
 		"args": {"actor": T_ACTOR + "?", "direction": T_DIR},
 		"flows": ["next"], "blocking": true, "space": SPACE_GRID,
 		"resume": RESUME_STATE,
+		"blurb": "Move an actor one grid cell in a direction.",
 	},
 	"face_direction": {
 		"args": {"actor": T_ACTOR + "?", "direction": T_TURN},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Turn an actor to face a direction.",
 	},
 	"face_to": {
 		"args": {"actor": T_ACTOR + "?", "target": T_ACTOR},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Turn an actor to face another actor.",
 	},
 	"jump": {
 		"args": {"actor": T_ACTOR + "?", "strength": T_FLOAT + "?", "toward": T_CELL + "?"},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_STATE,
 		"requires": [GameProfile.Capability.HEIGHT],
+		"blurb": "Have an actor jump, optionally toward a cell.",
 	},
 	"follow": {
 		"args": {"actor": T_ACTOR + "?", "target": T_ACTOR, "distance": T_INT + "?"},
 		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_STATE,
+		"blurb": "Have an actor continuously follow another.",
 	},
 	"set_speed": {
 		"args": {"actor": T_ACTOR + "?", "speed": T_FLOAT},
-		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Change an actor's movement speed.",
 	},
 	"teleport": {
 		"args": {"actor": T_ACTOR + "?", "cell": T_CELL},
-		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Move an actor to a cell instantly, no animation.",
 	},
 	"wait_settle": {
 		"args": {"actor": T_ACTOR + "?"},
 		"flows": ["next"], "blocking": true, "space": SPACE_GRID,
 		"resume": RESUME_RESTART,
+		"blurb": "Pause until an actor is centred on its cell.",
 	},
 
 	# -- Dialogue --------------------------------------------------------------
@@ -207,38 +229,45 @@ const COMMANDS: Dictionary = {
 		"args": {"text": T_STRING, "location": T_INT + "?"},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Show a line of dialogue.",
 	},
 	"append_say": {
 		"args": {"text": T_STRING, "location": T_INT + "?"},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Add another line to the open dialogue window.",
 	},
 	"close_window": {
 		"args": {},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Close the dialogue window.",
 	},
 
 	# -- State -----------------------------------------------------------------
 	"set_flag": {
 		"args": {"flag": T_FLAG, "value": T_BOOL + "?"},
-		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Set a global flag.",
 	},
 	"set_self_flag": {
 		"args": {"flag": T_FLAG, "value": T_BOOL + "?"},
-		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Set a flag scoped to this event.",
 	},
 	"set_var": {
 		"args": {"var": T_VAR, "value": T_FLOAT},
-		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Set a declared variable to a value.",
 	},
 	"add_var": {
 		"args": {"var": T_VAR, "delta": T_FLOAT},
-		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Add to a declared variable.",
 	},
 
 	# -- Map -------------------------------------------------------------------
@@ -246,26 +275,31 @@ const COMMANDS: Dictionary = {
 		"args": {"map": T_STRING, "cell": T_CELL + "?", "facing": T_DIR + "?"},
 		"flows": [], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Leave for another map.",
 	},
 	"fade": {
 		"args": {"to": T_FLOAT + "?", "seconds": T_SECONDS + "?"},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_STATE,
+		"blurb": "Fade the screen to or from a colour.",
 	},
 	"shake": {
 		"args": {"seconds": T_SECONDS + "?", "strength": T_FLOAT + "?"},
-		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
+		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_STATE,
+		"blurb": "Shake the camera.",
 	},
 	"camera_to": {
 		"args": {"cell": T_CELL, "seconds": T_SECONDS + "?"},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_STATE,
+		"blurb": "Pan the camera to a cell.",
 	},
 	"camera_follow": {
 		"args": {"actor": T_ACTOR, "seconds": T_SECONDS + "?"},
-		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_STATE,
+		"blurb": "Have the camera follow an actor.",
 	},
 
 	# -- Presentation ----------------------------------------------------------
@@ -273,21 +307,25 @@ const COMMANDS: Dictionary = {
 		"args": {"actor": T_ACTOR + "?", "anim": T_STRING},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_STATE,
+		"blurb": "Play an animation on an actor.",
 	},
 	"play_sound": {
 		"args": {"sound": T_STRING},
 		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Play a sound effect.",
 	},
 	"play_music": {
 		"args": {"track": T_STRING, "fade": T_SECONDS + "?"},
 		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Change the background music.",
 	},
 	"set_visible": {
 		"args": {"actor": T_ACTOR + "?", "visible": T_BOOL},
-		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
+		"blurb": "Show or hide an actor.",
 	},
 
 	# -- Battle ----------------------------------------------------------------
@@ -296,6 +334,7 @@ const COMMANDS: Dictionary = {
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
 		"requires": [GameProfile.Capability.BATTLE_SCENE],
+		"blurb": "Start a battle against a troop.",
 	},
 }
 
@@ -370,6 +409,13 @@ static func has_command(name: String) -> bool:
 ## through it without a guard.
 static func definition(name: String) -> Dictionary:
 	return COMMANDS.get(name, {})
+
+
+## [param name]'s one-line [code]blurb[/code], or "" for an unknown command - the graph
+## editor's add-node picker reads this so an author sees what a command does before
+## dropping it in the graph.
+static func description(name: String) -> String:
+	return str(definition(name).get("blurb", ""))
 
 
 ## The flow ports [param node] actually has, in port order.

@@ -172,6 +172,16 @@ func place(actor_id: StringName, cell: Vector3i) -> void:
 	_put(cell, actor_id)
 
 
+## Like [method place], but for an occupant spanning several cells at once - a large
+## static prop, or a rigid body whose collider straddles more than one cell. Forced for
+## the same reason [method place] is: an authored multi-cell footprint is a statement,
+## not a request, and refusing it half-placed would leave the table inconsistent.
+func place_many(actor_id: StringName, cells: Array[Vector3i]) -> void:
+	_lift(actor_id)
+	for cell: Vector3i in cells:
+		_put(cell, actor_id)
+
+
 ## Drop every cell [param actor_id] holds - called when an actor leaves the map, so a
 ## dead monster does not keep blocking the corridor it died in. Its phasing flag goes
 ## with it, since nothing else would ever clear it.

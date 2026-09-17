@@ -4,10 +4,16 @@ class_name EventDocument
 ## selection - event-pages.md §2 and §2.3.
 ##
 ## [b]Layering.[/b] This file owns the wrapper, the page list and each page's
-## [code]conditions[/code], [code]settings[/code], [code]art[/code] and [code]route[/code].
-## A page's [code]graph[/code] is delegated to [code]graph_document.gd[/code] unchanged -
-## this file never reads a node. Conditions are evaluated through [EventCondition], never
-## re-implemented here.
+## [code]conditions[/code], [code]settings[/code] and [code]art[/code]. A page's
+## [code]graph[/code] and [code]route[/code] are both delegated to
+## [code]graph_document.gd[/code] unchanged - this file never reads a node of either.
+## Conditions are evaluated through [EventCondition], never re-implemented here.
+##
+## [b]A route is a node array, the same shape a graph is.[/b] The graph editor's route
+## view is the ordinary node editor pointed at [code]route[/code] instead of
+## [code]graph[/code] - one editing surface and one schema for "a sequence of
+## commands", rather than a second one for the [code]{mode, loop, waypoints}[/code]
+## shape event-pages.md §3 describes but this codebase has not built a reader for yet.
 ##
 ## [b]Static and UI-free[/b], the same rule [code]graph_document.gd[/code] and
 ## [code]event_command.gd[/code] follow, so it is callable from an editor script and from
@@ -37,13 +43,22 @@ const PAGE_KEYS: PackedStringArray = ["conditions", "settings", "art", "route", 
 
 ## A page with no conditions, no settings, no art, no route and no graph - the empty
 ## default every field falls back to when a page omits it.
+##
+## [b]The two node arrays are typed[/b], matching what [method Doc.parse_nodes] hands
+## back for a page that does have them. An untyped default is a trap for any reader
+## that declares its own [code]Array[Dictionary][/code]: the bare-array document path
+## in [method parse] replaces only [code]graph[/code], so an untyped [code]route[/code]
+## would survive into every single-page document and fail that reader's assignment at
+## run time.
 static func default_page() -> Dictionary:
+	var route: Array[Dictionary] = []
+	var graph: Array[Dictionary] = []
 	return {
 		"conditions": [],
 		"settings": {},
 		"art": {},
-		"route": {},
-		"graph": [],
+		"route": route,
+		"graph": graph,
 		"_unknown": {},
 	}
 
@@ -125,21 +140,53 @@ static func _read_page(raw: Variant, index: int, problems: Array[String]) -> Dic
 	page["conditions"] = _read_list(source.get("conditions", []), where, "conditions", problems)
 	page["settings"] = _read_dict(source.get("settings", {}), where, "settings", problems)
 	page["art"] = _read_dict(source.get("art", {}), where, "art", problems)
-	page["route"] = _read_dict(source.get("route", {}), where, "route", problems)
-
-	var graph_raw: Variant = source.get("graph", [])
-	if typeof(graph_raw) != TYPE_ARRAY:
-		problems.append("%s: \"graph\" must be an array, found %s - treated as empty."
-			% [where, type_string(typeof(graph_raw))])
-		graph_raw = []
-
-	var sub := Doc.parse_nodes(graph_raw as Array)
-	page["graph"] = sub["nodes"]
-	for message in sub["problems"]:
-		problems.append("%s: %s" % [where, message])
+	page["route"] = _read_route(source.get("route", []), where, problems)
+	page["graph"] = _read_nodes(source.get("graph", []), where, "graph", problems)
 
 	page["_unknown"] = _extract_unknown(source, PAGE_KEYS)
 	return page
+
+## A page's [code]route[/code], in either shape it may legitimately hold.
+##
+## A node array is what the graph editor's route view reads and writes, and is read
+## exactly like a [code]graph[/code]. A [Dictionary] is event-pages.md §3's
+## [code]{mode, loop, waypoints}[/code] form, which nothing in this codebase has a
+## reader for yet: it is carried through verbatim rather than reported or emptied, so a
+## file authored against §3 - slime_a.event.json's three pages, today - keeps
+## round-tripping byte for byte instead of losing its route to a shape change it was
+## never rewritten for.
+static func _read_route(raw: Variant, where: String, problems: Array[String]) -> Variant:
+	if typeof(raw) == TYPE_DICTIONARY:
+		return (raw as Dictionary).duplicate(true)
+	return _read_nodes(raw, where, "route", problems)
+
+## [param raw] as a typed node array, dropping anything in it that is not a node.
+##
+## Typed deliberately: [code]graph_document.gd[/code]'s helpers all declare
+## [code]Array[Dictionary][/code] parameters, and GDScript refuses an untyped [Array]
+## passed to one at run time - which a [method Dictionary.get] result generally is.
+static func _as_nodes(raw: Variant) -> Array[Dictionary]:
+	var nodes: Array[Dictionary] = []
+	if typeof(raw) != TYPE_ARRAY:
+		return nodes
+	for entry in raw as Array:
+		if entry is Dictionary:
+			nodes.append(entry)
+	return nodes
+
+## A page's [code]route[/code] or [code]graph[/code] as a node array, read the same
+## way [method Doc.parse_nodes] already reads a bare-array document.
+static func _read_nodes(raw: Variant, where: String, field: String,
+		problems: Array[String]) -> Array[Dictionary]:
+	if typeof(raw) != TYPE_ARRAY:
+		problems.append("%s: \"%s\" must be an array, found %s - treated as empty."
+			% [where, field, type_string(typeof(raw))])
+		raw = []
+
+	var sub := Doc.parse_nodes(raw as Array)
+	for message in sub["problems"]:
+		problems.append("%s: %s" % [where, message])
+	return sub["nodes"]
 
 static func _read_list(raw: Variant, where: String, field: String,
 		problems: Array[String]) -> Array:
@@ -180,6 +227,13 @@ static func _strip_dict_keys(source: Dictionary, known: PackedStringArray) -> Di
 
 # -- Serialising ---------------------------------------------------------------
 
+## The inverse of [method _read_route]: a §3 object back out exactly as it came in, a
+## node array back out through [method Doc.to_data] like a graph.
+static func _route_to_data(route: Variant) -> Variant:
+	if typeof(route) == TYPE_DICTIONARY:
+		return route
+	return Doc.to_data(_as_nodes(route))
+
 ## [param doc] back to the on-disk wrapper form.
 static func stringify(doc: Dictionary) -> String:
 	var pages: Array = []
@@ -189,8 +243,8 @@ static func stringify(doc: Dictionary) -> String:
 			"conditions": page_dict.get("conditions", []),
 			"settings": page_dict.get("settings", {}),
 			"art": page_dict.get("art", {}),
-			"route": page_dict.get("route", {}),
-			"graph": Doc.to_data(page_dict.get("graph", [])),
+			"route": _route_to_data(page_dict.get("route", [])),
+			"graph": Doc.to_data(_as_nodes(page_dict.get("graph", []))),
 		}
 		for key: Variant in page_dict.get("_unknown", {}):
 			entry[key] = page_dict["_unknown"][key]
@@ -257,8 +311,11 @@ static func unknown_report(doc: Dictionary) -> Array[String]:
 		for key: Variant in page.get("_unknown", {}):
 			lines.append("Page %d: unknown key \"%s\"." % [i + 1, key])
 
-		for message in Doc.unknown_report(page.get("graph", [])):
+		for message in Doc.unknown_report(_as_nodes(page.get("graph", []))):
 			lines.append("Page %d, %s" % [i + 1, message])
+		# A §3 object route has no nodes to report on - _as_nodes reads it as none.
+		for message in Doc.unknown_report(_as_nodes(page.get("route", []))):
+			lines.append("Page %d, route %s" % [i + 1, message])
 
 	return lines
 
@@ -272,7 +329,12 @@ static func strip_unknown(doc: Dictionary) -> Dictionary:
 	for page in out.get("pages", []) as Array:
 		var page_dict: Dictionary = page
 		page_dict["_unknown"] = {}
-		page_dict["graph"] = Doc.strip_unknown(page_dict.get("graph", []))
+		page_dict["graph"] = Doc.strip_unknown(_as_nodes(page_dict.get("graph", [])))
+		# A §3 object route is left exactly as it is - there are no per-node unknown
+		# keys in it to strip, and rewriting it as an empty array would be data loss.
+		var route: Variant = page_dict.get("route", [])
+		if typeof(route) != TYPE_DICTIONARY:
+			page_dict["route"] = Doc.strip_unknown(_as_nodes(route))
 		pages.append(page_dict)
 	out["pages"] = pages
 
@@ -313,6 +375,9 @@ static func strip_unknown_raw(data: Variant) -> Variant:
 		var graph: Variant = (page as Dictionary).get("graph")
 		if typeof(graph) == TYPE_ARRAY:
 			stripped_page["graph"] = Doc.strip_unknown_raw(graph as Array)
+		var route: Variant = (page as Dictionary).get("route")
+		if typeof(route) == TYPE_ARRAY:
+			stripped_page["route"] = Doc.strip_unknown_raw(route as Array)
 		pages.append(stripped_page)
 	out["pages"] = pages
 

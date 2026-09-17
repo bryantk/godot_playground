@@ -59,20 +59,22 @@ func _test_registry() -> void:
 	var bad_args: Array[String] = []
 	for name: Variant in defs:
 		var def: Dictionary = defs[name]
-		for required in ["args", "flows", "blocking", "space", "resume"]:
+		for required in ["args", "flows", "blocking", "space", "resume", "blurb"]:
 			if not def.has(required):
 				bad_keys.append("%s is missing \"%s\"" % [name, required])
 		if not resumes.has(def.get("resume", "")):
 			bad_keys.append("%s has an unknown resume bucket" % name)
 		if not spaces.has(def.get("space", "")):
 			bad_keys.append("%s has an unknown space" % name)
+		if str(def.get("blurb", "")).is_empty():
+			bad_keys.append("%s has an empty blurb" % name)
 
 		for arg: Variant in def.get("args", {}):
 			var declared := str(def["args"][arg]).trim_suffix("?")
 			if not types.has(declared):
 				bad_args.append("%s.%s is type \"%s\"" % [name, arg, declared])
 
-	_ok(bad_keys.is_empty(), "every definition has all five keys%s"
+	_ok(bad_keys.is_empty(), "every definition has all six keys%s"
 		% ("" if bad_keys.is_empty() else " -- " + ", ".join(bad_keys)))
 	_ok(bad_args.is_empty(), "every argument has a known type%s"
 		% ("" if bad_args.is_empty() else " -- " + ", ".join(bad_args)))
@@ -372,43 +374,38 @@ func _test_reachability() -> void:
 
 # -- The worked examples -------------------------------------------------------
 
+## All five are page-wrapped [EventDocument]s now (the page/conditions/art structure
+## that used to be only slime_a's has since been filled in on the other four), so a
+## graph to check is always [code]pages[i].graph[/code] - never the file's own top
+## level, which is the wrapper and is segment 3's business, not this file's.
 func _test_examples() -> void:
 	_section("docs/events -- the five worked examples parse clean")
 
-	for file in ["cliff_jump", "greet_guard", "locked_door", "patrol_guard"]:
-		var nodes: Variant = _read_json("%s%s.event.json" % [EXAMPLES, file])
-		if nodes == null:
-			_ok(false, "%s could not be read" % file)
+	for file in ["cliff_jump", "greet_guard", "locked_door", "patrol_guard", "slime_a"]:
+		var doc: Variant = _read_json("%s%s.event.json" % [EXAMPLES, file])
+		_ok(doc is Dictionary, "%s is a page-wrapped document" % file)
+		if not doc is Dictionary:
 			continue
 
-		var result := EventCommand.parse_route(nodes)
-		_ok(result["problems"].is_empty(), "%s parses with no problems%s"
-			% [file, "" if result["problems"].is_empty() else ": " + str(result["problems"])])
-
-		var problems := EventCommand.validate_graph(nodes)
-		_ok(problems.is_empty(), "  and validates%s"
-			% ("" if problems.is_empty() else ": " + str(problems)))
-
-		var reachability := EventCommand.validate_reachability(nodes)
-		_ok(reachability.is_empty(), "  and everything is reachable from its start node%s"
-			% ("" if reachability.is_empty() else ": " + str(reachability)))
-
-	# slime_a is the page-wrapped one, so only its graphs are a command list. The wrapper
-	# itself is segment 3's business.
-	var doc: Variant = _read_json("%sslime_a.event.json" % EXAMPLES)
-	_ok(doc is Dictionary, "slime_a is a page-wrapped document")
-	if doc is Dictionary:
 		var pages: Array = (doc as Dictionary).get("pages", [])
-		_eq(pages.size(), 3, "  with three pages")
+		if file == "slime_a":
+			_eq(pages.size(), 3, "  with three pages")
+
 		for i in pages.size():
 			var graph: Variant = (pages[i] as Dictionary).get("graph", [])
+			var where: String = file if pages.size() == 1 else "%s page %d" % [file, i + 1]
+
 			var result := EventCommand.parse_route(graph)
-			_ok(result["problems"].is_empty(), "  page %d's graph parses clean%s"
-				% [i + 1, "" if result["problems"].is_empty() else ": " + str(result["problems"])])
+			_ok(result["problems"].is_empty(), "  %s parses with no problems%s"
+				% [where, "" if result["problems"].is_empty() else ": " + str(result["problems"])])
+
+			var problems := EventCommand.validate_graph(graph)
+			_ok(problems.is_empty(), "  and validates%s"
+				% ("" if problems.is_empty() else ": " + str(problems)))
 
 			var reachability := EventCommand.validate_reachability(graph)
-			_ok(reachability.is_empty(), "  page %d is reachable from its start node%s"
-				% [i + 1, "" if reachability.is_empty() else ": " + str(reachability)])
+			_ok(reachability.is_empty(), "  and everything is reachable from its start node%s"
+				% ("" if reachability.is_empty() else ": " + str(reachability)))
 
 	_section("the dock's contract")
 

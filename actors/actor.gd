@@ -41,6 +41,16 @@ enum MotionMode { INHERIT, GRID, FREE }
 ## [b]Symmetric on purpose[/b] (open-questions 35): one flag, both directions. It does
 ## not mean "absent from [Occupancy]" - a phasing actor is still recorded on its cell, or
 ## interact could not find it and a through NPC would be unaddressable.
+## The event graph this actor plays, if any - event-pages.md's
+## [code]{format, id, pages}[/code] file, or the bare-array shorthand for a one-page one.
+##
+## [b]Author-set, not derived.[/b] Nothing renames this when [member actor_id] changes,
+## because a graph already written against the old id should keep working rather than
+## losing its file the moment an author retypes a name. The graph editor's "Load Actor
+## Event" button fills this in the first time, from the actor's id and map, and leaves it
+## alone afterwards.
+@export_file("*.event.json") var event_path: String = ""
+
 @export var through_actors: bool = false
 
 ## Ignores terrain: the painted pathing mask in 2D, the colliders and [GridMap] in 3D.

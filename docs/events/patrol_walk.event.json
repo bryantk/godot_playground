@@ -1,0 +1,89 @@
+{
+	"format": 1,
+	"id": "patrol_walk",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {},
+			"art": {},
+			"route": {},
+			"graph": [
+				{
+					"id": "",
+					"title": "Start",
+					"position": {
+						"x": -160,
+						"y": 80
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "walk_n"
+						}
+					]
+				},
+				{
+					"id": "walk_n",
+					"title": "Walk North 4 Steps",
+					"position": {
+						"x": 80,
+						"y": 80
+					},
+					"command": "mov",
+					"args": {
+						"direction": "n",
+						"distance": 4
+					},
+					"blocking": true,
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "wait_period"
+						}
+					]
+				},
+				{
+					"id": "wait_period",
+					"title": "Wait 4 Seconds",
+					"position": {
+						"x": 400,
+						"y": 0
+					},
+					"command": "wait",
+					"args": {
+						"seconds": 4
+					},
+					"blocking": true,
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "walk_e"
+						}
+					]
+				},
+				{
+					"id": "walk_e",
+					"title": "Walk East 1 Step",
+					"position": {
+						"x": 600,
+						"y": 0
+					},
+					"command": "mov",
+					"args": {
+						"direction": "e",
+						"distance": 1
+					},
+					"blocking": true,
+					"outputs": [
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				}
+			]
+		}
+	]
+}

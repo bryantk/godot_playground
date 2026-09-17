@@ -33,6 +33,13 @@ const NEW_COMMAND := "mov n 2"
 const METADATA_SECTION := "event_editor"
 const METADATA_PATH_KEY := "last_file"
 
+## Items behind the toolbar's dropdowns, grouped by what they act on rather than left
+## as one long row of buttons per group. The enum values double as [PopupMenu] item
+## ids, so a dropdown's [signal PopupMenu.id_pressed] handler can [code]match[/code] on
+## them directly instead of comparing against the label text.
+enum FileAction { NEW, OPEN, RELOAD, SAVE, VIEW_GRAPH }
+enum EditAction { ADD, UNKNOWN, STRIP_UNKNOWN, FORMAT, VALIDATE }
+
 var _path := ""
 var _dirty := false
 ## Where the mouse last sat in the text, as
@@ -45,8 +52,9 @@ var _edit: CodeEdit
 var _results: ItemList
 var _hover_label: Label
 var _status: Label
-var _save_button: Button
-var _reload_button: Button
+## The File dropdown - kept, unlike the others, because [method _refresh_title]
+## enables and disables its Save and Reload items.
+var _file_menu: MenuButton
 var _file_dialog: EditorFileDialog
 
 func _init() -> void:
@@ -86,8 +94,7 @@ func _bind() -> bool:
 	_results = get_node_or_null(^"Results") as ItemList
 	_hover_label = get_node_or_null(^"Hover") as Label
 	_status = get_node_or_null(^"Status") as Label
-	_save_button = get_node_or_null(^"ToolbarFile/Save") as Button
-	_reload_button = get_node_or_null(^"ToolbarFile/Reload") as Button
+	_file_menu = get_node_or_null(^"Toolbar/File") as MenuButton
 	_file_dialog = get_node_or_null(^"FileDialog") as EditorFileDialog
 
 	if is_instance_valid(_hover_label):
@@ -115,36 +122,28 @@ func _live() -> bool:
 func _build_ui() -> void:
 	add_theme_constant_override("separation", 4)
 
-	# Two rows: file operations, which act on the whole document, above editing
-	# operations, which act on the buffer's contents. Growing list of the latter is
-	# what made one crowded row worth splitting.
-	var files := HBoxContainer.new()
-	files.name = "ToolbarFile"
-	add_child(files)
+	# Two dropdowns rather than a row per group: File acts on the whole document,
+	# Edit acts on the buffer's contents.
+	var toolbar := HBoxContainer.new()
+	toolbar.name = "Toolbar"
+	add_child(toolbar)
 
-	files.add_child(_make_button("New", _new_document))
-	files.add_child(_make_button("Open", _open))
-	_reload_button = _make_button("Reload", _reload)
-	files.add_child(_reload_button)
-	_save_button = _make_button("Save", _save)
-	files.add_child(_save_button)
+	_file_menu = _make_menu_button("File", [
+		[FileAction.NEW, "New"],
+		[FileAction.OPEN, "Open"],
+		[FileAction.RELOAD, "Reload"],
+		[FileAction.SAVE, "Save"],
+		[FileAction.VIEW_GRAPH, "View Graph"],
+	], _on_file_menu_id_pressed)
+	toolbar.add_child(_file_menu)
 
-	var editing := HBoxContainer.new()
-	editing.name = "ToolbarEdit"
-	add_child(editing)
-
-	editing.add_child(_make_button("Add", _add_command))
-	editing.add_child(_make_button("Unknown", _show_unknown))
-	editing.add_child(_make_button("Strip Unknown", _strip_unknown))
-
-	# Format and Validate get their own row: both re-read the whole buffer rather than
-	# make one targeted edit like the row above, which made them worth setting apart.
-	var running := HBoxContainer.new()
-	running.name = "ToolbarRun"
-	add_child(running)
-
-	running.add_child(_make_button("Format", _format))
-	running.add_child(_make_button("Validate", _validate))
+	toolbar.add_child(_make_menu_button("Edit", [
+		[EditAction.ADD, "Add"],
+		[EditAction.UNKNOWN, "Unknown"],
+		[EditAction.STRIP_UNKNOWN, "Strip Unknown"],
+		[EditAction.FORMAT, "Format"],
+		[EditAction.VALIDATE, "Validate"],
+	], _on_edit_menu_id_pressed))
 
 	_title = Label.new()
 	_title.name = "Title"
@@ -212,6 +211,30 @@ func _make_button(text: String, handler: Callable) -> Button:
 	button.text = text
 	button.pressed.connect(handler)
 	return button
+
+## A toolbar dropdown grouping related actions under one label, instead of one button
+## each - [param items] is [code][[id, label], ...][/code], [param id] being an entry
+## of whichever [code]*Action[/code] enum the dropdown is for. [param handler] receives
+## that id from [signal PopupMenu.id_pressed] and dispatches on it, the same shape for
+## every dropdown so adding one is copy the call, not write a new pattern.
+func _make_menu_button(text: String, items: Array, handler: Callable) -> MenuButton:
+	var menu := MenuButton.new()
+	# Named as well as labelled so _bind() can find it again after a script reload -
+	# only [member _file_menu] actually needs that, but every dropdown gets the same
+	# treatment rather than one being the exception.
+	menu.name = text
+	menu.text = text
+	menu.switch_on_hover = true
+	# MenuButton defaults to flat - reads as a label, not a control - which is what
+	# made these hard to tell apart from the title text next to them.
+	menu.flat = false
+
+	var popup := menu.get_popup()
+	for entry in items:
+		popup.add_item(entry[1], entry[0])
+	popup.id_pressed.connect(handler)
+
+	return menu
 
 ## A JSON highlighter coloured from the user's script editor theme, so the dock
 ## matches the editor they already tuned rather than inventing its own palette.
@@ -469,8 +492,11 @@ func _refresh_title() -> void:
 	var label := _path if _path != "" else "(unsaved)"
 	_title.text = ("* " if _dirty else "") + label
 	_title.tooltip_text = label
-	_save_button.disabled = not _dirty and _path != ""
-	_reload_button.disabled = _path == ""
+
+	if is_instance_valid(_file_menu):
+		var popup := _file_menu.get_popup()
+		popup.set_item_disabled(popup.get_item_index(FileAction.SAVE), not _dirty and _path != "")
+		popup.set_item_disabled(popup.get_item_index(FileAction.RELOAD), _path == "")
 
 func _on_text_changed() -> void:
 	if not _live():
@@ -498,6 +524,50 @@ func _on_edit_gui_input(event: InputEvent) -> void:
 
 	if event is InputEventMouseMotion:
 		_update_hover(event.position)
+
+# --- Toolbar dropdowns ---------------------------------------------------------
+
+func _on_file_menu_id_pressed(id: int) -> void:
+	match id:
+		FileAction.NEW: _new_document()
+		FileAction.OPEN: _open()
+		FileAction.RELOAD: _reload()
+		FileAction.SAVE: _save()
+		FileAction.VIEW_GRAPH: _view_graph()
+
+func _on_edit_menu_id_pressed(id: int) -> void:
+	match id:
+		EditAction.ADD: _add_command()
+		EditAction.UNKNOWN: _show_unknown()
+		EditAction.STRIP_UNKNOWN: _strip_unknown()
+		EditAction.FORMAT: _format()
+		EditAction.VALIDATE: _validate()
+
+# --- Cross-panel navigation ---------------------------------------------------
+
+## Preloaded rather than looked up by name: the Graph panel is a fixed addon file,
+## same reasoning as [constant GraphDoc] and [constant EventDoc] above.
+const GraphPanelScript := preload("res://addons/graph_editor/graph_editor_panel.gd")
+
+func _view_graph() -> void:
+	if not _live() or _path == "":
+		return
+
+	var panel := _find_by_script(get_tree().root, GraphPanelScript)
+	if panel != null:
+		panel._load(_path)
+
+## Walks the whole scene tree for a node running [param script] exactly - not by
+## name, since the panel names its own [GraphEdit] child "Graph" too, and editor
+## dock layout is otherwise unversioned internal structure not worth depending on.
+func _find_by_script(node: Node, script: Script) -> Node:
+	if node.get_script() == script:
+		return node
+	for child in node.get_children():
+		var found := _find_by_script(child, script)
+		if found != null:
+			return found
+	return null
 
 # --- Hover --------------------------------------------------------------------
 

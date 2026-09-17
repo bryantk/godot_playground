@@ -248,22 +248,22 @@ func _test_unreachable_warning() -> void:
 
 ## The regression test for the data-loss bug this segment fixes: every example in
 ## docs/events/ parses and re-serialises to exactly the bytes on disk.
+##
+## All five are page-wrapped [EventDocument]s now (they were a mix of that and a bare
+## [code]graph_document[/code] array before the page/conditions/art structure was
+## filled in on the four that were missing it), so all five round-trip through the
+## same reader and writer as slime_a always did.
 func _test_round_trip() -> void:
 	_section("round trip -- the five worked examples, byte for byte")
 
-	for name in ["cliff_jump", "greet_guard", "locked_door", "patrol_guard"]:
+	for name in ["cliff_jump", "greet_guard", "locked_door", "patrol_guard", "slime_a"]:
 		var path := "%s%s.event.json" % [EXAMPLES, name]
 		var text := FileAccess.get_file_as_string(path)
-		var parsed := Doc.parse(text)
-		_ok((parsed["problems"] as Array).is_empty(), "%s parses with no problems" % name)
-		_eq(Doc.stringify(parsed["nodes"]), text, "%s round-trips byte for byte" % name)
-
-	var path := "%sslime_a.event.json" % EXAMPLES
-	var text := FileAccess.get_file_as_string(path)
-	var doc := EventDocument.parse(text)
-	_ok((doc["problems"] as Array).is_empty(), "slime_a parses with no problems")
-	_eq((doc["pages"] as Array).size(), 3, "  its three pages")
-	_eq(EventDocument.stringify(doc), text, "slime_a round-trips byte for byte")
+		var doc := EventDocument.parse(text)
+		_ok((doc["problems"] as Array).is_empty(), "%s parses with no problems" % name)
+		_eq(EventDocument.stringify(doc), text, "%s round-trips byte for byte" % name)
+		if name == "slime_a":
+			_eq((doc["pages"] as Array).size(), 3, "  its three pages")
 
 
 # -- Helpers ---------------------------------------------------------------------

@@ -1,120 +1,167 @@
-[
-	{
-		"id": "start",
-		"title": "Start",
-		"position": {
-			"x": -240,
-			"y": 0
-		},
-		"command": "start",
-		"args": {},
-		"outputs": [
-			{
-				"flow": "next",
-				"target": "n1"
-			}
-		]
-	},
-	{
-		"id": "n1",
-		"title": "Face the player",
-		"position": {
-			"x": 0,
-			"y": 0
-		},
-		"command": "face_to",
-		"args": {
-			"actor": "@self",
-			"target": "@player"
-		},
-		"outputs": [
-			{
-				"flow": "next",
-				"target": "n2"
-			}
-		]
-	},
-	{
-		"id": "n2",
-		"title": "Halt.",
-		"position": {
-			"x": 240,
-			"y": 0
-		},
-		"command": "say",
-		"args": {
-			"text": "Halt. The gate is closed after dark.",
-			"location": 2.0
-		},
-		"blocking": true,
-		"outputs": [
-			{
-				"flow": "next",
-				"target": "n3"
-			}
-		]
-	},
-	{
-		"id": "n3",
-		"title": "Step aside",
-		"position": {
-			"x": 480,
-			"y": 0
-		},
-		"command": "move_by",
-		"args": {
-			"actor": "@self",
-			"cells": [
-				1.0,
-				0.0,
-				0.0
+{
+	"format": 1,
+	"id": "greet_guard",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {},
+			"art": {},
+			"route": [
+				{
+					"id": "",
+					"title": "start",
+					"position": {
+						"x": -160,
+						"y": 80
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n1"
+						}
+					]
+				},
+				{
+					"id": "n1",
+					"title": "",
+					"position": {
+						"x": -21,
+						"y": 101
+					},
+					"command": "",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": ""
+						}
+					],
+					"//": "stay?"
+				}
 			],
-			"speed": 0.18
-		},
-		"blocking": true,
-		"outputs": [
-			{
-				"flow": "next",
-				"target": "n4"
-			}
-		]
-	},
-	{
-		"id": "n4",
-		"title": "Beat",
-		"position": {
-			"x": 720,
-			"y": 0
-		},
-		"command": "wait",
-		"args": {
-			"seconds": 0.4
-		},
-		"outputs": [
-			{
-				"flow": "next",
-				"target": "n5"
-			}
-		]
-	},
-	{
-		"id": "n5",
-		"title": "Go on then.",
-		"position": {
-			"x": 960,
-			"y": 0
-		},
-		"command": "say",
-		"args": {
-			"text": "...go on, then.",
-			"location": 2.0
-		},
-		"blocking": true,
-		"outputs": [
-			{
-				"flow": "next",
-				"target": ""
-			}
-		]
-	}
-]
+			"graph": [
+				{
+					"id": "start",
+					"title": "start",
+					"position": {
+						"x": -240,
+						"y": 0
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n1"
+						}
+					]
+				},
+				{
+					"id": "n1",
+					"title": "face_to",
+					"position": {
+						"x": 0,
+						"y": 0
+					},
+					"command": "face_to",
+					"args": {
+						"actor": "@self",
+						"target": "@player"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n2"
+						}
+					]
+				},
+				{
+					"id": "n2",
+					"title": "say",
+					"position": {
+						"x": 240,
+						"y": 0
+					},
+					"command": "say",
+					"args": {
+						"text": "Halt. The gate is closed after dark.",
+						"location": 2.0
+					},
+					"blocking": true,
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n3"
+						}
+					],
+					"//": "cats"
+				},
+				{
+					"id": "n3",
+					"title": "move_by",
+					"position": {
+						"x": 480,
+						"y": 0
+					},
+					"command": "move_by",
+					"args": {
+						"actor": "@self",
+						"cells": [
+							1.0,
+							0.0,
+							0.0
+						],
+						"speed": 6.0
+					},
+					"blocking": true,
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n4"
+						}
+					]
+				},
+				{
+					"id": "n4",
+					"title": "wait",
+					"position": {
+						"x": 720,
+						"y": 0
+					},
+					"command": "wait",
+					"args": {
+						"seconds": 0.4
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n5"
+						}
+					]
+				},
+				{
+					"id": "n5",
+					"title": "say",
+					"position": {
+						"x": 920,
+						"y": 0
+					},
+					"command": "say",
+					"args": {
+						"text": "...go on, then.",
+						"location": 2.0
+					},
+					"blocking": true,
+					"outputs": [
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				}
+			]
+		}
+	]
+}

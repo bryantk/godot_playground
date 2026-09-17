@@ -1,0 +1,162 @@
+{
+	"format": 1,
+	"id": "guard_dialogue",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {},
+			"art": {
+				"character": "guard",
+				"expression": "neutral"
+			},
+			"route": {},
+			"graph": [
+				{
+					"id": "",
+					"title": "Start",
+					"position": {
+						"x": -160,
+						"y": 80
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "greet"
+						}
+					]
+				},
+				{
+					"id": "greet",
+					"title": "Greet",
+					"position": {
+						"x": 140,
+						"y": -80
+					},
+					"command": "say",
+					"args": {
+						"text": "Hello there, guard."
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				}
+			]
+		},
+		{
+			"conditions": [
+				{
+					"flag": "befriended_guard"
+				}
+			],
+			"settings": {},
+			"art": {
+				"character": "guard",
+				"expression": "friendly"
+			},
+			"route": {},
+			"graph": [
+				{
+					"id": "",
+					"title": "Start",
+					"position": {
+						"x": -160,
+						"y": 80
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "convince"
+						}
+					]
+				},
+				{
+					"id": "convince",
+					"title": "Convince to Leave",
+					"position": {
+						"x": 200,
+						"y": 0
+					},
+					"command": "say",
+					"args": {
+						"text": "You should get some rest. I'll keep watch here."
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "mark_left"
+						}
+					]
+				},
+				{
+					"id": "mark_left",
+					"title": "Guard Departs",
+					"position": {
+						"x": 400,
+						"y": 0
+					},
+					"command": "set_self_flag",
+					"args": {
+						"flag": "left"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				}
+			]
+		},
+		{
+			"conditions": [
+				{
+					"self_flag": "left"
+				}
+			],
+			"settings": {},
+			"art": {},
+			"route": {},
+			"graph": [
+				{
+					"id": "",
+					"title": "Start",
+					"position": {
+						"x": -160,
+						"y": 80
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "through"
+						}
+					]
+				},
+				{
+					"id": "through",
+					"title": "Through",
+					"position": {
+						"x": 200,
+						"y": 0
+					},
+					"command": "",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				}
+			]
+		}
+	]
+}
