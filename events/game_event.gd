@@ -20,6 +20,16 @@ class_name GameEvent extends Node
 ## conditions. Correct, since a page switch cannot be missed, but re-checks every
 ## event's pages on every flag or variable change in the game rather than only the
 ## ones a page's `conditions` actually mention.
+##
+## [b]The actor faces whoever approached[/b] ([method _face_interactor]) the moment
+## `action`/`player_touch`/`event_touch` fires, for free - an author does not have to
+## put a `face_to` at the top of every page just to look at the player. A page's own
+## `lock_facing` (event-pages.md) suppresses this the same way it suppresses any other
+## facing command, since both go through [method Actor.set_facing]. And because facing
+## is captured before this happens and restored after (see [method
+## _restore_facing_if_untouched]), a page with no move or facing command of its own
+## still ends the interaction facing whichever way it started - the look is visible
+## during the interaction, not left behind after it.
 
 @export_file("*.event.json") var document_path: String = ""
 
@@ -224,6 +234,33 @@ func _reregister_at(to: Vector3i) -> void:
 	_registered_cell = to
 
 
+## The triggers that mean someone approached this event, rather than the event's own
+## page settling or a flag elsewhere changing - what "look at whoever started the
+## interaction" applies to.
+const _FACING_TRIGGERS: Array[StringName] = [&"action", &"player_touch", &"event_touch"]
+
+## Turns this event's own actor to face the player as an interaction begins - the
+## default an author gets for free, so a plain "say something" page does not also have
+## to author its own [code]face_to[/code]. [method Actor.set_facing] is the actual gate
+## ([member Actor.facing_locked], question "lock facing"), so this needs no lock check
+## of its own - calling it while locked is already a no-op.
+##
+## [b]Deliberately not routed through a command executor.[/b] This is the interaction
+## starting, not something the graph asked for, so it must never set [member
+## EventContext.self_actor_touched] - the whole point of capturing facing before this
+## call is that a page with no move or facing command of its own still restores to
+## what it was before, even though it visibly turned to look at the player first.
+func _face_interactor(trigger_name: StringName) -> void:
+	if not _FACING_TRIGGERS.has(trigger_name):
+		return
+	var player := _player()
+	if player == null:
+		return
+	var delta := Vector3(player.cell() - _actor.cell())
+	if delta.length_squared() > 0.0001:
+		_actor.set_facing(Space.quantise(delta, _actor.facing_count))
+
+
 func _player() -> Actor:
 	if _player_cache != null and is_instance_valid(_player_cache):
 		return _player_cache
@@ -312,6 +349,7 @@ func _maybe_fire(trigger_name: StringName) -> void:
 	if _actor != null:
 		_pre_interaction_facing = _actor.facing()
 		_has_pre_facing = true
+		_face_interactor(trigger_name)
 
 	var parallel := trigger_name == &"auto" and bool(settings.get("parallel", false))
 	if parallel:

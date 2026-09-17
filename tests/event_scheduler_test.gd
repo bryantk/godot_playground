@@ -314,6 +314,8 @@ func _test_facing_restored_when_untouched() -> void:
 	player.set_facing(Vector3i(1, 0, 0))
 	EventBus.player_interacted.emit()
 	_ok(ev.is_busy(), "the graph's own wait keeps the interaction in flight")
+	_eq(npc.facing(), Vector3i(-1, 0, 0),
+		"and it already turned to face the player (west of it) for free - no face_to authored")
 
 	# Something other than the graph nudges the actor's facing mid-interaction - a
 	# stray call, not a movement command any executor issued. It should not survive.
