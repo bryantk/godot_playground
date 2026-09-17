@@ -1,0 +1,20 @@
+{
+	"format": 1,
+	"id": "sched_action_no_turn",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {"trigger": "action"},
+			"art": {},
+			"route": [],
+			"graph": [
+				{"id": "start", "command": "start", "args": {},
+					"outputs": [{"flow": "next", "target": "w"}]},
+				{"id": "w", "command": "wait", "args": {"seconds": 0.2},
+					"outputs": [{"flow": "next", "target": "n1"}]},
+				{"id": "n1", "command": "set_flag", "args": {"flag": "fired_no_turn"},
+					"outputs": []}
+			]
+		}
+	]
+}

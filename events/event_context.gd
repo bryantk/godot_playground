@@ -31,6 +31,22 @@ var self_actor: Actor = null
 var has_item: Callable
 var party_has: Callable
 
+## Set by a movement/facing executor (face_direction, face_to, step, move_to, move_by,
+## jump, teleport) when it acts on [member self_actor] specifically - GameEvent reads
+## this once the runner finishes to decide whether a facing it captured before an
+## interaction should be restored. Deliberately narrower than "did actor_turned fire
+## for this actor at all": that would also catch something unrelated nudging the same
+## actor mid-interaction, which is not what "a movement command was received" means.
+var self_actor_touched := false
+
+
+## Call from a movement/facing executor's own start(), with whichever actor it just
+## acted on. A no-op for any actor other than [member self_actor], so calling it
+## unconditionally is always safe.
+func mark_actor_touched(acted_on: Actor) -> void:
+	if acted_on != null and self_actor != null and acted_on == self_actor:
+		self_actor_touched = true
+
 
 static func for_event(a_map: MapContext, a_map_id: StringName, a_event_id: StringName,
 		actor: Actor = null) -> EventContext:

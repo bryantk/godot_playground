@@ -34,7 +34,16 @@ var _registered := false
 var _fired_once: Dictionary = {}
 
 var _runner: EventRunner = null
+var _runner_ctx: EventContext = null
 var _player_cache: Actor = null
+
+## The facing captured just before an interaction starts, restored once it ends -
+## unless a movement/facing executor touched this event's own actor during the run
+## ([member EventContext.self_actor_touched]), in which case that is treated as
+## deliberate and left alone. [member _has_pre_facing] is false whenever there is
+## nothing to restore (no [Actor], or nothing currently in flight).
+var _pre_interaction_facing: Vector3i = Vector3i.ZERO
+var _has_pre_facing := false
 
 
 func _ready() -> void:
@@ -69,7 +78,21 @@ func poll() -> void:
 		if _actor != null:
 			EventScheduler.release_lease(_actor.actor_id, _runner)
 		_runner = null
+		_restore_facing_if_untouched()
 		_refresh_active_page()
+
+
+## Restores the facing captured just before this interaction, but only if no
+## movement/facing executor touched the actor while it ran - a graph that faced or
+## walked its own actor on purpose (a greeting's own [code]face_to[/code], a patrol
+## resuming) is left as is, since reverting it would undo something the graph
+## deliberately did.
+func _restore_facing_if_untouched() -> void:
+	var touched := _runner_ctx != null and _runner_ctx.self_actor_touched
+	if _has_pre_facing and not touched and _actor != null:
+		_actor.set_facing(_pre_interaction_facing)
+	_has_pre_facing = false
+	_runner_ctx = null
 
 
 func event_id() -> StringName:
@@ -245,17 +268,33 @@ func _maybe_fire(trigger_name: StringName) -> void:
 		runner.latch.detach()
 		return
 
+	# Armed before the runner actually starts, not after: a trivial graph (this
+	# segment's own greeting, for instance) can run to completion synchronously
+	# inside run_exclusive()/run_background() below.
+	_fired_once[_active_page] = true
+	_runner = runner
+	_runner_ctx = ctx
+	if _actor != null:
+		_pre_interaction_facing = _actor.facing()
+		_has_pre_facing = true
+
 	var parallel := trigger_name == &"auto" and bool(settings.get("parallel", false))
 	if parallel:
 		EventScheduler.run_background(runner, graph)
 	else:
 		if not EventScheduler.run_exclusive(runner, graph):
-			# Refused - the exclusive slot is already held. Give back the lease rather
-			# than leaving the actor claimed by a runner that never actually ran.
+			# Refused - the exclusive slot is already held. Give back the lease and
+			# the fields just armed rather than leaving the actor claimed by, and
+			# this event waiting on, a runner that never actually ran.
 			if _actor != null:
 				EventScheduler.release_lease(_actor.actor_id, runner)
 			runner.latch.detach()
+			_runner = null
+			_runner_ctx = null
+			_has_pre_facing = false
+			_fired_once[_active_page] = false
 			return
 
-	_fired_once[_active_page] = true
-	_runner = runner
+	# A synchronous run (no blocking node in it) is already finished by the time
+	# either scheduler call above returns - poll() picks that up on its own next
+	# pass, including the facing restore, so nothing further happens here.

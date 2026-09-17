@@ -3,6 +3,12 @@
 ## [method Actor.motion] - never a controller subclass directly, so a page authored
 ## against a grid actor keeps working if that actor is later given [FreeMotion].
 ##
+## Each also calls [method EventContext.mark_actor_touched] once it actually commits to
+## moving or turning the actor - a no-op unless that actor is this run's own [code]@self[/code],
+## which is what [GameEvent] reads afterward to decide whether a facing it captured
+## before the interaction should be restored (a graph that faced or moved its own actor
+## on purpose is left as is).
+##
 ## [code]follow[/code] has no executor yet: it is background and continuous, and
 ## nothing to suspend it against a lease exists before segment 6/7's scheduler policy.
 
@@ -16,6 +22,7 @@ class MoveTo extends EventCommandExec:
 		var a := actor()
 		if a == null:
 			return
+		ctx.mark_actor_touched(a)
 		var opts := {}
 		if args.has("speed"):
 			opts["speed"] = args["speed"]
@@ -44,6 +51,7 @@ class MoveBy extends EventCommandExec:
 		var a := actor()
 		if a == null:
 			return
+		ctx.mark_actor_touched(a)
 		var opts := {}
 		if args.has("speed"):
 			opts["speed"] = args["speed"]
@@ -74,6 +82,7 @@ class StepCmd extends EventCommandExec:
 		var a := actor()
 		if a == null:
 			return
+		ctx.mark_actor_touched(a)
 		var dir := EventCommand.direction_of(args.get("direction"))
 		var m := a.motion()
 		if m is GridMotion:
@@ -97,6 +106,7 @@ class FaceDirection extends EventCommandExec:
 		var a := actor()
 		if a == null:
 			return
+		ctx.mark_actor_touched(a)
 		var count: int = a.facing_count
 		var m := a.motion()
 		if m is GridMotion:
@@ -117,6 +127,7 @@ class FaceTo extends EventCommandExec:
 			return
 		var delta := Vector3(target.cell() - a.cell())
 		if delta.length_squared() > 0.0001:
+			ctx.mark_actor_touched(a)
 			a.motion().face(Space.quantise(delta, a.facing_count))
 
 
@@ -130,6 +141,7 @@ class JumpCmd extends EventCommandExec:
 		var a := actor()
 		if a == null:
 			return
+		ctx.mark_actor_touched(a)
 		_key = a.motion().jump(float(args.get("strength", -1.0)))
 
 	func tick(_delta: float) -> int:
@@ -151,6 +163,7 @@ class TeleportCmd extends EventCommandExec:
 		var a := actor()
 		if a == null:
 			return
+		ctx.mark_actor_touched(a)
 		a.motion().move_to(Vector3i(args.get("cell", Vector3i.ZERO)), {"path": "raw"})
 
 

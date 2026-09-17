@@ -31,6 +31,9 @@ func _ready() -> void:
 
 	_test_page_defers_until_graph_completes_and_art_changes()
 
+	_test_facing_restored_when_untouched()
+	_test_facing_kept_when_graph_turns_it()
+
 	print("")
 	print("  %d passed, %d failed" % [_passed, _failed])
 	print("")
@@ -163,6 +166,7 @@ func _test_trigger_on_load() -> void:
 
 	_ok(GameState.flag(&"fired_on_load"), "on_load fired")
 	_ok(not GameState.flag(&"fired_action"), "and not action")
+	world["root"].free()
 	EventScheduler.reset_for_test()
 
 
@@ -179,6 +183,7 @@ func _test_trigger_player_touch() -> void:
 	player.motion().step_keyed(Vector3i(1, 0, 0))
 	_ok(GameState.flag(&"fired_player_touch"), "fires the moment the player steps onto it")
 	_ok(not GameState.flag(&"fired_leave_cell"), "and not leave_cell")
+	world["root"].free()
 	EventScheduler.reset_for_test()
 
 
@@ -194,6 +199,7 @@ func _test_trigger_event_touch() -> void:
 	_ok(not GameState.flag(&"fired_event_touch"), "not yet - the event hasn't moved")
 	(ev["actor"] as Actor).motion().step_keyed(Vector3i(1, 0, 0))
 	_ok(GameState.flag(&"fired_event_touch"), "fires the moment the event steps onto the player")
+	world["root"].free()
 	EventScheduler.reset_for_test()
 
 
@@ -209,6 +215,7 @@ func _test_trigger_leave_cell() -> void:
 	_ok(not GameState.flag(&"fired_leave_cell"), "not yet - the player is standing on it")
 	player.motion().step_keyed(Vector3i(1, 0, 0))
 	_ok(GameState.flag(&"fired_leave_cell"), "fires the moment the player steps off it")
+	world["root"].free()
 	EventScheduler.reset_for_test()
 
 
@@ -225,6 +232,7 @@ func _test_trigger_action() -> void:
 	EventBus.player_interacted.emit()
 	_ok(GameState.flag(&"fired_action"),
 		"fires when the player presses interact while facing the event's cell")
+	world["root"].free()
 	EventScheduler.reset_for_test()
 
 
@@ -238,6 +246,7 @@ func _test_trigger_on_flag() -> void:
 
 	GameState.set_flag(&"anything")
 	_ok(GameState.flag(&"fired_on_flag"), "fires on an unrelated flag changing")
+	world["root"].free()
 	EventScheduler.reset_for_test()
 
 
@@ -251,6 +260,7 @@ func _test_trigger_auto_parallel() -> void:
 
 	_ok(not EventScheduler.is_exclusive_held(), "auto+parallel does not take the exclusive slot")
 	_ok(EventScheduler.background_runners().size() == 1, "and runs as one background runner")
+	world["root"].free()
 	EventScheduler.reset_for_test()
 
 
@@ -279,6 +289,68 @@ func _test_page_defers_until_graph_completes_and_art_changes() -> void:
 	_ok(ev.active_page() == 1, "switches to page 2 once the graph finally completes")
 	_ok(sheet.texture != null, "and page 2's sheet art is applied - the apply_art fix")
 
+	world["root"].free()
+	EventScheduler.reset_for_test()
+	GameState.clear()
+
+
+# -- Facing memory: captured before an interaction, restored after unless the graph
+# itself turned or moved the actor -----------------------------------------------------
+
+func _test_facing_restored_when_untouched() -> void:
+	_section("GameEvent -- facing is restored after an interaction that never touches it")
+	EventScheduler.reset_for_test()
+	GameState.clear()
+
+	var world := _build_world()
+	var player := _build_actor(world, &"player", Vector3i(0, 0, 0))
+	var rig := _build_event(world, &"ev", Vector3i(1, 0, 0), FIXTURES + "sched_action_no_turn.event.json")
+	var ev: GameEvent = rig["event"]
+	var npc: Actor = rig["actor"]
+
+	npc.set_facing(Vector3i(0, 0, -1))  # north, before anything happens
+	player.set_facing(Vector3i(1, 0, 0))
+	EventBus.player_interacted.emit()
+	_ok(ev.is_busy(), "the graph's own wait keeps the interaction in flight")
+
+	# Something other than the graph nudges the actor's facing mid-interaction - a
+	# stray call, not a movement command any executor issued. It should not survive.
+	npc.set_facing(Vector3i(1, 0, 0))
+
+	for _i in 20:  # past the fixture's 0.2s wait
+		EventScheduler.tick(1.0 / 60.0)
+		ev.poll()
+
+	_ok(GameState.flag(&"fired_no_turn"), "the graph itself still ran to completion")
+	_eq(npc.facing(), Vector3i(0, 0, -1),
+		"and facing is restored to what it was before the interaction, not the stray nudge")
+
+	world["root"].free()
+	EventScheduler.reset_for_test()
+	GameState.clear()
+
+
+func _test_facing_kept_when_graph_turns_it() -> void:
+	_section("GameEvent -- facing is kept when the graph itself turns the actor")
+	EventScheduler.reset_for_test()
+	GameState.clear()
+
+	var world := _build_world()
+	var player := _build_actor(world, &"player", Vector3i(0, 0, 0))
+	var rig := _build_event(world, &"ev", Vector3i(1, 0, 0), FIXTURES + "sched_action_turn.event.json")
+	var ev: GameEvent = rig["event"]
+	var npc: Actor = rig["actor"]
+
+	npc.set_facing(Vector3i(0, 0, -1))  # north, before anything happens
+	player.set_facing(Vector3i(1, 0, 0))
+	EventBus.player_interacted.emit()
+	ev.poll()
+
+	_ok(GameState.flag(&"fired_turn"), "the graph ran to completion")
+	_eq(npc.facing(), Vector3i(0, 0, 1),
+		"and keeps the south face_direction the graph itself issued, not north again")
+
+	world["root"].free()
 	EventScheduler.reset_for_test()
 	GameState.clear()
 

@@ -1,0 +1,20 @@
+{
+	"format": 1,
+	"id": "sched_action_turn",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {"trigger": "action"},
+			"art": {},
+			"route": [],
+			"graph": [
+				{"id": "start", "command": "start", "args": {},
+					"outputs": [{"flow": "next", "target": "n1"}]},
+				{"id": "n1", "command": "face_direction", "args": {"direction": "s"},
+					"outputs": [{"flow": "next", "target": "n2"}]},
+				{"id": "n2", "command": "set_flag", "args": {"flag": "fired_turn"},
+					"outputs": []}
+			]
+		}
+	]
+}
