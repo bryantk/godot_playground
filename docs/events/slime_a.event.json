@@ -15,6 +15,9 @@
 				"directions": 4.0,
 				"idle": "idle"
 			},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
 			"route": {
 				"mode": "waypoints",
 				"loop": "pingpong",
@@ -110,6 +113,9 @@
 				"directions": 4.0,
 				"idle": "idle"
 			},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
 			"route": {
 				"mode": "toward",
 				"target": "player",
@@ -192,6 +198,9 @@
 				"directions": 1.0,
 				"idle": "puddle"
 			},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
 			"route": {
 				"mode": "fixed"
 			},

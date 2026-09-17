@@ -6,6 +6,9 @@
 			"conditions": [],
 			"settings": {},
 			"art": {},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
 			"route": [
 				{
 					"id": "",
@@ -62,8 +65,8 @@
 					"id": "n1",
 					"title": "face_to",
 					"position": {
-						"x": 0,
-						"y": 0
+						"x": -100,
+						"y": -100
 					},
 					"command": "face_to",
 					"args": {
@@ -81,8 +84,8 @@
 					"id": "n2",
 					"title": "say",
 					"position": {
-						"x": 240,
-						"y": 0
+						"x": 120,
+						"y": -100
 					},
 					"command": "say",
 					"args": {
@@ -99,36 +102,11 @@
 					"//": "cats"
 				},
 				{
-					"id": "n3",
-					"title": "move_by",
-					"position": {
-						"x": 480,
-						"y": 0
-					},
-					"command": "move_by",
-					"args": {
-						"actor": "@self",
-						"cells": [
-							1.0,
-							0.0,
-							0.0
-						],
-						"speed": 6.0
-					},
-					"blocking": true,
-					"outputs": [
-						{
-							"flow": "next",
-							"target": "n4"
-						}
-					]
-				},
-				{
 					"id": "n4",
 					"title": "wait",
 					"position": {
 						"x": 720,
-						"y": 0
+						"y": -100
 					},
 					"command": "wait",
 					"args": {
@@ -145,8 +123,8 @@
 					"id": "n5",
 					"title": "say",
 					"position": {
-						"x": 920,
-						"y": 0
+						"x": 980,
+						"y": -100
 					},
 					"command": "say",
 					"args": {
@@ -158,6 +136,31 @@
 						{
 							"flow": "next",
 							"target": ""
+						}
+					]
+				},
+				{
+					"id": "n3",
+					"title": "move_by",
+					"position": {
+						"x": 380,
+						"y": -100
+					},
+					"command": "move_by",
+					"args": {
+						"actor": "@self",
+						"cells": [
+							1.0,
+							0.0,
+							0.0
+						],
+						"speed": 6.0
+					},
+					"blocking": true,
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n4"
 						}
 					]
 				}

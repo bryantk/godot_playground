@@ -1,0 +1,21 @@
+{
+	"format": 1,
+	"id": "sched_through",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {"trigger": "action"},
+			"art": {},
+			"lock_facing": false,
+			"through": true,
+			"through_terrain": true,
+			"route": [],
+			"graph": [
+				{"id": "start", "command": "start", "args": {},
+					"outputs": [{"flow": "next", "target": "n1"}]},
+				{"id": "n1", "command": "set_flag", "args": {"flag": "fired_through"},
+					"outputs": []}
+			]
+		}
+	]
+}

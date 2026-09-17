@@ -33,6 +33,8 @@ func _ready() -> void:
 
 	_test_facing_restored_when_untouched()
 	_test_facing_kept_when_graph_turns_it()
+	_test_lock_facing_ignores_face_commands()
+	_test_through_changes_proximity_and_phasing()
 
 	print("")
 	print("  %d passed, %d failed" % [_passed, _failed])
@@ -349,6 +351,61 @@ func _test_facing_kept_when_graph_turns_it() -> void:
 	_ok(GameState.flag(&"fired_turn"), "the graph ran to completion")
 	_eq(npc.facing(), Vector3i(0, 0, 1),
 		"and keeps the south face_direction the graph itself issued, not north again")
+
+	world["root"].free()
+	EventScheduler.reset_for_test()
+	GameState.clear()
+
+
+# -- lock_facing / through, siblings of art and conditions --------------------------
+
+func _test_lock_facing_ignores_face_commands() -> void:
+	_section("GameEvent -- lock_facing makes the actor ignore facing commands")
+	EventScheduler.reset_for_test()
+	GameState.clear()
+
+	var world := _build_world()
+	var player := _build_actor(world, &"player", Vector3i(0, 0, 0))
+	var rig := _build_event(world, &"ev", Vector3i(1, 0, 0), FIXTURES + "sched_lock_facing.event.json")
+	var npc: Actor = rig["actor"]
+
+	_ok(npc.facing_locked, "the page's lock_facing was applied to the actor on activation")
+	_eq(npc.facing(), Vector3i(0, 0, 1), "south is Actor's own untouched default facing")
+
+	player.set_facing(Vector3i(1, 0, 0))
+	EventBus.player_interacted.emit()
+
+	_ok(GameState.flag(&"fired_lock_facing"), "the graph still ran to completion")
+	_eq(npc.facing(), Vector3i(0, 0, 1),
+		"but its face_direction east never turned the actor - still the untouched default")
+
+	world["root"].free()
+	EventScheduler.reset_for_test()
+	GameState.clear()
+
+
+func _test_through_changes_proximity_and_phasing() -> void:
+	_section("GameEvent -- through switches action to same-cell and phases the actor")
+	EventScheduler.reset_for_test()
+	GameState.clear()
+
+	var world := _build_world()
+	var player := _build_actor(world, &"player", Vector3i(1, 0, 0))
+	var rig := _build_event(world, &"ev", Vector3i(1, 0, 0), FIXTURES + "sched_through.event.json")
+	var npc: Actor = rig["actor"]
+	var ctx: MapContext = world["ctx"]
+
+	_ok(npc.through_actors, "the page's through was applied to the actor on activation")
+	_ok(npc.through_terrain, "and through_terrain alongside it")
+	_ok(ctx.occupancy.phases(npc.actor_id),
+		"and Occupancy's own phasing table agrees - not just the export property")
+
+	# Standing on the same cell, not adjacent - through has no facing side that means
+	# anything, so the proximity rule switches from "adjacent and facing" to this.
+	player.set_facing(Vector3i(0, 0, -1))
+	EventBus.player_interacted.emit()
+	_ok(GameState.flag(&"fired_through"),
+		"action fires for standing on the same cell, facing away from it")
 
 	world["root"].free()
 	EventScheduler.reset_for_test()

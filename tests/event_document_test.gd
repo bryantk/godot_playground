@@ -26,6 +26,7 @@ func _ready() -> void:
 	_test_unknown_keys()
 	_test_bare_array_is_one_page()
 	_test_page_repair()
+	_test_actor_flags()
 	_test_active_page()
 	_test_unreachable_warning()
 	_test_round_trip()
@@ -198,6 +199,39 @@ func _test_page_repair() -> void:
 	var no_pages := EventDocument.parse(JSON.stringify({"format": 1}))
 	_eq((no_pages["pages"] as Array).size(), 1, "a document with no pages gets a default one")
 	_ok(not (no_pages["problems"] as Array).is_empty(), "  and says so")
+
+
+# -- lock_facing / through / through_terrain --------------------------------------
+
+func _test_actor_flags() -> void:
+	_section("lock_facing / through / through_terrain -- siblings of art and conditions")
+
+	_eq(EventDocument.default_page()["lock_facing"], false, "default page: lock_facing false")
+	_eq(EventDocument.default_page()["through"], false, "default page: through false")
+	_eq(EventDocument.default_page()["through_terrain"], false, "default page: through_terrain false")
+
+	var doc := EventDocument.parse(JSON.stringify({
+		"pages": [{"lock_facing": true, "through": true, "through_terrain": true}],
+	}))
+	var page: Dictionary = doc["pages"][0]
+	_eq(page["lock_facing"], true, "an authored true parses through")
+	_eq(page["through"], true, "  ...")
+	_eq(page["through_terrain"], true, "  ...")
+
+	var bad := EventDocument.parse(JSON.stringify({
+		"pages": [{"lock_facing": "yes", "through": 1, "through_terrain": []}],
+	}))
+	var bad_page: Dictionary = bad["pages"][0]
+	_eq(bad_page["lock_facing"], false, "a non-bool repairs to false")
+	_eq(bad_page["through"], false, "  ...")
+	_eq(bad_page["through_terrain"], false, "  ...")
+	_ok((bad["problems"] as Array).size() >= 3, "and each one is reported")
+
+	var out: Variant = JSON.parse_string(EventDocument.stringify(doc))
+	var out_page: Dictionary = out["pages"][0]
+	_eq(out_page["lock_facing"], true, "stringify carries lock_facing through")
+	_eq(out_page["through"], true, "  ...")
+	_eq(out_page["through_terrain"], true, "  ...")
 
 
 # -- Page selection --------------------------------------------------------------

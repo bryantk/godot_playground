@@ -36,7 +36,10 @@ const FORMAT := 1
 const DOCUMENT_KEYS: PackedStringArray = ["format", "id", "pages"]
 
 ## Page keys this file understands.
-const PAGE_KEYS: PackedStringArray = ["conditions", "settings", "art", "route", "graph"]
+const PAGE_KEYS: PackedStringArray = [
+	"conditions", "settings", "art", "lock_facing", "through", "through_terrain",
+	"route", "graph",
+]
 
 
 # -- Defaults --------------------------------------------------------------------
@@ -57,6 +60,12 @@ static func default_page() -> Dictionary:
 		"conditions": [],
 		"settings": {},
 		"art": {},
+		# Actor flags GameEvent applies to its Actor on activation - siblings of art
+		# and conditions, not settings, because they describe the actor itself for as
+		# long as this page is active rather than how or when the page is entered.
+		"lock_facing": false,
+		"through": false,
+		"through_terrain": false,
 		"route": route,
 		"graph": graph,
 		"_unknown": {},
@@ -140,6 +149,10 @@ static func _read_page(raw: Variant, index: int, problems: Array[String]) -> Dic
 	page["conditions"] = _read_list(source.get("conditions", []), where, "conditions", problems)
 	page["settings"] = _read_dict(source.get("settings", {}), where, "settings", problems)
 	page["art"] = _read_dict(source.get("art", {}), where, "art", problems)
+	page["lock_facing"] = _read_bool(source.get("lock_facing", false), where, "lock_facing", problems)
+	page["through"] = _read_bool(source.get("through", false), where, "through", problems)
+	page["through_terrain"] = _read_bool(
+		source.get("through_terrain", false), where, "through_terrain", problems)
 	page["route"] = _read_route(source.get("route", []), where, problems)
 	page["graph"] = _read_nodes(source.get("graph", []), where, "graph", problems)
 
@@ -204,6 +217,14 @@ static func _read_dict(raw: Variant, where: String, field: String,
 		return {}
 	return (raw as Dictionary).duplicate(true)
 
+static func _read_bool(raw: Variant, where: String, field: String,
+		problems: Array[String]) -> bool:
+	if typeof(raw) != TYPE_BOOL:
+		problems.append("%s: \"%s\" must be true or false, found %s - treated as false."
+			% [where, field, type_string(typeof(raw))])
+		return false
+	return raw
+
 ## Every key in [param source] that is not in [param known] - see the identical helper in
 ## [code]graph_document.gd[/code], which this deliberately does not share a class with,
 ## the two files being independent readers of independent layers.
@@ -243,6 +264,9 @@ static func stringify(doc: Dictionary) -> String:
 			"conditions": page_dict.get("conditions", []),
 			"settings": page_dict.get("settings", {}),
 			"art": page_dict.get("art", {}),
+			"lock_facing": bool(page_dict.get("lock_facing", false)),
+			"through": bool(page_dict.get("through", false)),
+			"through_terrain": bool(page_dict.get("through_terrain", false)),
 			"route": _route_to_data(page_dict.get("route", [])),
 			"graph": Doc.to_data(_as_nodes(page_dict.get("graph", []))),
 		}

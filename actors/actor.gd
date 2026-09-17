@@ -65,6 +65,13 @@ enum MotionMode { INHERIT, GRID, FREE }
 ## How many directions this actor's facing quantises to. 4 for game 1, 8 for game 2.
 @export_range(4, 8, 4) var facing_count: int = 4
 
+## Ignores every facing command - [method set_facing] itself is the gate, so this holds
+## regardless of who is asking: a graph's `face_direction`/`face_to`, a step's own
+## implicit turn, a brain, a route. A page's `lock_facing` (event-pages.md) applies this
+## to the actor GameEvent owns for as long as that page is active; a statue-like prop
+## that must never visually reorient is the case it exists for.
+@export var facing_locked: bool = false
+
 ## A step has been committed: the body is already on [param to], the sprite is not yet.
 ## [signal arrived] is the other end of the same step.
 ##
@@ -276,7 +283,7 @@ func facing() -> Vector3i:
 
 
 func set_facing(dir: Vector3i) -> void:
-	if dir == Vector3i.ZERO or dir == _facing:
+	if facing_locked or dir == Vector3i.ZERO or dir == _facing:
 		return
 	var was := _facing
 	_facing = Space.quantise(Vector3(dir), facing_count)

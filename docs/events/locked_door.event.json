@@ -6,6 +6,9 @@
 			"conditions": [],
 			"settings": {},
 			"art": {},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
 			"route": [],
 			"graph": [
 				{

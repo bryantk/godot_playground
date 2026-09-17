@@ -158,6 +158,7 @@ func _refresh_active_page() -> void:
 		return
 	_active_page = index
 	_apply_art()
+	_apply_actor_flags()
 
 
 func _apply_art() -> void:
@@ -166,10 +167,36 @@ func _apply_art() -> void:
 	_view.apply_art((_pages()[_active_page] as Dictionary).get("art", {}))
 
 
+## Applies a page's [code]lock_facing[/code]/[code]through[/code]/[code]through_terrain[/code]
+## to the actor GameEvent owns, on activation - siblings of [code]art[/code], applied the
+## same way. [code]through[/code] also updates [Occupancy]'s own phasing table directly,
+## not just the export property: [method Actor._claim_spawn_cell] only ever reads
+## [member Actor.through_actors] once, at spawn, so a page switch has to push the change
+## to where pathing actually looks for it.
+func _apply_actor_flags() -> void:
+	if _actor == null or _active_page < 0:
+		return
+	var page: Dictionary = _pages()[_active_page]
+	_actor.facing_locked = bool(page.get("lock_facing", false))
+	_actor.through_terrain = bool(page.get("through_terrain", false))
+
+	var through := bool(page.get("through", false))
+	_actor.through_actors = through
+	if _map != null:
+		_map.occupancy.set_phasing(_actor.actor_id, through)
+
+
 func _settings() -> Dictionary:
 	if _active_page < 0:
 		return {}
 	return (_pages()[_active_page] as Dictionary).get("settings", {})
+
+
+## Whether the active page's actor currently phases through other actors - the "other
+## actors (and props) will not block this actor's pathing" flag. [code]false[/code] with
+## no [Actor] or nothing active, matching [method Actor.through_actors]'s own default.
+func _through_actors() -> bool:
+	return _actor != null and _actor.through_actors
 
 
 # -- Registration -------------------------------------------------------------------
@@ -231,9 +258,17 @@ func _on_actor_stepped(actor_id: StringName, from: Vector3i, to: Vector3i) -> vo
 		_maybe_fire(&"leave_cell")
 
 
+## Facing-and-adjacent by default - the interact button aimed at a wall-like thing. A
+## through event has no adjacent side that means anything (there is nothing stopping
+## the player from standing on or passing through it), so it switches to "standing on
+## the same cell" instead - grass, an item, a floor switch.
 func _on_player_interacted() -> void:
 	var player := _player()
-	if player != null and player.cell() + player.facing() == cell():
+	if player == null:
+		return
+	var in_range := player.cell() == cell() if _through_actors() \
+		else player.cell() + player.facing() == cell()
+	if in_range:
 		_maybe_fire(&"action")
 
 
