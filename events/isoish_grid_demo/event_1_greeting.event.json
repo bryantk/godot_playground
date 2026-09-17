@@ -4,29 +4,64 @@
 	"pages": [
 		{
 			"conditions": [],
-			"settings": {"trigger": "action"},
+			"settings": {
+				"trigger": "action"
+			},
 			"art": {
 				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
 				"idle": "idle"
 			},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
 			"route": [],
 			"graph": [
 				{
 					"id": "start",
+					"title": "Node",
+					"position": {
+						"x": 0,
+						"y": 0
+					},
 					"command": "start",
 					"args": {},
-					"outputs": [{"flow": "next", "target": "n1"}]
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n1"
+						}
+					]
 				},
 				{
 					"id": "n1",
+					"title": "Node",
+					"position": {
+						"x": 0,
+						"y": 0
+					},
 					"command": "face_to",
-					"args": {"actor": "@self", "target": "@player"},
-					"outputs": [{"flow": "next", "target": "n2"}]
+					"args": {
+						"actor": "@self",
+						"target": "@player"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n2"
+						}
+					]
 				},
 				{
 					"id": "n2",
+					"title": "Node",
+					"position": {
+						"x": 0,
+						"y": 0
+					},
 					"command": "say",
-					"args": {"text": "Segment 6's GameEvent, in 3D: action trigger, face_to, and SpriteSheet3D art."},
+					"args": {
+						"text": "Segment 6's GameEvent, in 3D: action trigger, face_to, and SpriteSheet3D art."
+					},
 					"outputs": []
 				}
 			]

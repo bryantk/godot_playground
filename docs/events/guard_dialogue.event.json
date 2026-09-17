@@ -9,6 +9,9 @@
 				"character": "guard",
 				"expression": "neutral"
 			},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
 			"route": {},
 			"graph": [
 				{
@@ -58,6 +61,9 @@
 				"character": "guard",
 				"expression": "friendly"
 			},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
 			"route": {},
 			"graph": [
 				{
@@ -122,6 +128,9 @@
 			],
 			"settings": {},
 			"art": {},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
 			"route": {},
 			"graph": [
 				{

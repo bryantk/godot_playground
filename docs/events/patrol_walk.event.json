@@ -6,6 +6,9 @@
 			"conditions": [],
 			"settings": {},
 			"art": {},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
 			"route": {},
 			"graph": [
 				{
@@ -34,7 +37,7 @@
 					"command": "mov",
 					"args": {
 						"direction": "n",
-						"distance": 4
+						"distance": 4.0
 					},
 					"blocking": true,
 					"outputs": [
@@ -53,7 +56,7 @@
 					},
 					"command": "wait",
 					"args": {
-						"seconds": 4
+						"seconds": 4.0
 					},
 					"blocking": true,
 					"outputs": [
@@ -73,7 +76,7 @@
 					"command": "mov",
 					"args": {
 						"direction": "e",
-						"distance": 1
+						"distance": 1.0
 					},
 					"blocking": true,
 					"outputs": [

@@ -4,31 +4,70 @@
 	"pages": [
 		{
 			"conditions": [],
-			"settings": {"trigger": "action"},
+			"settings": {
+				"trigger": "action"
+			},
 			"art": {
 				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
-				"directions": 4,
+				"directions": 4.0,
 				"idle": "idle"
 			},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
 			"route": [],
 			"graph": [
 				{
 					"id": "start",
+					"title": "start",
+					"position": {
+						"x": -180,
+						"y": 0
+					},
 					"command": "start",
 					"args": {},
-					"outputs": [{"flow": "next", "target": "n1"}]
-				},
-				{
-					"id": "n1",
-					"command": "face_to",
-					"args": {"actor": "@self", "target": "@player"},
-					"outputs": [{"flow": "next", "target": "n2"}]
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n1"
+						}
+					]
 				},
 				{
 					"id": "n2",
+					"title": "say",
+					"position": {
+						"x": 340,
+						"y": -60
+					},
 					"command": "say",
-					"args": {"text": "Segment 6's GameEvent, live: an action trigger, face_to, and reconciled art."},
-					"outputs": []
+					"args": {
+						"text": "Segment 6's GameEvent, live: an action trigger, face_to, and reconciled art."
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				},
+				{
+					"id": "n1",
+					"title": "wait",
+					"position": {
+						"x": 35,
+						"y": -10
+					},
+					"command": "wait",
+					"args": {
+						"seconds": 2.0
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
 				}
 			]
 		}

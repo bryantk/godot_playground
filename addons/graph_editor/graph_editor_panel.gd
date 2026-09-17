@@ -86,6 +86,11 @@ var _file_dialog: EditorFileDialog
 ## and conditions. See [method _build_page_inspector] and [method _load_page_inspector].
 var _art_picker: EditorResourcePicker
 var _speed_spin: SpinBox
+## The three actor flags a page carries as siblings of art/conditions - lock_facing,
+## through and through_terrain, applied to GameEvent's own actor on activation.
+var _lock_facing_check: CheckBox
+var _through_check: CheckBox
+var _through_terrain_check: CheckBox
 var _conditions_list: VBoxContainer
 ## Toggled between "Edit Route" and "Back to Graph" - see [method _on_route_button_pressed].
 var _route_button: Button
@@ -157,6 +162,12 @@ func _bind() -> bool:
 		^"Body/PageInspector/PageInspectorBox/ArtSheet") as EditorResourcePicker
 	_speed_spin = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/Speed") as SpinBox
+	_lock_facing_check = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/LockFacing") as CheckBox
+	_through_check = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/Through") as CheckBox
+	_through_terrain_check = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/ThroughTerrain") as CheckBox
 	_conditions_list = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/Conditions") as VBoxContainer
 	_route_button = get_node_or_null(
@@ -375,6 +386,29 @@ func _build_page_inspector() -> Control:
 	_speed_spin.value_changed.connect(_on_speed_changed)
 	box.add_child(_speed_spin)
 
+	box.add_child(_section_label("Actor"))
+
+	_lock_facing_check = CheckBox.new()
+	_lock_facing_check.name = "LockFacing"
+	_lock_facing_check.text = "Lock facing"
+	_lock_facing_check.tooltip_text = "The page's lock_facing - ignores every facing command while this page is active, including looking at whoever started the interaction."
+	_lock_facing_check.toggled.connect(_on_lock_facing_toggled)
+	box.add_child(_lock_facing_check)
+
+	_through_check = CheckBox.new()
+	_through_check.name = "Through"
+	_through_check.text = "Through"
+	_through_check.tooltip_text = "The page's through - other actors do not block this actor's pathing (and vice versa), and the action trigger switches from \"adjacent and facing\" to \"on the same cell\"."
+	_through_check.toggled.connect(_on_through_toggled)
+	box.add_child(_through_check)
+
+	_through_terrain_check = CheckBox.new()
+	_through_terrain_check.name = "ThroughTerrain"
+	_through_terrain_check.text = "Through terrain"
+	_through_terrain_check.tooltip_text = "The page's through_terrain - ignores the painted pathing mask / colliders and GridMap, the same as Actor.through_terrain."
+	_through_terrain_check.toggled.connect(_on_through_terrain_toggled)
+	box.add_child(_through_terrain_check)
+
 	box.add_child(HSeparator.new())
 
 	# The route gizmo event-pages.md §4.2 describes is a separate, larger effort; this
@@ -428,6 +462,10 @@ func _load_page_inspector(index: int) -> void:
 	var settings: Dictionary = page.get("settings", {})
 	_speed_spin.set_value_no_signal(float(settings.get("speed", 0)))
 
+	_lock_facing_check.set_pressed_no_signal(bool(page.get("lock_facing", false)))
+	_through_check.set_pressed_no_signal(bool(page.get("through", false)))
+	_through_terrain_check.set_pressed_no_signal(bool(page.get("through_terrain", false)))
+
 	_refresh_conditions()
 
 func _on_art_sheet_changed(resource: Resource) -> void:
@@ -450,6 +488,27 @@ func _on_speed_changed(value: float) -> void:
 		settings["speed"] = value
 	else:
 		settings.erase("speed")
+	_mark_dirty()
+
+## The three below write straight into the page dictionary, not settings - lock_facing/
+## through/through_terrain are siblings of art and conditions, applied to GameEvent's
+## actor on activation rather than read as trigger configuration.
+func _on_lock_facing_toggled(pressed: bool) -> void:
+	if not _live():
+		return
+	_current_page_dict()["lock_facing"] = pressed
+	_mark_dirty()
+
+func _on_through_toggled(pressed: bool) -> void:
+	if not _live():
+		return
+	_current_page_dict()["through"] = pressed
+	_mark_dirty()
+
+func _on_through_terrain_toggled(pressed: bool) -> void:
+	if not _live():
+		return
+	_current_page_dict()["through_terrain"] = pressed
 	_mark_dirty()
 
 ## Toggles [member _editing_route] and reloads the current page, which is all that is
