@@ -23,6 +23,8 @@ InputManager="*uid://b70pwjasam6hi"
 EventBus="*res://core/event_bus.gd"
 GameState="*res://core/game_state.gd"
 ModeStack="*res://core/mode_stack.gd"
+DebugFlags="*res://core/debug_flags.gd"
+EventScheduler="*res://core/event_scheduler.gd"
 
 [display]
 

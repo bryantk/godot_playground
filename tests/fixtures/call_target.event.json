@@ -1,0 +1,26 @@
+[
+	{
+		"id": "start",
+		"command": "start",
+		"args": {},
+		"outputs": [{"flow": "next", "target": "n1"}]
+	},
+	{
+		"id": "n1",
+		"command": "set_flag",
+		"args": {"flag": "in_callee_start"},
+		"outputs": [{"flow": "next", "target": "n2"}]
+	},
+	{
+		"id": "n2",
+		"command": "exit_call",
+		"args": {},
+		"outputs": []
+	},
+	{
+		"id": "n3",
+		"command": "set_flag",
+		"args": {"flag": "should_not_run"},
+		"outputs": []
+	}
+]

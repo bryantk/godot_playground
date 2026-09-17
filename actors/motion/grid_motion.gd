@@ -268,8 +268,14 @@ func move_to(cell: Vector3i, opts: Dictionary = {}) -> String:
 		EventBus.command_finished.emit.call_deferred(done)
 		return done
 
+	# Read before _advance(), not after: a viewless actor can walk the whole queue to
+	# completion synchronously inside this one call, and that path clears _route_key
+	# itself once it emits - reading the field afterward would return "" for a route
+	# that in fact already resolved a real key, the same class of bug as jump's fall
+	# key returning the wrong thing to its own caller.
+	var key := _route_key
 	_advance()
-	return _route_key
+	return key
 
 
 func cancel() -> void:

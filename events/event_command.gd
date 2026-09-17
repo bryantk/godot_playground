@@ -137,6 +137,15 @@ const COMMANDS: Dictionary = {
 		"resume": RESUME_RESTART,
 		"blurb": "Run another event's graph inline.",
 	},
+	"exit_call": {
+		# Question 49: pops the most-nested call frame early, resuming the caller at
+		# its own "next". Outside any call frame it behaves like "end", since a
+		# top-level graph has nowhere to exit to but still has a runner to stop.
+		"args": {},
+		"flows": [], "blocking": true, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"blurb": "Leave the current call early, resuming the caller.",
+	},
 	"wait_for": {
 		"args": {"key": T_KEY},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
@@ -272,8 +281,11 @@ const COMMANDS: Dictionary = {
 
 	# -- Map -------------------------------------------------------------------
 	"change_map": {
+		# Question 51: gained a "next" port so an exclusive runner can chain across
+		# the load and keep running on the far side, owned by EventScheduler rather
+		# than whatever GameEvent/Actor spawned it.
 		"args": {"map": T_STRING, "cell": T_CELL + "?", "facing": T_DIR + "?"},
-		"flows": [], "blocking": true, "space": SPACE_ANY,
+		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
 		"blurb": "Leave for another map.",
 	},
