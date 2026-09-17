@@ -1,0 +1,18 @@
+{
+	"format": 1,
+	"id": "sched_action",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {"trigger": "action"},
+			"art": {},
+			"route": [],
+			"graph": [
+				{"id": "start", "command": "start", "args": {},
+					"outputs": [{"flow": "next", "target": "n1"}]},
+				{"id": "n1", "command": "set_flag", "args": {"flag": "fired_action"},
+					"outputs": []}
+			]
+		}
+	]
+}

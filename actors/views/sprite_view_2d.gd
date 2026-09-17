@@ -50,15 +50,33 @@ func play(anim: StringName) -> String:
 	return key
 
 
+## Reconciled with the two visuals this view can actually bind to (segment 6):
+## [code]"sheet"[/code] is a texture path, for a [SpriteSheet] visual - the sheet the
+## worked examples in docs/events/ actually author, and the shape every actor prefab in
+## this project uses today. [code]"frames"[/code] is a [SpriteFrames] resource path,
+## for a plain [AnimatedSprite2D] visual. Both keys are read unconditionally and each
+## is applied only to the visual kind it matches, so a document does not need to know
+## which visual an actor happens to have - and neither early-returns before reaching
+## the other, which is the defect this replaces: a [SpriteSheet]-backed actor (every
+## one of them, in the current demos) used to get no art applied at all, because the
+## old code only ever looked for [code]_sprite[/code] and gave up the moment it found
+## none.
 func apply_art(art: Dictionary) -> void:
-	if _sprite == null:
-		return
-	if art.has("frames"):
+	if art.has("directions"):
+		facing_count = int(art["directions"])
+	if art.has("idle"):
+		_anim = StringName(str(art["idle"]))
+
+	if art.has("sheet") and _visual is Sprite2D:
+		var texture: Texture2D = load(str(art["sheet"])) as Texture2D
+		if texture != null:
+			(_visual as Sprite2D).texture = texture
+
+	if art.has("frames") and _sprite != null:
 		var frames: SpriteFrames = load(str(art["frames"])) as SpriteFrames
 		if frames != null:
 			_sprite.sprite_frames = frames
-	if art.has("directions"):
-		facing_count = int(art["directions"])
+
 	_refresh()
 
 

@@ -39,6 +39,11 @@ func rig() -> CameraRig:
 
 
 func _think(_delta: float) -> void:
+	# The exclusive slot locks the step the same way the struck round gate used to -
+	# one boolean on one field, not a push onto the input stack, so everything except
+	# the step (menu, cancel, interact) stays live through a cutscene.
+	intent.lock_step(not ModeStack.is_field())
+
 	# Everything except the step stays live even while the round gate holds, which is
 	# why the gate is one boolean on one field rather than a push onto the input stack.
 	var raw := Input.get_vector("move_left", "move_right", "move_up", "move_down")

@@ -16,6 +16,7 @@
 [ext_resource type="PackedScene" path="res://games/isoish/props/plant.tscn" id="22_plant"]
 [ext_resource type="PackedScene" path="res://games/isoish/props/stump.tscn" id="23_stump"]
 [ext_resource type="PackedScene" uid="uid://6ddmnpdglqam" path="res://games/isoish/props/tree.tscn" id="24_tree"]
+[ext_resource type="Script" path="res://events/game_event.gd" id="25_game_event"]
 
 [sub_resource type="Environment" id="Environment_ewyff"]
 background_mode = 1
@@ -248,6 +249,10 @@ process_priority = 100
 size = Vector3(0.7, 0.4, 0.7)
 texture_albedo = SubResource("ImageTexture_12pxd")
 modulate = Color(0, 0, 0, 0.55)
+
+[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Event__1" unique_id=926035197]
+script = ExtResource("25_game_event")
+document_path = "res://events/isoish_grid_demo/event_1_greeting.event.json"
 
 [node name="Event__2" parent="Upscale/World/Map/Actors" unique_id=784194929 instance=ExtResource("4_4yn8y")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 4.5)

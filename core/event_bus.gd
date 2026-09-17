@@ -121,6 +121,13 @@ signal actor_turned(actor_id: StringName, from_dir: Vector3i, to_dir: Vector3i)
 @warning_ignore("unused_signal")
 signal actor_falling(actor_id: StringName, from: Vector3i, to: Vector3i)
 
+## The interact button, pressed for this actor - [member InputIntent.interact], read
+## and cleared by [Brain] the same frame it fires. What [GameEvent]'s `action` trigger
+## (decision 44) listens for: facing it or standing on a through event is the rest of
+## that check, done by the listener, not here.
+@warning_ignore("unused_signal")
+signal actor_interacted(actor_id: StringName)
+
 
 # -- The player's four ---------------------------------------------------------------
 #
@@ -157,6 +164,10 @@ signal player_turned(from_dir: Vector3i, to_dir: Vector3i)
 ## The player is about to fall. See [signal actor_falling].
 @warning_ignore("unused_signal")
 signal player_falling(from: Vector3i, to: Vector3i)
+
+## The player pressed interact. See [signal actor_interacted].
+@warning_ignore("unused_signal")
+signal player_interacted()
 
 @warning_ignore("unused_signal")
 signal event_started(runner_id: String, exclusive: bool)

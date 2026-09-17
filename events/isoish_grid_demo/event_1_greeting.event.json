@@ -1,0 +1,35 @@
+{
+	"format": 1,
+	"id": "event_1_greeting",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {"trigger": "action"},
+			"art": {
+				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
+				"idle": "idle"
+			},
+			"route": [],
+			"graph": [
+				{
+					"id": "start",
+					"command": "start",
+					"args": {},
+					"outputs": [{"flow": "next", "target": "n1"}]
+				},
+				{
+					"id": "n1",
+					"command": "face_to",
+					"args": {"actor": "@self", "target": "@player"},
+					"outputs": [{"flow": "next", "target": "n2"}]
+				},
+				{
+					"id": "n2",
+					"command": "say",
+					"args": {"text": "Segment 6's GameEvent, in 3D: action trigger, face_to, and SpriteSheet3D art."},
+					"outputs": []
+				}
+			]
+		}
+	]
+}

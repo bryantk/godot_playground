@@ -13,6 +13,7 @@
 [ext_resource type="Resource" path="res://games/jrpg/jrpg_input.tres" id="14_eih3y"]
 [ext_resource type="TileSet" uid="uid://6via8glhbs70" path="res://games/jrpg/jrpg_pathing.tres" id="15_pathing"]
 [ext_resource type="TileSet" uid="uid://bv8ika1wdh0ch" path="res://games/jrpg/gentle_forest_tiles.tres" id="16_forest"]
+[ext_resource type="Script" path="res://events/game_event.gd" id="17_game_event"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_6lfo2"]
 size = Vector2(32, 32)
@@ -98,6 +99,10 @@ actor_id = &"npc_17_9"
 [node name="Sprite" parent="Actors/Npc_17_9" index="1"]
 modulate = Color(0.65, 0.8, 1, 1)
 frame = 1
+
+[node name="GameEvent" type="Node" parent="Actors/Npc_17_9" unique_id=632867844]
+script = ExtResource("17_game_event")
+document_path = "res://events/jrpg_demo/npc_greeting.event.json"
 
 [node name="Npc_8_12" parent="Actors" unique_id=1777864491 instance=ExtResource("4_0l83r")]
 position = Vector2(136, 200)

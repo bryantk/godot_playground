@@ -1,0 +1,18 @@
+{
+	"format": 1,
+	"id": "sched_player_touch",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {"trigger": "player_touch"},
+			"art": {},
+			"route": [],
+			"graph": [
+				{"id": "start", "command": "start", "args": {},
+					"outputs": [{"flow": "next", "target": "n1"}]},
+				{"id": "n1", "command": "set_flag", "args": {"flag": "fired_player_touch"},
+					"outputs": []}
+			]
+		}
+	]
+}

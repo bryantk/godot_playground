@@ -1,0 +1,27 @@
+{
+	"format": 1,
+	"id": "sched_page_defer",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {"trigger": "on_load"},
+			"art": {},
+			"route": [],
+			"graph": [
+				{"id": "start", "command": "start", "args": {},
+					"outputs": [{"flow": "next", "target": "n1"}]},
+				{"id": "n1", "command": "wait", "args": {"seconds": 2.0},
+					"outputs": []}
+			]
+		},
+		{
+			"conditions": [{"flag": "advance"}],
+			"settings": {},
+			"art": {"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png", "directions": 4, "idle": "idle"},
+			"route": [],
+			"graph": [
+				{"id": "start", "command": "start", "args": {}, "outputs": []}
+			]
+		}
+	]
+}

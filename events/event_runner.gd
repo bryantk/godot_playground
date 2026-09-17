@@ -53,6 +53,11 @@ var latch: KeyLatch
 var finished := false
 var error := ""
 
+## Segment 6's opt-out from "background suspends while exclusive is held" - the
+## waterfall case (a background effect that must keep going regardless, architecture.md
+## §7.5). False for every runner unless the thing that starts it says otherwise.
+var keeps_running := false
+
 var _stack: Array[_Frame] = []
 var _budget := 0
 

@@ -1,0 +1,36 @@
+{
+	"format": 1,
+	"id": "npc_greeting",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {"trigger": "action"},
+			"art": {
+				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
+				"directions": 4,
+				"idle": "idle"
+			},
+			"route": [],
+			"graph": [
+				{
+					"id": "start",
+					"command": "start",
+					"args": {},
+					"outputs": [{"flow": "next", "target": "n1"}]
+				},
+				{
+					"id": "n1",
+					"command": "face_to",
+					"args": {"actor": "@self", "target": "@player"},
+					"outputs": [{"flow": "next", "target": "n2"}]
+				},
+				{
+					"id": "n2",
+					"command": "say",
+					"args": {"text": "Segment 6's GameEvent, live: an action trigger, face_to, and reconciled art."},
+					"outputs": []
+				}
+			]
+		}
+	]
+}

@@ -94,11 +94,23 @@ func play(anim: StringName) -> String:
 	return key
 
 
+## Reconciled the same way [method SpriteView2D.apply_art] is (segment 6):
+## [code]"sheet"[/code] (a texture path) applies to a [SpriteSheet3D] visual, which used
+## to have no way to receive art at all - only [code]"frames"[/code] was ever read, and
+## only for an [AnimatedSprite3D]. [code]"directions"[/code] is deliberately still not
+## read: this view's 8 facings against 4 yaw stops are exact by construction (see the
+## class doc), so nothing here would know what to do with a different count.
 func apply_art(art: Dictionary) -> void:
-	if _sprite != null and art.has("frames"):
+	if art.has("sheet") and _visual is Sprite3D:
+		var texture: Texture2D = load(str(art["sheet"])) as Texture2D
+		if texture != null:
+			(_visual as Sprite3D).texture = texture
+
+	if art.has("frames") and _sprite != null:
 		var frames: SpriteFrames = load(str(art["frames"])) as SpriteFrames
 		if frames != null:
 			_sprite.sprite_frames = frames
+
 	_refresh()
 
 

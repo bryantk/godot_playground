@@ -1,0 +1,18 @@
+{
+	"format": 1,
+	"id": "sched_leave_cell",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {"trigger": "leave_cell"},
+			"art": {},
+			"route": [],
+			"graph": [
+				{"id": "start", "command": "start", "args": {},
+					"outputs": [{"flow": "next", "target": "n1"}]},
+				{"id": "n1", "command": "set_flag", "args": {"flag": "fired_leave_cell"},
+					"outputs": []}
+			]
+		}
+	]
+}

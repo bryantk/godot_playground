@@ -77,6 +77,11 @@ func _think(_delta: float) -> void:
 ## controller rather than on a flag in the input profile means a map that overrides
 ## [member MapContext.default_motion] is obeyed without anyone being told.
 func _apply(_delta: float) -> void:
+	if intent.interact:
+		EventBus.actor_interacted.emit(_actor.actor_id)
+		if _actor.is_player():
+			EventBus.player_interacted.emit()
+
 	var m := motion()
 	if m is GridMotion:
 		_drive_grid(m as GridMotion)
