@@ -27,6 +27,24 @@ class_name GridMotion extends MotionController
 ## How many world directions a step may take. 4 for game 1.
 @export_range(4, 8, 4) var direction_count: int = 4
 
+## How much slower a step climbs a ramp or stairs cell, as a multiplier on [member speed]
+## - 1.0 leaves climbing at the same rate as flat ground, lower makes the crossing take
+## longer. Never applies downhill or on the level; see [method _slope_scale].
+@export_range(0.1, 1.0, 0.01) var slope_up_speed_scale: float = 0.6
+
+## Like [member slope_up_speed_scale], but for a step whose surface drops - a ramp or
+## stairs is easier going down than up, so this is closer to 1.0 rather than mirroring the
+## climb's own number.
+@export_range(0.1, 1.0, 0.01) var slope_down_speed_scale: float = 0.8
+
+## A further multiplier on top of [member slope_up_speed_scale], scaled in by how closely
+## the climb lines up with the camera's own depth axis (see [method Space.depth_axis]) -
+## full strength climbing straight toward or away from the eye, none climbing across the
+## screen. [member MotionController.depth_compensation] stretches that same axis to keep
+## screen speed uniform; this is the opposite move for the one direction a slope is meant
+## to read as harder, not merely foreshortened. Uphill only, same as the scale it rides on.
+@export_range(0.1, 1.0, 0.01) var slope_camera_align_scale: float = 0.75
+
 ## Seconds this actor hangs in the air before a fall starts.
 ##
 ## [b]Per actor, because it is characterisation rather than physics.[/b] How far anything
@@ -171,10 +189,12 @@ func _step_rate_scale() -> float:
 
 
 func step_duration(dir: Vector3i = Vector3i.ZERO) -> float:
-	var base := 1.0 / maxf(0.01, speed * _step_rate_scale() * speed_scale(Vector3(dir)))
+	var d := Vector3(dir)
+	var slope := 1.0 if dir == Vector3i.ZERO or _actor == null else \
+		_slope_scale(_slope_rise(context(), _actor.cell(), dir), d)
+	var base := 1.0 / maxf(0.01, speed * _step_rate_scale() * speed_scale(d) * slope)
 	if dir == Vector3i.ZERO:
 		return base
-	var d := Vector3(dir)
 	return base * d.length() / maxf(0.01, compensate(d).length())
 
 
@@ -423,6 +443,41 @@ func _surface_of(ctx: MapContext, cell: Vector3i) -> Vector3:
 	return ctx.cell_centre(cell) + Vector3(0.0, Terrain.surface_offset(ctx, cell), 0.0)
 
 
+## How far a step in [param dir] from [param from] would actually rise (positive) or drop
+## (negative), in world units - [method Terrain.surface_offset] included, so a stairs
+## tile's height fraction counts the same as a ramp's. Zero on flat ground, through a
+## ladder, off a ledge, or when nothing governs height at all.
+##
+## A query, not a commit: safe to call ahead of [method _commit_step] for [method
+## step_duration]'s prediction, which is the only reason this exists separately from just
+## reading [member _step_back] - the step in flight already has its real rise sitting
+## right there.
+func _slope_rise(ctx: MapContext, from: Vector3i, dir: Vector3i) -> float:
+	if ctx == null or _actor == null or _actor.through_terrain or not Terrain.governs(ctx):
+		return 0.0
+	var plan := Terrain.resolve_step(ctx, from, dir, ctx.max_fall_cells)
+	if not plan.get("ok", false):
+		return 0.0
+	return _surface_of(ctx, plan["cell"]).y - _surface_of(ctx, from).y
+
+
+## The rate multiplier for a step whose surface rises (or drops) by [param rise] world
+## units in [param dir] - [member slope_up_speed_scale] or [member slope_down_speed_scale]
+## depending on the sign, 1.0 untouched on the level. The camera-alignment extra (see
+## [member slope_camera_align_scale]) only ever sharpens the climb, not the descent.
+func _slope_scale(rise: float, dir: Vector3) -> float:
+	if rise == 0.0:
+		return 1.0
+	if rise < 0.0:
+		return slope_down_speed_scale
+	var scale := slope_up_speed_scale
+	var axis := Space.depth_axis(_view_basis)
+	if axis.length() > 0.01 and dir.length_squared() > 0.0:
+		var align := absf(dir.normalized().dot(axis.normalized()))
+		scale *= lerpf(1.0, slope_camera_align_scale, align)
+	return scale
+
+
 ## How far above [member _step_back]'s straight line the sprite has to stand right now
 ## to clear the real ground mesh at its current horizontal position - zero unless
 ## [member _step_over_terrain] says this step touches a ramp or stairs cell.
@@ -536,7 +591,8 @@ func _process(delta: float) -> void:
 	# long as the flat step beside it, and a fall - which is horizontally zero - would
 	# divide by zero in the compensation below.
 	var d := Space.flatten(Vector3(_step_to - _step_from))
-	var rate := maxf(0.0, speed) * _step_rate_scale() * speed_scale(d)
+	var rate := maxf(0.0, speed) * _step_rate_scale() * speed_scale(d) \
+		* _slope_scale(-_step_back.y, d)
 	if d.length_squared() > 0.0:
 		# The same depth compensation the nominal duration uses, re-read each frame
 		# because the camera's yaw stop can change mid-step.

@@ -1,7 +1,7 @@
 [gd_resource type="MeshLibrary" format=4 uid="uid://bj0n18m532mb0"]
 
-[ext_resource type="Texture2D" path="res://art/test_floor_tile.png" id="1_2g55a"]
-[ext_resource type="Texture2D" path="res://art/test_wall_tile.png" id="2_3ry81"]
+[ext_resource type="Texture2D" uid="uid://cc7q1su60ctr6" path="res://art/test_floor_tile.png" id="1_2g55a"]
+[ext_resource type="Texture2D" uid="uid://bcouygpqccpyu" path="res://art/test_wall_tile.png" id="2_3ry81"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8v1xv"]
 cull_mode = 2

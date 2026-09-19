@@ -43,7 +43,7 @@ const STOPS := 4
 ##
 ## [b]Two things move with it.[/b] Depth compensation reads [code]sin(pitch)[/code] off
 ## the camera basis, so walking speed re-balances on its own as this changes - bounded by
-## [member MotionController.max_depth_boost], which is what stops a near-flat camera
+## [constant MotionController.MAX_DEPTH_BOOST], which is what stops a near-flat camera
 ## launching actors across the map. And vertical faces are [code]16 * cos(pitch)[/code]
 ## px per world unit, so art authored for 30 degrees is wrong at any other angle; see
 ## [constant TEXELS_PER_UNIT_VERTICAL].

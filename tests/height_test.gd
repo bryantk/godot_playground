@@ -121,21 +121,37 @@ func _test_ramp_and_stairs() -> void:
 	await get_tree().process_frame
 	var ctx: MapContext = map.ctx
 	var actor: Actor = _spawn(map, Vector3i(0, 0, 0))
+	var motion := actor.motion() as GridMotion
 	await get_tree().process_frame
 
 	_eq(actor.cell(), Vector3i(0, 0, 0), "spawns on the low floor")
+
+	# Predicted before anything has moved, from one flat cell to the next - the one
+	# genuinely level step in this whole row, and the baseline the climbs below are
+	# measured against.
+	var flat_step := motion.step_duration(E)
 
 	_ok(await _step(actor, E), "east along the low floor")
 	_eq(actor.cell(), Vector3i(1, 0, 0), "still on level 0")
 
 	# The decision Kyle made explicit: a ramp's cell is its *lower* end, so stepping on
-	# is a level step and the climb happens on the way off.
+	# is a level step in cell terms - but the ramp's surface is already lifted half a
+	# cell there (RAMP_RISE), so this step and the one off the top each climb half the
+	# total rise, and [method GridMotion._slope_rise] reads the true surface height, not
+	# the cell. Both predict as uphill.
+	#
+	# The camera never pushed a basis here (identity), so Space.depth_axis is zero and
+	# slope_camera_align_scale never enters - this is the plain slope_up_speed_scale case.
+	_eq(motion.step_duration(E), flat_step / motion.slope_up_speed_scale,
+		"stepping onto the ramp predicts a longer step, scaled by slope_up_speed_scale")
 	_ok(await _step(actor, E), "east onto the ramp")
 	_eq(actor.cell(), Vector3i(2, 0, 0), "the ramp commits to the lower cell, not the upper one")
 	_eq(_rest_offset(actor),
 		Terrain.RAMP_RISE * ctx.cell_size.y + Terrain.RAMP_STANCE_UP * ctx.cell_size.y,
 		"and the sprite is lifted to the slope it is standing on, plus its standing stance")
 
+	_eq(motion.step_duration(E), flat_step / motion.slope_up_speed_scale,
+		"and off the top of the ramp predicts the same, the other half of the climb")
 	_ok(await _step(actor, E), "east off the top of the ramp")
 	_eq(actor.cell(), Vector3i(3, 1, 0), "one cell up, onto level 1")
 	_eq(_rest_offset(actor), 0.0, "and the lift is gone again on flat ground")
@@ -158,6 +174,9 @@ func _test_ramp_and_stairs() -> void:
 	_eq(actor.cell(), Vector3i(6, 2, 0), "still level 2")
 
 	# Descending is the mirror of climbing: the ramp below must rise back toward us.
+	_eq(motion.step_duration(W), flat_step / motion.slope_down_speed_scale,
+		"descending the stairs predicts a shorter step than climbing, scaled by "
+		+ "slope_down_speed_scale")
 	_ok(await _step(actor, W), "west onto the stairs from above")
 	_eq(actor.cell(), Vector3i(5, 1, 0), "down one, onto the stairs' own cell")
 

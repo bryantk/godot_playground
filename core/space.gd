@@ -145,7 +145,7 @@ static func compensate_depth(v: Vector3, b: Basis, strength: float,
 	var along := v.dot(axis) / compression
 	# Capped before the strength blend, so max_factor means what it says at full strength.
 	# Without it a near-flat camera asks for an unbounded boost - 1 / sin(5 degrees) is
-	# 11x - and the actor leaves the map. See MotionController.max_depth_boost.
+	# 11x - and the actor leaves the map. See MotionController.MAX_DEPTH_BOOST.
 	var factor := lerpf(1.0, minf(1.0 / compression, max_factor), clampf(strength, 0.0, 1.0))
 	return v + (axis / compression) * along * (factor - 1.0)
 
