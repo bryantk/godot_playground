@@ -38,7 +38,17 @@ const DOCUMENT_KEYS: PackedStringArray = ["format", "id", "pages"]
 ## Page keys this file understands.
 const PAGE_KEYS: PackedStringArray = [
 	"conditions", "settings", "art", "lock_facing", "through", "through_terrain",
-	"route", "graph",
+	"lock_player", "route", "graph",
+]
+
+## Decision 44's seven triggers, in the order the graph editor's dropdown lists them -
+## the one place that list is spelled out, so [code]graph_editor_panel.gd[/code]'s
+## Trigger field and [code]game_event.gd[/code]'s dispatch can never name an eighth one
+## the other does not recognise. [code]settings.trigger[/code] itself stays a plain
+## string rather than an enum - [method GameEvent._maybe_fire] just compares it - so a
+## page saved before a ninth trigger existed still reads fine.
+const TRIGGERS: PackedStringArray = [
+	"player_touch", "event_touch", "action", "auto", "on_load", "leave_cell", "on_flag",
 ]
 
 
@@ -66,6 +76,13 @@ static func default_page() -> Dictionary:
 		"lock_facing": false,
 		"through": false,
 		"through_terrain": false,
+		# Unlike the three above, this does not describe the actor for as long as the
+		# page is active - it describes one triggered run of the page's own graph.
+		# GameEvent pushes ModeStack.Mode.CUTSCENE when that run starts and pops it
+		# when the run ends (or is refused), the same capture/restore shape it already
+		# uses for facing. See event-pages.md and events/commands/state_execs.gd's
+		# halt_control/return_control for locking past that boundary on purpose.
+		"lock_player": false,
 		"route": route,
 		"graph": graph,
 		"_unknown": {},
@@ -153,6 +170,8 @@ static func _read_page(raw: Variant, index: int, problems: Array[String]) -> Dic
 	page["through"] = _read_bool(source.get("through", false), where, "through", problems)
 	page["through_terrain"] = _read_bool(
 		source.get("through_terrain", false), where, "through_terrain", problems)
+	page["lock_player"] = _read_bool(
+		source.get("lock_player", false), where, "lock_player", problems)
 	page["route"] = _read_route(source.get("route", []), where, problems)
 	page["graph"] = _read_nodes(source.get("graph", []), where, "graph", problems)
 
@@ -267,6 +286,7 @@ static func stringify(doc: Dictionary) -> String:
 			"lock_facing": bool(page_dict.get("lock_facing", false)),
 			"through": bool(page_dict.get("through", false)),
 			"through_terrain": bool(page_dict.get("through_terrain", false)),
+			"lock_player": bool(page_dict.get("lock_player", false)),
 			"route": _route_to_data(page_dict.get("route", [])),
 			"graph": Doc.to_data(_as_nodes(page_dict.get("graph", []))),
 		}

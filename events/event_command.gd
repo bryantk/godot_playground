@@ -279,6 +279,32 @@ const COMMANDS: Dictionary = {
 		"blurb": "Add to a declared variable.",
 	},
 
+	# -- Input -------------------------------------------------------------------
+	"halt_control": {
+		# The manual half of "lock player" (event-pages.md): a page's own lock_player
+		# setting locks input for exactly the run that page's trigger started and
+		# releases it the moment that run ends (GameEvent's own facing-capture pattern,
+		# applied to ModeStack instead of facing). This is the escape hatch for locking
+		# past that boundary - a graph that ends but wants the lock to survive until
+		# something else, later, calls return_control. Plain ModeStack.push(CUTSCENE),
+		# so it nests correctly with lock_player's own push/pop and with the exclusive
+		# slot's own push around the whole run.
+		"args": {},
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"blurb": "Disable player input until return_control (or a lock_player page ends).",
+	},
+	"return_control": {
+		# The opposite of halt_control - one ModeStack.pop(). Popping something this
+		# command did not itself push (a lock_player run that has already ended, an
+		# exclusive slot still held) is the authoring hazard a bare stack always has;
+		# nothing here tracks who owns which push.
+		"args": {},
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"blurb": "Re-enable player input locked by halt_control.",
+	},
+
 	# -- Map -------------------------------------------------------------------
 	"change_map": {
 		# Question 51: gained a "next" port so an exclusive runner can chain across

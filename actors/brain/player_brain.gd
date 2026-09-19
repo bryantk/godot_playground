@@ -39,19 +39,28 @@ func rig() -> CameraRig:
 
 
 func _think(_delta: float) -> void:
-	# The exclusive slot locks the step the same way the struck round gate used to -
-	# one boolean on one field, not a push onto the input stack, so everything except
-	# the step (menu, cancel, interact) stays live through a cutscene.
-	intent.lock_step(not ModeStack.is_field())
+	# The exclusive slot locks movement the same way the struck round gate used to -
+	# one boolean, not a push onto the input stack, so everything except movement
+	# (menu, cancel, interact) stays live through a cutscene.
+	#
+	# [member InputIntent.lock_step] only ever zeroed [member InputIntent.step], which
+	# is all a grid game needed - but a free actor has no step, and until this, nothing
+	# stopped [method Brain._drive_free] steering one straight through a cutscene it
+	# should have been locked out of (GameEvent's new lock_player page setting is what
+	# surfaced it: FreeMotion just never had a caller that cared before). Locked here
+	# stops [member move] and [member jump] the same frame it stops the step.
+	var locked := not ModeStack.is_field()
+	intent.lock_step(locked)
 
-	# Everything except the step stays live even while the round gate holds, which is
-	# why the gate is one boolean on one field rather than a push onto the input stack.
+	# Everything except movement stays live even while the lock holds, which is why
+	# it is a couple of booleans on a couple of fields rather than a push onto the
+	# input stack.
 	var raw := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	var r := rig()
 
-	intent.move = profile.resolve(raw, r.yaw() if r != null else 0.0)
+	intent.move = Vector3.ZERO if locked else profile.resolve(raw, r.yaw() if r != null else 0.0)
 	intent.run = Input.is_action_pressed("run")
-	intent.jump = Input.is_action_just_pressed("jump")
+	intent.jump = false if locked else Input.is_action_just_pressed("jump")
 	intent.interact = Input.is_action_just_pressed("action")
 	intent.wait = Input.is_action_just_pressed("wait_step")
 

@@ -9,6 +9,7 @@
 			"lock_facing": false,
 			"through": false,
 			"through_terrain": false,
+			"lock_player": false,
 			"route": [
 				{
 					"id": "",

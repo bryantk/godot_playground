@@ -18,6 +18,7 @@
 			"lock_facing": false,
 			"through": false,
 			"through_terrain": false,
+			"lock_player": false,
 			"route": {
 				"mode": "waypoints",
 				"loop": "pingpong",
@@ -116,6 +117,7 @@
 			"lock_facing": false,
 			"through": false,
 			"through_terrain": false,
+			"lock_player": false,
 			"route": {
 				"mode": "toward",
 				"target": "player",
@@ -201,6 +203,7 @@
 			"lock_facing": false,
 			"through": false,
 			"through_terrain": false,
+			"lock_player": false,
 			"route": {
 				"mode": "fixed"
 			},

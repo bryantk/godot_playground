@@ -1,6 +1,7 @@
 ## State executors: [code]set_flag[/code], [code]set_self_flag[/code],
-## [code]set_var[/code], [code]add_var[/code]. All non-blocking and complete
-## synchronously - [GameState] is a global autoload, so there is nothing to wait on.
+## [code]set_var[/code], [code]add_var[/code], [code]halt_control[/code],
+## [code]return_control[/code]. All non-blocking and complete synchronously -
+## [GameState] and [ModeStack] are both global autoloads, so there is nothing to wait on.
 
 
 ## Sets a global flag. [code]value[/code] defaults to true, matching a bare "set_flag"
@@ -31,10 +32,30 @@ class AddVar extends EventCommandExec:
 		GameState.var_add(StringName(str(args.get("var", ""))), float(args.get("delta", 0.0)))
 
 
+## Disables player input by pushing [constant ModeStack.Mode.CUTSCENE] - the same mode
+## the exclusive slot itself pushes, so [method PlayerBrain._think]'s
+## [code]not ModeStack.is_field()[/code] check needs no second case. A bare push: see
+## [method EventCommand] segment "Input" for the pairing this is meant to hold up its
+## end of.
+class HaltControl extends EventCommandExec:
+	func start() -> void:
+		ModeStack.push(ModeStack.Mode.CUTSCENE)
+
+
+## Re-enables player input by popping one mode - the [method HaltControl] this is
+## meant to pair with, or a [code]lock_player[/code] page's own push if this is what
+## an author reaches for instead of just letting the page's run end.
+class ReturnControl extends EventCommandExec:
+	func start() -> void:
+		ModeStack.pop()
+
+
 static func table() -> Dictionary:
 	return {
 		"set_flag": SetFlag,
 		"set_self_flag": SetSelfFlag,
 		"set_var": SetVar,
 		"add_var": AddVar,
+		"halt_control": HaltControl,
+		"return_control": ReturnControl,
 	}

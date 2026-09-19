@@ -9,6 +9,12 @@ class_name GameEvent extends Node
 ## a bodiless region trigger[/b] - the same node either way, which is what keeps "what
 ## is at this cell?" one lookup regardless of which kind answers it.
 ##
+## [b]`player_touch`/`event_touch` fire two ways.[/b] [method _on_actor_stepped] is the
+## precise one, off [signal EventBus.actor_stepped] - but that signal only exists for a
+## [GridMotion] actor, so [method _check_continuous_touch] is the fallback a per-frame
+## cell-equality check gives free motion, on either side: a free player walking into
+## this event, or this event's own free actor walking into the player.
+##
 ## [b]Page switches defer to graph completion[/b] (question 23): while this event's own
 ## runner is still running, neither a new trigger nor a flag change already known to
 ## point at a different page does anything until that runner finishes. `re_validate`
@@ -30,6 +36,15 @@ class_name GameEvent extends Node
 ## _restore_facing_if_untouched]), a page with no move or facing command of its own
 ## still ends the interaction facing whichever way it started - the look is visible
 ## during the interaction, not left behind after it.
+##
+## [b]`lock_player` locks input for exactly one run.[/b] Unlike `lock_facing`/`through`/
+## `through_terrain`, which describe the actor for as long as the page is active, this
+## describes the triggered run itself: [constant ModeStack.Mode.CUTSCENE] is pushed the
+## moment [method _maybe_fire] commits to running and popped the moment [method poll]
+## sees that run finish (see [method _release_control_if_locked]) - the same
+## capture/restore shape `lock_facing` already uses, aimed at [ModeStack] instead of
+## [method Actor.set_facing]. `halt_control`/`return_control` (event_command.gd) are the
+## manual equivalent, for locking past a run's own end on purpose.
 
 @export_file("*.event.json") var document_path: String = ""
 
@@ -47,6 +62,11 @@ var _runner: EventRunner = null
 var _runner_ctx: EventContext = null
 var _player_cache: Actor = null
 
+## Cell equality with the player as of last frame - [method _check_continuous_touch]'s
+## own edge detector, so overlapping for many frames fires once, at entry, the same as
+## [method _on_actor_stepped]'s signal-driven version does.
+var _touching := false
+
 ## The facing captured just before an interaction starts, restored once it ends -
 ## unless a movement/facing executor touched this event's own actor during the run
 ## ([member EventContext.self_actor_touched]), in which case that is treated as
@@ -54,6 +74,15 @@ var _player_cache: Actor = null
 ## nothing to restore (no [Actor], or nothing currently in flight).
 var _pre_interaction_facing: Vector3i = Vector3i.ZERO
 var _has_pre_facing := false
+
+## Whether this run pushed [constant ModeStack.Mode.CUTSCENE] for the active page's own
+## [code]lock_player[/code] - true from the moment [method _maybe_fire] commits to
+## running until [method poll] sees the runner finish (or the run is refused), which is
+## when the matching pop happens. Tracked here rather than inferred from the page,
+## because the page that started a run can switch under it (question 23's deferred
+## switch aside, a flag change mid-run still cannot retarget which run this pop belongs
+## to) before that run's own pop is due.
+var _locked_player := false
 
 
 func _ready() -> void:
@@ -78,6 +107,7 @@ func _exit_tree() -> void:
 
 func _process(_delta: float) -> void:
 	poll()
+	_check_continuous_touch()
 
 
 ## Notices a finished runner and re-checks the deferred page switch. A real frame
@@ -89,6 +119,7 @@ func poll() -> void:
 			EventScheduler.release_lease(_actor.actor_id, _runner)
 		_runner = null
 		_restore_facing_if_untouched()
+		_release_control_if_locked()
 		_refresh_active_page()
 
 
@@ -103,6 +134,14 @@ func _restore_facing_if_untouched() -> void:
 		_actor.set_facing(_pre_interaction_facing)
 	_has_pre_facing = false
 	_runner_ctx = null
+
+
+## The other half of [member _locked_player] - pops [constant ModeStack.Mode.CUTSCENE]
+## if [method _maybe_fire] pushed one for this run, and clears the flag either way.
+func _release_control_if_locked() -> void:
+	if _locked_player:
+		ModeStack.pop()
+	_locked_player = false
 
 
 func event_id() -> StringName:
@@ -295,6 +334,34 @@ func _on_actor_stepped(actor_id: StringName, from: Vector3i, to: Vector3i) -> vo
 		_maybe_fire(&"leave_cell")
 
 
+## [method _on_actor_stepped] is signal-driven off [signal EventBus.actor_stepped],
+## which only a [GridMotion] actor ever publishes - a free actor has no discrete step
+## to hang a signal off, so a free-motion player walking into this event, or this
+## event's own actor (free motion) walking into the player, would never fire
+## [code]player_touch[/code]/[code]event_touch[/code] at all. This is the fallback: a
+## plain per-frame cell-equality check, edge-triggered on [member _touching] the same
+## way the signal path is edge-triggered on a step actually landing.
+##
+## Tries both trigger names rather than picking one - cell equality alone cannot say
+## which side did the moving, and [method _maybe_fire] already no-ops on whichever name
+## does not match this page's own [code]settings.trigger[/code], so trying the wrong one
+## first costs nothing. Harmless alongside [method _on_actor_stepped] for two grid
+## actors too: whichever fires first leaves the event busy, and the other's attempt
+## no-ops on that instead of on the name mismatch.
+func _check_continuous_touch() -> void:
+	if _actor == null or _active_page < 0:
+		return
+	var player := _player()
+	if player == null or player == _actor:
+		return
+
+	var touching := _actor.cell() == player.cell()
+	if touching and not _touching:
+		_maybe_fire(&"player_touch")
+		_maybe_fire(&"event_touch")
+	_touching = touching
+
+
 ## Facing-and-adjacent by default - the interact button aimed at a wall-like thing. A
 ## through event has no adjacent side that means anything (there is nothing stopping
 ## the player from standing on or passing through it), so it switches to "standing on
@@ -351,6 +418,13 @@ func _maybe_fire(trigger_name: StringName) -> void:
 		_has_pre_facing = true
 		_face_interactor(trigger_name)
 
+	# Armed alongside facing, for the same reason: a synchronous run below can finish
+	# before this function returns, and poll() must already see the flag it is about
+	# to release.
+	_locked_player = bool(page.get("lock_player", false))
+	if _locked_player:
+		ModeStack.push(ModeStack.Mode.CUTSCENE)
+
 	var parallel := trigger_name == &"auto" and bool(settings.get("parallel", false))
 	if parallel:
 		EventScheduler.run_background(runner, graph)
@@ -365,6 +439,7 @@ func _maybe_fire(trigger_name: StringName) -> void:
 			_runner = null
 			_runner_ctx = null
 			_has_pre_facing = false
+			_release_control_if_locked()
 			_fired_once[_active_page] = false
 			return
 

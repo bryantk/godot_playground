@@ -85,12 +85,19 @@ var _file_dialog: EditorFileDialog
 ## The panel to the left of the graph - page data no node carries: art, speed, route
 ## and conditions. See [method _build_page_inspector] and [method _load_page_inspector].
 var _art_picker: EditorResourcePicker
+## The page's settings.trigger (decision 44's seven, plus a blank "(none)" for a page
+## only ever entered by `call`) - see [constant EventDocument.TRIGGERS].
+var _trigger_option: OptionButton
 var _speed_spin: SpinBox
 ## The three actor flags a page carries as siblings of art/conditions - lock_facing,
 ## through and through_terrain, applied to GameEvent's own actor on activation.
 var _lock_facing_check: CheckBox
 var _through_check: CheckBox
 var _through_terrain_check: CheckBox
+## lock_player is a fourth actor flag, but on a different lifecycle from the other
+## three - see event_document.gd's own note on it - so it is kept in its own variable
+## rather than folded into the comment above about siblings of art/conditions.
+var _lock_player_check: CheckBox
 var _conditions_list: VBoxContainer
 ## Toggled between "Edit Route" and "Back to Graph" - see [method _on_route_button_pressed].
 var _route_button: Button
@@ -160,6 +167,8 @@ func _bind() -> bool:
 
 	_art_picker = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/ArtSheet") as EditorResourcePicker
+	_trigger_option = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/Trigger") as OptionButton
 	_speed_spin = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/Speed") as SpinBox
 	_lock_facing_check = get_node_or_null(
@@ -168,6 +177,8 @@ func _bind() -> bool:
 		^"Body/PageInspector/PageInspectorBox/Through") as CheckBox
 	_through_terrain_check = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/ThroughTerrain") as CheckBox
+	_lock_player_check = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/LockPlayer") as CheckBox
 	_conditions_list = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/Conditions") as VBoxContainer
 	_route_button = get_node_or_null(
@@ -376,6 +387,16 @@ func _build_page_inspector() -> Control:
 	_art_picker.resource_changed.connect(_on_art_sheet_changed)
 	box.add_child(_art_picker)
 
+	box.add_child(_section_label("Trigger"))
+	_trigger_option = OptionButton.new()
+	_trigger_option.name = "Trigger"
+	_trigger_option.tooltip_text = "The page's settings.trigger - which of decision 44's seven moments runs this page's graph. (none) leaves the page reachable only by \"call\"."
+	_trigger_option.add_item("(none)")
+	for trigger in EventDoc.TRIGGERS:
+		_trigger_option.add_item(str(trigger))
+	_trigger_option.item_selected.connect(_on_trigger_selected)
+	box.add_child(_trigger_option)
+
 	box.add_child(_section_label("Speed"))
 	_speed_spin = SpinBox.new()
 	_speed_spin.name = "Speed"
@@ -408,6 +429,13 @@ func _build_page_inspector() -> Control:
 	_through_terrain_check.tooltip_text = "The page's through_terrain - ignores the painted pathing mask / colliders and GridMap, the same as Actor.through_terrain."
 	_through_terrain_check.toggled.connect(_on_through_terrain_toggled)
 	box.add_child(_through_terrain_check)
+
+	_lock_player_check = CheckBox.new()
+	_lock_player_check.name = "LockPlayer"
+	_lock_player_check.text = "Lock player"
+	_lock_player_check.tooltip_text = "The page's lock_player - disables player input for exactly the run this page's trigger starts, released the moment that run ends. See halt_control/return_control to hold the lock past that."
+	_lock_player_check.toggled.connect(_on_lock_player_toggled)
+	box.add_child(_lock_player_check)
 
 	box.add_child(HSeparator.new())
 
@@ -460,13 +488,32 @@ func _load_page_inspector(index: int) -> void:
 	_art_picker.edited_resource = load(sheet) if sheet != "" and ResourceLoader.exists(sheet) else null
 
 	var settings: Dictionary = page.get("settings", {})
+	# Index 0 is "(none)"; a trigger absent or not one of the seven (an older file, a
+	# typo fixed by hand) also lands there rather than silently picking the first real
+	# entry, which would rewrite the file's trigger the moment anything else changed.
+	var trigger := str(settings.get("trigger", ""))
+	_trigger_option.select(EventDoc.TRIGGERS.find(trigger) + 1)
 	_speed_spin.set_value_no_signal(float(settings.get("speed", 0)))
 
 	_lock_facing_check.set_pressed_no_signal(bool(page.get("lock_facing", false)))
 	_through_check.set_pressed_no_signal(bool(page.get("through", false)))
 	_through_terrain_check.set_pressed_no_signal(bool(page.get("through_terrain", false)))
+	_lock_player_check.set_pressed_no_signal(bool(page.get("lock_player", false)))
 
 	_refresh_conditions()
+
+## [param index] is into the dropdown (0 is "(none)"), not into
+## [constant EventDocument.TRIGGERS] - offset by one to get the real list.
+func _on_trigger_selected(index: int) -> void:
+	if not _live():
+		return
+
+	var settings: Dictionary = _current_page_dict().get("settings", {})
+	if index <= 0:
+		settings.erase("trigger")
+	else:
+		settings["trigger"] = EventDoc.TRIGGERS[index - 1]
+	_mark_dirty()
 
 func _on_art_sheet_changed(resource: Resource) -> void:
 	if not _live():
@@ -490,9 +537,10 @@ func _on_speed_changed(value: float) -> void:
 		settings.erase("speed")
 	_mark_dirty()
 
-## The three below write straight into the page dictionary, not settings - lock_facing/
-## through/through_terrain are siblings of art and conditions, applied to GameEvent's
-## actor on activation rather than read as trigger configuration.
+## The four below write straight into the page dictionary, not settings - lock_facing/
+## through/through_terrain/lock_player are siblings of art and conditions, not settings,
+## even though lock_player (unlike the other three) describes one triggered run rather
+## than the whole time the page is active - see event_document.gd's own note on it.
 func _on_lock_facing_toggled(pressed: bool) -> void:
 	if not _live():
 		return
@@ -509,6 +557,12 @@ func _on_through_terrain_toggled(pressed: bool) -> void:
 	if not _live():
 		return
 	_current_page_dict()["through_terrain"] = pressed
+	_mark_dirty()
+
+func _on_lock_player_toggled(pressed: bool) -> void:
+	if not _live():
+		return
+	_current_page_dict()["lock_player"] = pressed
 	_mark_dirty()
 
 ## Toggles [member _editing_route] and reloads the current page, which is all that is

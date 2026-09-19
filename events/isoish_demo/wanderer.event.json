@@ -1,20 +1,20 @@
 {
 	"format": 1,
-	"id": "npc_greeting",
+	"id": "wanderer",
 	"pages": [
 		{
 			"conditions": [],
 			"settings": {
-				"trigger": "action"
+				"trigger": "event_touch",
+				"speed": 2.0
 			},
 			"art": {
 				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
-				"directions": 4.0,
 				"idle": "idle"
 			},
 			"lock_facing": false,
 			"through": false,
-			"through_terrain": false,
+			"through_terrain": true,
 			"lock_player": false,
 			"route": [],
 			"graph": [
@@ -30,43 +30,26 @@
 					"outputs": [
 						{
 							"flow": "next",
-							"target": "n2"
+							"target": "n1"
 						}
 					]
 				},
 				{
 					"id": "n1",
-					"title": "wait",
+					"title": "say",
 					"position": {
-						"x": 660,
-						"y": -40
+						"x": 60,
+						"y": 0
 					},
-					"command": "wait",
+					"command": "say",
 					"args": {
-						"seconds": 2.0
+						"text": "Oh! Didn't see you there. I wasn't looking where I was walking.",
+						"location": 2.0
 					},
 					"outputs": [
 						{
 							"flow": "next",
 							"target": ""
-						}
-					]
-				},
-				{
-					"id": "n2",
-					"title": "say",
-					"position": {
-						"x": 260,
-						"y": -60
-					},
-					"command": "say",
-					"args": {
-						"text": "Segment 6's GameEvent, live: an action trigger, face_to, and reconciled art."
-					},
-					"outputs": [
-						{
-							"flow": "next",
-							"target": "n1"
 						}
 					]
 				}

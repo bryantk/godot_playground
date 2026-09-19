@@ -10,6 +10,9 @@
 [ext_resource type="Resource" path="res://games/isoish/isoish_input.tres" id="14_tvm3s"]
 [ext_resource type="Script" uid="uid://dfyo0bfp6lnmf" path="res://core/areas/area_zone.gd" id="15_zone"]
 [ext_resource type="Script" uid="uid://djxeq3x4vd420" path="res://core/areas/speed_modifier.gd" id="16_speed"]
+[ext_resource type="PackedScene" path="res://games/isoish/actor_isoish_grid.tscn" id="18_grid"]
+[ext_resource type="Script" uid="uid://kgmsoygjvc80" path="res://actors/brain/route_brain.gd" id="19_route"]
+[ext_resource type="Script" uid="uid://djiw6eurhp8ym" path="res://events/game_event.gd" id="20_game_event"]
 
 [sub_resource type="Environment" id="Environment_tl0cg"]
 background_mode = 1
@@ -138,6 +141,54 @@ cast_shadow = 0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 7.5)
 texture_albedo = SubResource("ImageTexture_oxuky")
 
+[node name="Wanderer" parent="Upscale/World/Map/Actors" instance=ExtResource("18_grid")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.5, 0, 7.5)
+
+[node name="Actor" parent="Upscale/World/Map/Actors/Wanderer" index="1"]
+actor_id = &"wanderer"
+motion_mode = 1
+
+[node name="Motion" parent="Upscale/World/Map/Actors/Wanderer/Actor" index="1"]
+speed = 2.0
+
+[node name="Brain" type="Node" parent="Upscale/World/Map/Actors/Wanderer/Actor" index="3"]
+script = ExtResource("19_route")
+commands = Array[Dictionary]([{
+"args": {
+"cell": [15, 0, 7]
+},
+"command": "move_to"
+}, {
+"args": {
+"seconds": 1.0
+},
+"command": "wait"
+}, {
+"args": {
+"cell": [11, 0, 7]
+},
+"command": "move_to"
+}, {
+"args": {
+"seconds": 1.0
+},
+"command": "wait"
+}])
+
+[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Wanderer" index="4"]
+script = ExtResource("20_game_event")
+document_path = "res://events/isoish_demo/wanderer.event.json"
+
+[node name="Spinner" parent="Upscale/World/Map/Actors" instance=ExtResource("4_xyfnl")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 10.5)
+
+[node name="Actor" parent="Upscale/World/Map/Actors/Spinner" index="1"]
+actor_id = &"spinner"
+
+[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Spinner" index="4"]
+script = ExtResource("20_game_event")
+document_path = "res://events/isoish_demo/spinner.event.json"
+
 [node name="Camera" type="Camera3D" parent="Upscale/World/Map" unique_id=2109221331]
 
 [node name="Rig" type="Node" parent="Upscale/World/Map/Camera" unique_id=1556308926]
@@ -146,3 +197,5 @@ upscale_path = NodePath("../../../..")
 follow_target = &"player"
 
 [editable path="Upscale/World/Map/Actors/Player"]
+[editable path="Upscale/World/Map/Actors/Wanderer"]
+[editable path="Upscale/World/Map/Actors/Spinner"]

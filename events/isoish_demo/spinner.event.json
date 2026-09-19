@@ -1,0 +1,327 @@
+{
+	"format": 1,
+	"id": "spinner",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {
+				"trigger": "action"
+			},
+			"art": {
+				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
+				"idle": "idle"
+			},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
+			"lock_player": true,
+			"route": [],
+			"graph": [
+				{
+					"id": "start",
+					"title": "start",
+					"position": {
+						"x": -420,
+						"y": 0
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "t1"
+						}
+					]
+				},
+				{
+					"id": "t1",
+					"title": "face_direction",
+					"position": {
+						"x": -360,
+						"y": 0
+					},
+					"command": "face_direction",
+					"args": {
+						"direction": "turn_cw"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "w1"
+						}
+					]
+				},
+				{
+					"id": "w1",
+					"title": "wait",
+					"position": {
+						"x": -300,
+						"y": 0
+					},
+					"command": "wait",
+					"args": {
+						"seconds": 0.12
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "t2"
+						}
+					]
+				},
+				{
+					"id": "t2",
+					"title": "face_direction",
+					"position": {
+						"x": -240,
+						"y": 0
+					},
+					"command": "face_direction",
+					"args": {
+						"direction": "turn_cw"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "w2"
+						}
+					]
+				},
+				{
+					"id": "w2",
+					"title": "wait",
+					"position": {
+						"x": -180,
+						"y": 0
+					},
+					"command": "wait",
+					"args": {
+						"seconds": 0.12
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "t3"
+						}
+					]
+				},
+				{
+					"id": "t3",
+					"title": "face_direction",
+					"position": {
+						"x": -120,
+						"y": 0
+					},
+					"command": "face_direction",
+					"args": {
+						"direction": "turn_cw"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "w3"
+						}
+					]
+				},
+				{
+					"id": "w3",
+					"title": "wait",
+					"position": {
+						"x": -60,
+						"y": 0
+					},
+					"command": "wait",
+					"args": {
+						"seconds": 0.12
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "t4"
+						}
+					]
+				},
+				{
+					"id": "t4",
+					"title": "face_direction",
+					"position": {
+						"x": 0,
+						"y": 0
+					},
+					"command": "face_direction",
+					"args": {
+						"direction": "turn_cw"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "w4"
+						}
+					]
+				},
+				{
+					"id": "w4",
+					"title": "wait",
+					"position": {
+						"x": 60,
+						"y": 0
+					},
+					"command": "wait",
+					"args": {
+						"seconds": 0.12
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "t5"
+						}
+					]
+				},
+				{
+					"id": "t5",
+					"title": "face_direction",
+					"position": {
+						"x": 120,
+						"y": 0
+					},
+					"command": "face_direction",
+					"args": {
+						"direction": "turn_cw"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "w5"
+						}
+					]
+				},
+				{
+					"id": "w5",
+					"title": "wait",
+					"position": {
+						"x": 180,
+						"y": 0
+					},
+					"command": "wait",
+					"args": {
+						"seconds": 0.12
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "t6"
+						}
+					]
+				},
+				{
+					"id": "t6",
+					"title": "face_direction",
+					"position": {
+						"x": 240,
+						"y": 0
+					},
+					"command": "face_direction",
+					"args": {
+						"direction": "turn_cw"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "w6"
+						}
+					]
+				},
+				{
+					"id": "w6",
+					"title": "wait",
+					"position": {
+						"x": 300,
+						"y": 0
+					},
+					"command": "wait",
+					"args": {
+						"seconds": 0.12
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "t7"
+						}
+					]
+				},
+				{
+					"id": "t7",
+					"title": "face_direction",
+					"position": {
+						"x": 360,
+						"y": 0
+					},
+					"command": "face_direction",
+					"args": {
+						"direction": "turn_cw"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "w7"
+						}
+					]
+				},
+				{
+					"id": "w7",
+					"title": "wait",
+					"position": {
+						"x": 420,
+						"y": 0
+					},
+					"command": "wait",
+					"args": {
+						"seconds": 0.12
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "t8"
+						}
+					]
+				},
+				{
+					"id": "t8",
+					"title": "face_direction",
+					"position": {
+						"x": 480,
+						"y": 0
+					},
+					"command": "face_direction",
+					"args": {
+						"direction": "turn_cw"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "w8"
+						}
+					]
+				},
+				{
+					"id": "w8",
+					"title": "wait",
+					"position": {
+						"x": 540,
+						"y": 0
+					},
+					"command": "wait",
+					"args": {
+						"seconds": 0.12
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				}
+			]
+		}
+	]
+}
