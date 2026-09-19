@@ -25,6 +25,8 @@ GameState="*res://core/game_state.gd"
 ModeStack="*res://core/mode_stack.gd"
 DebugFlags="*res://core/debug_flags.gd"
 EventScheduler="*res://core/event_scheduler.gd"
+GameUI="*res://core/game_ui.gd"
+DebugPassabilityView="*res://core/debug_passability_view.gd"
 
 [display]
 

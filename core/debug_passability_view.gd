@@ -1,20 +1,22 @@
 extends Node
 
-## One wireframe box per cell a step is refused on right now, for a grid-movement map,
-## plus a second colour over every ladder cell. Walls, prop footprints and standing
-## actors already answer to the same two systems - [Passability]'s terrain data and
-## [Occupancy] - so one overlay reads both instead of needing a separate view per kind of
-## blocker; ladders are a third, independent layer ([member MapContext.ladder_node]).
+## One wireframe box per cell a step is refused on right now, for whichever grid-movement
+## map is currently loaded, plus a second colour over every ladder cell. Walls, prop
+## footprints and standing actors already answer to the same two systems - [Passability]'s
+## terrain data and [Occupancy] - so one overlay reads both instead of needing a separate
+## view per kind of blocker; ladders are a third, independent layer
+## ([member MapContext.ladder_node]).
 ##
-## Add as a child anywhere under the map root; it finds its own [MapContext] the way
-## every other map-level system does. A free-motion map ([member MapContext.default_motion]
-## other than [constant Actor.MotionMode.GRID]) has no grid cells to speak of, so this
-## frees itself rather than drawing anything.
+## Autoloaded as [code]DebugPassabilityView[/code] - one instance for the whole game
+## rather than one per map scene, since every demo wants the same overlay and none of
+## them should have to remember to add it. It finds the current map itself, by group
+## membership ([method MapContext._enter_tree]) rather than a [NodePath] handed to it,
+## which is what lets the same instance follow whichever map is loaded.
 ##
-## [b]Rebuilt every physics frame while showing[/b], because actors and pushed props move
-## and a snapshot taken once at spawn would go stale - skipped entirely while hidden
-## ([method DebugFlags.show_debug_view], off by default). [code]debug_toggle[/code] (the
-## same backtick key [DebugFlags] already owns) is what turns it on.
+## [b]No map, or a free-motion one, means doing nothing[/b] - not freeing itself the way a
+## scene-local instance used to. A global can't queue_free over a demo it doesn't like;
+## it just skips drawing until a grid map shows up, exactly as it does while
+## [method DebugFlags.show_debug_view] is off.
 ##
 ## [b]"Impassable" means fully walled, not one-sided.[/b] [method Passability.directions]
 ## can refuse only one side of a cell - a one-way ledge, a door painted shut from the
@@ -29,7 +31,10 @@ extends Node
 const WALL_COLOR := Color(0.95, 0.2, 0.2, 0.9)
 const LADDER_COLOR := Color(0.25, 0.95, 0.35, 0.9)
 
-var _ctx: MapContext
+## The map this instance is currently drawing for, or null between maps. Compared
+## against every physics frame so a map switch tears down the old visuals and builds
+## fresh ones instead of drawing last map's boxes in this map's space.
+var _ctx: MapContext = null
 var _root: Node = null
 var _is_3d := false
 
@@ -38,18 +43,50 @@ var _is_3d := false
 var _cells_2d: Array[Vector3i] = []
 
 ## 3D only: one wireframe box shape, reused by every instance regardless of colour - a
-## box is just a transform and a material against a shared line mesh.
+## box is just a transform and a material against a shared line mesh. Rebuilt whenever
+## the map changes, since [member MapContext.cell_size] can differ between maps.
 var _wire_mesh: ArrayMesh
 var _wall_material: StandardMaterial3D
 var _ladder_material: StandardMaterial3D
 
 
-func _ready() -> void:
-	_ctx = MapContext.of(self)
-	if _ctx == null or _ctx.default_motion != Actor.MotionMode.GRID:
-		queue_free()
+func _physics_process(_delta: float) -> void:
+	var ctx := _current_context()
+	if ctx != _ctx:
+		_teardown()
+		_ctx = ctx
+		if _ctx != null:
+			_setup()
+
+	if _ctx == null:
 		return
 
+	_root.visible = DebugFlags.show_debug_view()
+	if not _root.visible:
+		return
+
+	if _is_3d:
+		_rebuild_3d()
+	else:
+		_cells_2d = _blocked_cells()
+		(_root as Node2D).queue_redraw()
+
+
+## The map this overlay should be drawing for right now, or null when there isn't one
+## worth drawing - no map loaded (the demo launcher) or one whose
+## [member MapContext.default_motion] has no grid cells to speak of.
+##
+## A battle scene that keeps its field map resident behind it (map_context.gd's own
+## doc) would leave two [MapContext]s in the group at once; this does not try to pick
+## the "right" one between them; there is no battle scene yet for that to matter.
+func _current_context() -> MapContext:
+	var found := get_tree().get_first_node_in_group(&"map_context")
+	if found == null or (found as MapContext).default_motion != Actor.MotionMode.GRID:
+		return null
+	return found as MapContext
+
+
+func _setup() -> void:
 	_is_3d = _ctx.get_node_or_null(_ctx.collision_node) is GridMap
 
 	if _is_3d:
@@ -62,24 +99,14 @@ func _ready() -> void:
 		(_root as Node2D).draw.connect(_on_draw_2d)
 
 	_root.name = "DebugPassabilityBoxes"
-	# Deferred: a scene-authored sibling's own _ready can still be instantiating this
-	# node's siblings when this one runs, and Godot refuses add_child while a parent is
-	# busy setting up children.
-	get_parent().add_child.call_deferred(_root)
-
-	_root.visible = DebugFlags.show_debug_view()
-	DebugFlags.debug_view_toggled.connect(func(shown: bool) -> void: _root.visible = shown)
+	_ctx.get_parent().add_child(_root)
 
 
-func _physics_process(_delta: float) -> void:
-	if not _root.visible:
-		return
-
-	if _is_3d:
-		_rebuild_3d()
-	else:
-		_cells_2d = _blocked_cells()
-		(_root as Node2D).queue_redraw()
+func _teardown() -> void:
+	if _root != null and is_instance_valid(_root):
+		_root.queue_free()
+	_root = null
+	_cells_2d.clear()
 
 
 func _rebuild_3d() -> void:

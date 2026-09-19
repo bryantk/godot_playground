@@ -14,8 +14,6 @@
 [ext_resource type="TileSet" uid="uid://6via8glhbs70" path="res://games/jrpg/jrpg_pathing.tres" id="15_pathing"]
 [ext_resource type="TileSet" uid="uid://bv8ika1wdh0ch" path="res://games/jrpg/gentle_forest_tiles.tres" id="16_forest"]
 [ext_resource type="Script" uid="uid://djiw6eurhp8ym" path="res://events/game_event.gd" id="17_game_event"]
-[ext_resource type="PackedScene" uid="uid://co0ldsukxd5i3" path="res://ui/text_box/main_ui.tscn" id="18_main_ui"]
-[ext_resource type="Script" path="res://core/debug_passability_view.gd" id="19_debug_pass"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_6lfo2"]
 size = Vector2(32, 32)
@@ -28,9 +26,6 @@ script = ExtResource("2_shd0p")
 map_id = &"jrpg_demo"
 cell_size = Vector3(16, 0, 16)
 collision_node = NodePath("../Pathing")
-
-[node name="DebugPassabilityView" type="Node" parent="."]
-script = ExtResource("19_debug_pass")
 
 [node name="Background" type="ColorRect" parent="." unique_id=1003183580]
 z_index = -100
@@ -156,10 +151,6 @@ script = ExtResource("12_gxjgp")
 deadzone = Vector2(32, 24)
 bounds = Rect2(0, 0, 320, 224)
 follow_target = &"player"
-
-[node name="UILayer" type="CanvasLayer" parent="."]
-
-[node name="MainUI" parent="UILayer" unique_id=1068066642 instance=ExtResource("18_main_ui")]
 
 [editable path="Actors/Player"]
 [editable path="Actors/Npc_17_9"]

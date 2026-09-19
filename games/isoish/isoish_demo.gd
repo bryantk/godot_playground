@@ -23,7 +23,7 @@ extends Node
 @onready var _rig: OrthoPixelRig = $Upscale/World/Map/Camera/Rig
 @onready var _player: Actor = $Upscale/World/Map/Actors/Player/Actor
 @onready var _view: SpriteView3D = $Upscale/World/Map/Actors/Player/Actor/View
-@onready var _main_ui: MainUI = $MainUI
+@onready var _main_ui: MainUI = GameUI.main_ui
 
 
 func _ready() -> void:

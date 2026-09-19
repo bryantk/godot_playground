@@ -28,7 +28,7 @@ const TILE := 16
 
 @onready var _player: Actor = $Actors/Player/Actor
 @onready var _pathing: TileMapLayer = $Pathing
-@onready var _main_ui: MainUI = $UILayer/MainUI
+@onready var _main_ui: MainUI = GameUI.main_ui
 
 var _steps := 0
 

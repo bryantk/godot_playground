@@ -17,8 +17,6 @@
 [ext_resource type="PackedScene" path="res://games/isoish/props/stump.tscn" id="23_stump"]
 [ext_resource type="PackedScene" uid="uid://6ddmnpdglqam" path="res://games/isoish/props/tree.tscn" id="24_tree"]
 [ext_resource type="Script" uid="uid://djiw6eurhp8ym" path="res://events/game_event.gd" id="25_game_event"]
-[ext_resource type="PackedScene" uid="uid://co0ldsukxd5i3" path="res://ui/text_box/main_ui.tscn" id="26_main_ui"]
-[ext_resource type="Script" uid="uid://c8qg2efm784ln" path="res://core/debug_passability_view.gd" id="27_debug_pass"]
 
 [sub_resource type="Environment" id="Environment_ewyff"]
 background_mode = 1
@@ -112,9 +110,6 @@ floor_node = NodePath("../Floor")
 ladder_node = NodePath("../Ladders")
 max_fall_cells = 5
 
-[node name="DebugPassabilityView" type="Node" parent="Upscale/World/Map" unique_id=1991511372]
-script = ExtResource("27_debug_pass")
-
 [node name="Floor" type="GridMap" parent="Upscale/World/Map" unique_id=79562873]
 mesh_library = ExtResource("3_4q3m1")
 cell_size = Vector3(1, 1, 1)
@@ -205,6 +200,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0, 3.5)
 
 [node name="Bush" parent="Upscale/World/Map/Props" unique_id=1625750031 instance=ExtResource("21_bush")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.5, 0, 3.5)
+
+[node name="Bush_2" parent="Upscale/World/Map/Props" unique_id=238079320 instance=ExtResource("21_bush")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 0, 5.5)
+
+[node name="Bush_3" parent="Upscale/World/Map/Props" unique_id=1620434861 instance=ExtResource("21_bush")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.5, 0, 6.5)
 
 [node name="Plant" parent="Upscale/World/Map/Props" unique_id=2063492762 instance=ExtResource("22_plant")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0, 9.5)
@@ -305,8 +306,6 @@ modulate = Color(0, 0, 0, 0.55)
 script = ExtResource("13_oh435")
 upscale_path = NodePath("../../../..")
 follow_target = &"player"
-
-[node name="MainUI" parent="." unique_id=773764010 instance=ExtResource("26_main_ui")]
 
 [editable path="Upscale/World/Map/Actors/Player"]
 [editable path="Upscale/World/Map/Actors/Event__1"]

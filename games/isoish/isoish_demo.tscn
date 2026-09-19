@@ -10,7 +10,6 @@
 [ext_resource type="Resource" path="res://games/isoish/isoish_input.tres" id="14_tvm3s"]
 [ext_resource type="Script" uid="uid://dfyo0bfp6lnmf" path="res://core/areas/area_zone.gd" id="15_zone"]
 [ext_resource type="Script" uid="uid://djxeq3x4vd420" path="res://core/areas/speed_modifier.gd" id="16_speed"]
-[ext_resource type="PackedScene" uid="uid://co0ldsukxd5i3" path="res://ui/text_box/main_ui.tscn" id="17_main_ui"]
 
 [sub_resource type="Environment" id="Environment_tl0cg"]
 background_mode = 1
@@ -145,7 +144,5 @@ texture_albedo = SubResource("ImageTexture_oxuky")
 script = ExtResource("12_2n526")
 upscale_path = NodePath("../../../..")
 follow_target = &"player"
-
-[node name="MainUI" parent="." instance=ExtResource("17_main_ui")]
 
 [editable path="Upscale/World/Map/Actors/Player"]

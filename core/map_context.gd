@@ -73,6 +73,17 @@ var occupancy := Occupancy.new()
 ## The rig looking at this map, registered by [CameraRig] on ready.
 var _camera_rig: CameraRig = null
 
+## Membership in [code]&"map_context"[/code] is how global, scene-independent systems -
+## [DebugPassabilityView] today - find whichever map is currently loaded without a
+## [NodePath] into it. See [method of] for the other lookup, which walks up from a node
+## already inside the map instead.
+func _enter_tree() -> void:
+	add_to_group(&"map_context")
+
+
+func _exit_tree() -> void:
+	remove_from_group(&"map_context")
+
 ## actor_id -> Actor
 var _actors: Dictionary[StringName, Actor] = {}
 
