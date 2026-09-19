@@ -201,6 +201,17 @@ func size() -> int:
 	return _cells.size()
 
 
+## Every cell at least one blocking occupant holds - a prop, a standing actor - as a set
+## rather than one cell at a time. For [DebugPassabilityView]'s overlay, which wants to
+## draw a box over every cell a step would be refused on, terrain included or not.
+func blocking_cells() -> Array[Vector3i]:
+	var out: Array[Vector3i] = []
+	for cell: Vector3i in _cells:
+		if not blockers_at(cell).is_empty():
+			out.append(cell)
+	return out
+
+
 # -- Internals ----------------------------------------------------------------
 
 func _lift(actor_id: StringName) -> void:

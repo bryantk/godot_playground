@@ -29,7 +29,7 @@ extends Node
 @onready var _player: Actor = $Upscale/World/Map/Actors/Player/Actor
 @onready var _view: SpriteView3D = $Upscale/World/Map/Actors/Player/Actor/View
 @onready var _motion: GridMotion = $Upscale/World/Map/Actors/Player/Actor/Motion
-@onready var _hud: Label = $HUD/Label
+@onready var _main_ui: MainUI = $MainUI
 
 var _terrain_data := true
 var _steps := 0
@@ -93,7 +93,7 @@ func _cycle_terrain_data() -> void:
 
 
 func _process(_delta: float) -> void:
-	_hud.text = "\n".join([
+	_main_ui.set_debug_text("\n".join([
 		"ISO-ISH + GRID   cell %s   facing %s   %s" % [
 			_player.cell(), _player.facing(),
 			"stepping" if _player.is_moving() else "idle"],
@@ -111,4 +111,4 @@ func _process(_delta: float) -> void:
 			8 if _motion.direction_count == 4 else 4,
 			"on" if _rig.subtexel_smoothing else "OFF",
 			"on" if _terrain_data else "OFF"],
-	])
+	]))

@@ -23,7 +23,7 @@ extends Node
 @onready var _rig: OrthoPixelRig = $Upscale/World/Map/Camera/Rig
 @onready var _player: Actor = $Upscale/World/Map/Actors/Player/Actor
 @onready var _view: SpriteView3D = $Upscale/World/Map/Actors/Player/Actor/View
-@onready var _hud: Label = $HUD/Label
+@onready var _main_ui: MainUI = $MainUI
 
 
 func _ready() -> void:
@@ -59,7 +59,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(_delta: float) -> void:
-	_hud.text = "\n".join([
+	_main_ui.set_debug_text("\n".join([
 		# roundi, not int: 16 * sin(30 deg) is 7.99999... in floating point, and
 		# truncating it reports a 7 px tile for a pitch chosen precisely to give 8.
 		"ISO-ISH   pitch %.2f  |  yaw stop %d of 4  |  tile %d x %d px" % [
@@ -75,4 +75,4 @@ func _process(_delta: float) -> void:
 		"1 texel snap: %s   2 sub-texel smooth: %s   Esc back" % [
 			"on" if _rig.quantise_camera else "OFF",
 			"on" if _rig.subtexel_smoothing else "OFF"],
-	])
+	]))

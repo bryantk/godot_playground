@@ -132,8 +132,9 @@ func _test_ramp_and_stairs() -> void:
 	# is a level step and the climb happens on the way off.
 	_ok(await _step(actor, E), "east onto the ramp")
 	_eq(actor.cell(), Vector3i(2, 0, 0), "the ramp commits to the lower cell, not the upper one")
-	_eq(_rest_offset(actor), Terrain.RAMP_RISE * ctx.cell_size.y,
-		"and the sprite is lifted to the slope it is standing on")
+	_eq(_rest_offset(actor),
+		Terrain.RAMP_RISE * ctx.cell_size.y + Terrain.RAMP_STANCE_UP * ctx.cell_size.y,
+		"and the sprite is lifted to the slope it is standing on, plus its standing stance")
 
 	_ok(await _step(actor, E), "east off the top of the ramp")
 	_eq(actor.cell(), Vector3i(3, 1, 0), "one cell up, onto level 1")

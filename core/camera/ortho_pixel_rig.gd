@@ -99,10 +99,27 @@ var _tween: Tween = null
 var _subtexel := Vector2.ZERO
 var _upscale: Control = null
 
+## What the camera actually chases, a step behind [method focus_of] - see
+## [method _track]. A real node rather than a bare field so it is one thing other
+## systems can point at later (a debug draw, a second camera), not just an
+## implementation detail of this one.
+var _camera_target: Node3D = null
+var _camera_target_ready := false
+
 
 func _ready() -> void:
 	super()
 	_camera = _find_camera()
+	_camera_target = Node3D.new()
+	_camera_target.name = "CameraTarget"
+	# This rig sits under the [Camera3D] it drives (see the scene), and that camera's
+	# own transform is rewritten every frame below - a plain child's global_position
+	# would round-trip through it, so the local offset _track() stored last frame gets
+	# reinterpreted against this frame's already-moved camera before it is ever read
+	# back. top_level makes the target's transform independent of its parent chain, so
+	# it is genuinely the fixed point in world space _track() needs it to be.
+	_camera_target.top_level = true
+	add_child(_camera_target)
 	if not upscale_path.is_empty():
 		_upscale = get_node_or_null(upscale_path) as Control
 	_apply_pitch()
@@ -166,7 +183,35 @@ func subtexel_offset() -> Vector2:
 	return _subtexel
 
 
-func _process(_delta: float) -> void:
+## Eases [member _camera_target] toward [param focus]'s height at [member follow_speed],
+## and returns [param focus] with that eased height in place of its own - [i]height
+## only[/i]. [b]followed actor pinned on screen[/b] (demo_scenes_test.gd) is a real
+## invariant this rig has always kept exactly: [method Space.snap_to_basis] is what makes
+## a walking sprite land on the same screen pixel every frame, and smoothing X/Z as well
+## would put a permanent frame of lag on that during ordinary continuous movement, which
+## the test catches immediately. Height is the one axis nothing before this checked pixel-
+## exactly, and the one axis [GridMotion._ground_clearance] can now move in a single jump
+## between two adjacent frames' raycasts on a ramp or stairs cell - smoothing only it is
+## what absorbs that without loosening the horizontal pin at all.
+##
+## Exponential rather than a fixed step, so it has no "arrived" discontinuity to manage -
+## it just gets closer forever, which reads as smooth and never needs a snap-to-target
+## special case. Snaps straight there on the very first call instead of easing in from
+## [constant Vector3.ZERO], which is where a freshly-created [Node3D] starts - a scene
+## opening on a map would otherwise show the camera rising from the floor.
+func _track(focus: Vector3, delta: float) -> Vector3:
+	if not _camera_target_ready:
+		_camera_target_ready = true
+		_camera_target.global_position = focus
+		return focus
+
+	var rate := 1.0 - exp(-follow_speed * delta)
+	var eased_y := lerpf(_camera_target.global_position.y, focus.y, rate)
+	_camera_target.global_position = Vector3(focus.x, eased_y, focus.z)
+	return _camera_target.global_position
+
+
+func _process(delta: float) -> void:
 	if _camera == null or _target_id == &"" or _ctx == null:
 		return
 	var who := _ctx.actor(_target_id)
@@ -180,7 +225,13 @@ func _process(_delta: float) -> void:
 	# view snaps the same quantity through the same helper, so the two rounds are
 	# identical rather than merely similar, and the actor sits perfectly still in the
 	# low-res buffer while the world stays crisp underneath it.
-	var focus := focus_of(who)
+	#
+	# What the camera chases is _camera_target, not focus_of directly - see _track. A
+	# grid step's own tween is already smooth; what is not is a ramp or stairs
+	# clearance correction ([GridMotion._ground_clearance]) reacting to real geometry
+	# frame by frame, which can legitimately jump between two adjacent frames' raycasts.
+	# The lag this adds is invisible at an ordinary walk and is exactly what absorbs that.
+	var focus := _track(focus_of(who), delta)
 	var snapped := focus
 	if quantise_camera and texels_per_unit > 0:
 		var t := float(texels_per_unit)

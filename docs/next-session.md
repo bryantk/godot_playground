@@ -14,6 +14,45 @@ work queue; [open-questions.md](open-questions.md) is what is still undecided,
 (33 assertions), on top of segment 4 (`b244ac4`), the four motion-key defects (`e81e38b`) and
 questions 48–52's planning session (`5d344ef`). All ten suites are green.
 
+### An out-of-band session on multi-tile ramps, stairs and the camera
+
+Not segment 7 — a detour into `core/terrain.gd`, `tools/make_height_items.gd` and
+`actors/motion/grid_motion.gd` to fix `apply_art`-adjacent height/visual issues found
+while playing the demos. Landed together in one commit rather than folded into segment 7.
+
+- **Multi-tile ramp/stairs runs.** `Terrain.ramp_run`/`surface_offset` generalise
+  `RAMP_RISE` to any run length via a `<kind>_<length>_<index>` item-name suffix
+  (`ramp_3_2` is the middle third of a three-tile ramp); `tools/make_height_items.gd`
+  builds those variants for `RUN_LENGTHS := [2, 3]` alongside the plain one-tile items.
+- **Real collision instead of a placeholder slab.** Every ramp/stairs item's shape is now
+  an exact trimesh built off its own mesh (`mesh.create_trimesh_shape()`), not a fixed
+  half-height box — needed so a stairs tread's blocky risers have real geometry to
+  raycast against (below).
+- **`GridMotion._ground_clearance()`** raycasts the real ground mesh under the sprite
+  every frame of a step that touches a ramp/stairs cell, correcting the straight-line
+  tween between the two idealised surface heights — a smooth ramp agrees with that line
+  everywhere, a stairs mesh's risers do not. `Terrain.stance_offset` also nudges a
+  settled actor's footing into the slope rather than balancing at the idealised centre.
+- **Camera height easing (`OrthoPixelRig._track`)**: the rig now chases an eased
+  `_camera_target` on Y only, X/Z stay pixel-pinned to `focus_of` unsmoothed (the
+  `demo_scenes_test.gd` invariant depends on that). This exists because the clearance
+  raycast above can legitimately move by a visible amount between two adjacent frames,
+  and the camera needs to absorb that rather than whip-pan with it.
+- **Fixed the actual jitter bug**: `_ground_clearance`'s own raycast passed
+  `ctx.cell_size.y * 2.0` as its search radius while the comment beside it says "one cell
+  of headroom either way" — the code was searching twice as far as intended. That let the
+  ray occasionally punch past the real stairs tread and hit whatever solid geometry sat
+  farther above or below (a ceiling, the floor of the level above), and since the hit
+  flickered between the real tread and that farther surface as the horizontal position
+  moved frame to frame, the sprite visibly jittered climbing stairs — smooth ramps never
+  showed it because the ray always found the (single, flat) ramp surface immediately.
+  Fixed by passing `ctx.cell_size.y` unmultiplied. All ten suites still green after the
+  fix (147 assertions in `height_test.gd`).
+- New `core/debug_passability_view.gd` + `core/occupancy.blocking_cells()` +
+  `debug_flags.show_debug_view()`/`debug_view_toggled`: an in-game overlay for every
+  blocked cell, toggled by the same key `is_fast_forward` already reserves the opposite
+  sense of.
+
 ### What segment 6 actually built
 
 `EventScheduler` gained actor leases (`try_lease`/`release_lease` — a patrol and a cutscene
@@ -317,6 +356,34 @@ answering 46.
 
 ## Small things left open
 
+- **Ladder mount/dismount need their own hooks**, not just the geometry in
+  `Terrain.resolve_step`/`_from_ladder`. Four moments: mount climbing (from the ground,
+  pressing into the wall), mount descending (from the ledge above, pressing away from
+  it — the branch discussed below), dismount at the top, dismount at the bottom. Kyle
+  wants to lock an actor's facing toward the ladder on mount, but as a per-actor choice
+  rather than baked into `Terrain` — a monster might want different behavior than the
+  player — so this needs to be a hook (signal, or a virtual on `Brain`/`Actor`) something
+  can opt into, not a rule enforced at the resolver.
+- **Mounting a ladder going down lands diagonally and should not.** In
+  `Terrain.resolve_step`, the "down onto the top rung" branch —
+  `if has_ladder(ctx, below) and ladder_facing(ctx, below) == -dir: return _step_to(below, 0, true)`
+  — moves the actor from `from` straight to `below` (`ahead - UP`), which is forward
+  *and* down in the same step: a diagonal move, the one shape `resolve_step`'s own doc
+  comment says this project's step rules cannot express. Kyle wants mounting from above
+  to land on the cell *above* the ladder's own occupied cell first (i.e. `ahead`, at the
+  unchanged Y — the ledge cell right at the top rung, between two pathable tiles) and
+  have the *next* step be the one that actually descends onto the ladder. Needs a real
+  test case once built: a ladder cell sandwiched between two otherwise-pathable tiles
+  (approached and mounted from both the ledge above and the ground below), which nothing
+  in `height_test.gd` currently covers.
+- **Grid movement assumes every actor is one cell.** `Actor._claim_spawn_cell` and
+  `GridMotion` place/move a mover through a single origin cell (`Occupancy.place`/`move`),
+  unlike `GridObstacle`, which already computes a multi-cell footprint from its collision
+  shapes for static props (`core/grid_obstacle.gd:_footprint_cells`). Nothing today lets an
+  actor (a large monster, a multi-tile boss) claim more than its origin cell — occupancy,
+  `Passability.can_enter`, and step commit would all need to reason about a footprint of
+  cells, not one, before an actor bigger than 1x1 can exist. Worth doing before any boss or
+  oversized NPC is authored.
 - **The node stem for a hand-named node.** A first generated id discards whatever the node
   was called: a node deliberately named `Guard` with no id becomes `event__2`, not
   `Guard__2`. Nothing can tell a deliberate name from a prefab's default name, so this

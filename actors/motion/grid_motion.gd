@@ -71,6 +71,12 @@ var _step_to: Vector3i = Vector3i.ZERO
 var _step_back: Vector3 = Vector3.ZERO
 var _step_left: float = 0.0
 
+## Whether the step in flight touches a ramp or stairs cell at either end, and so needs
+## [method _ground_clearance] read every frame instead of the plain straight line. Decided
+## once at commit; false on every step that is not, which is what makes this invisible
+## everywhere else - a flat map never sets it and never pays for the raycast.
+var _step_over_terrain: bool = false
+
 ## Where the sprite sits when it has caught up, which is the cell centre for everything
 ## except a ramp - a ramp's logical cell is its lower end, so standing on one leaves the
 ## body half a cell below the surface the eye can see (see [constant Terrain.RAMP_RISE]).
@@ -402,6 +408,9 @@ func _commit_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> void:
 	# makes the sprite travel up the slope instead of along the floor under it and then
 	# pop.
 	_step_back = _surface_of(ctx, from) - _surface_of(ctx, to)
+	_step_over_terrain = not _actor.through_terrain and Terrain.governs(ctx) \
+		and (Terrain.kind_at(ctx, from) == Terrain.Kind.RAMP
+			or Terrain.kind_at(ctx, to) == Terrain.Kind.RAMP)
 	_step_left = 1.0
 	view.set_step_offset(_rest + _step_back)
 	set_process(true)
@@ -412,6 +421,51 @@ func _commit_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> void:
 ## because on flat ground the lift is zero.
 func _surface_of(ctx: MapContext, cell: Vector3i) -> Vector3:
 	return ctx.cell_centre(cell) + Vector3(0.0, Terrain.surface_offset(ctx, cell), 0.0)
+
+
+## How far above [member _step_back]'s straight line the sprite has to stand right now
+## to clear the real ground mesh at its current horizontal position - zero unless
+## [member _step_over_terrain] says this step touches a ramp or stairs cell.
+##
+## [b]Why a raycast at all[/b], when [Terrain] already resolved the step: [method
+## Terrain.surface_offset] gives every [constant Terrain.Kind.RAMP] cell one number for
+## its whole tile - the height at its centre - because that is all the cell data can
+## express. A smooth ramp's surface is that same straight line everywhere, so the two
+## agree throughout the tile; a [code]stairs[/code] item modelled as blocky treads is not
+## a straight line at all, and only touches it once, so the naive path can duck under a
+## riser between the two ends even though it lands exactly right at both of them. Sampling
+## the real collision mesh - now an exact trimesh, see [code]tools/make_height_items.gd[/code] -
+## at wherever the sprite actually is this frame is the only way to catch that a cell
+## number cannot.
+func _ground_clearance() -> float:
+	if not _step_over_terrain:
+		return 0.0
+
+	var ctx := context()
+	var adapt := adapter()
+	if ctx == null or adapt == null:
+		return 0.0
+
+	var t := 1.0 - _step_left
+	var xz := ctx.cell_centre(_step_from).lerp(ctx.cell_centre(_step_to), t)
+	var naive := _surface_of(ctx, _step_from).lerp(_surface_of(ctx, _step_to), t).y
+	# naive, not the plain cell-centre height, is the probe's own Y - so a ray that finds
+	# nothing returns this same value unchanged (see ground_height_near) and the
+	# subtraction below reads as the explicit no-op it is meant to be, rather than
+	# whatever the cell-centre and the idealised surface happen to differ by.
+	var here := Vector3(xz.x, naive, xz.z)
+
+	# One cell of headroom either way is generous against anything this project builds a
+	# ramp or stairs out of; a real mesh taller than that is a wall, not ground, and
+	# would have refused the step long before this ever asked.
+	#
+	# Signed, not clamped to a lift: a smooth ramp approached from flat ground is a flat
+	# run and then a rise, and the straight line between the two idealised endpoints sits
+	# *above* the true surface for the flat half of that - the naive path floats before
+	# the real slope catches up to it. Only a stairs riser sticking up into the line needs
+	# lifting; the ramp's flat approach needs pulling back down to the true floor.
+	var actual := adapt.ground_height_near(here, ctx.cell_size.y)
+	return actual - naive
 
 
 ## Announces a fall and starts it, after [member fall_delay] if this actor has one.
@@ -499,12 +553,20 @@ func _process(delta: float) -> void:
 	if _step_left <= 0.0:
 		_step_left = 0.0
 		if view != null:
-			view.set_step_offset(_rest)
+			# The stance nudge only ever applies here, at rest - not blended through the
+			# tween above it, which stays purely geometric so the clearance check it feeds
+			# is comparing against real ground and nothing else.
+			var settle_ctx := context()
+			var stance := Terrain.stance_offset(settle_ctx, _step_to) if settle_ctx != null \
+				else Vector3.ZERO
+			view.set_step_offset(_rest + stance)
 		_settle()
 		return
 
 	if view != null:
-		view.set_step_offset(_rest + _step_back * _step_left)
+		var offset := _rest + _step_back * _step_left
+		offset.y += _ground_clearance()
+		view.set_step_offset(offset)
 
 
 func _settle() -> void:
@@ -619,9 +681,11 @@ func _cancel_visual() -> void:
 		view.cancel_step_offset()
 		var ctx := context()
 		if ctx != null and _actor != null:
-			_rest = Vector3(0.0, Terrain.surface_offset(ctx, _actor.cell()), 0.0)
-			if _rest != Vector3.ZERO:
-				view.set_step_offset(_rest)
+			var cell := _actor.cell()
+			_rest = Vector3(0.0, Terrain.surface_offset(ctx, cell), 0.0)
+			var stance := Terrain.stance_offset(ctx, cell)
+			if _rest != Vector3.ZERO or stance != Vector3.ZERO:
+				view.set_step_offset(_rest + stance)
 	if _actor != null:
 		_actor.update_areas(AreaZone.zones_at(_actor, _actor.cell()))
 		_actor.settle_areas()

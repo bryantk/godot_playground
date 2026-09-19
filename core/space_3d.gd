@@ -69,5 +69,21 @@ func move_and_slide(velocity: Vector3, _delta: float) -> Vector3:
 	return _char.position - before
 
 
+func ground_height_near(world: Vector3, max_above: float) -> float:
+	if _body == null or not _body.is_inside_tree():
+		return world.y
+
+	var params := PhysicsRayQueryParameters3D.create(
+		world + Vector3.UP * max_above, world - Vector3.UP * max_above)
+	params.collide_with_areas = false
+	if _char != null:
+		# Or the body standing exactly where it just stepped to is the first thing the
+		# ray finds, every time.
+		params.exclude = [_char.get_rid()]
+
+	var hit := _body.get_world_3d().direct_space_state.intersect_ray(params)
+	return world.y if hit.is_empty() else (hit["position"] as Vector3).y
+
+
 func supports_height() -> bool:
 	return true

@@ -79,6 +79,7 @@ func _next() -> void:
 ## waiting on this one. Each appended message keeps its own key and reports
 ## finished separately.
 func display(text: String, options: Dictionary = {}, key: String = "") -> void:
+	self.show()
 	_current = {"text": text, "options": options, "key": key}
 
 	var continues: bool = _handed_open_window
@@ -115,6 +116,7 @@ func _finished() -> void:
 	var message: Dictionary = _current
 	_current = {}
 
+	self.hide()
 	finished.emit()
 	if not message.is_empty():
 		EventBus.dialogue_finished.emit(message.key)

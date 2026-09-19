@@ -4,20 +4,22 @@
 [ext_resource type="Script" uid="uid://dfdcch4xyfmuy" path="res://ui/text_box/main_menu.gd" id="1_rehp6"]
 [ext_resource type="PackedScene" uid="uid://bbqey8pq5iss6" path="res://ui/text_box/simple_menu.tscn" id="2_vbyqb"]
 
-[node name="MainUI" type="SubViewportContainer" unique_id=1842982352 node_paths=PackedStringArray("dialogue", "pause_menu")]
+[node name="MainUI" type="SubViewportContainer" unique_id=1842982352 node_paths=PackedStringArray("dialogue", "pause_menu", "debug_label")]
 process_mode = 3
+visible = false
 offset_right = 640.0
 offset_bottom = 320.0
 script = ExtResource("1_rehp6")
 dialogue = NodePath("SubViewport/MenuRoot/Dialogue")
 pause_menu = NodePath("SubViewport/MenuRoot/SimpleMenu")
+debug_label = NodePath("SubViewport/MenuRoot/DebugLabel")
 
 [node name="SubViewport" type="SubViewport" parent="." unique_id=1770312101]
 process_mode = 3
 transparent_bg = true
 handle_input_locally = false
 size = Vector2i(640, 320)
-render_target_update_mode = 4
+render_target_update_mode = 0
 
 [node name="MenuRoot" type="Control" parent="SubViewport" unique_id=1507219056]
 layout_mode = 3
@@ -27,11 +29,24 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
+[node name="DebugLabel" type="Label" parent="SubViewport/MenuRoot" unique_id=2210984401]
+layout_mode = 1
+offset_left = 6.0
+offset_top = 4.0
+offset_right = 320.0
+offset_bottom = 100.0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 10
+
 [node name="Dialogue" parent="SubViewport/MenuRoot" unique_id=978131769 instance=ExtResource("1_1adbf")]
 process_mode = 1
+visible = false
 layout_mode = 1
 
 [node name="SimpleMenu" parent="SubViewport/MenuRoot" unique_id=976521984 instance=ExtResource("2_vbyqb")]
+visible = false
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5

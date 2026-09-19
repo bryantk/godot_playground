@@ -1722,7 +1722,7 @@ func find_or_create_game_event_for_actor(actor: Actor) -> GameEvent:
 		return existing
 
 	var event := GameEvent.new()
-	event.name = String(actor.actor_id) if actor.actor_id != &"" else actor.name
+	event.name = "GameEvent"
 
 	var parent := actor.get_parent()
 	if parent != null:

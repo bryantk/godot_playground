@@ -37,13 +37,14 @@ const NAME_STAIRS := "stairs"
 ## [method _kind_of_item].
 const NAME_LADDER := "ladder"
 
-## How far above its cell's own Y a ramp's surface sits at the cell centre, in cells.
+## How far above its cell's own Y a single-tile ramp's surface sits at the cell centre,
+## in cells. Half, because a one-tile ramp climbs the whole cell across exactly one tile
+## and the actor stands in the middle of it - see [method surface_offset] for the general
+## case, a ramp or stairs run spread across more than one tile.
 ##
-## Half, because a ramp climbs exactly one cell across exactly one cell and the actor
-## stands in the middle of it. This is the only number in this file the eye can see and
-## the step rules cannot - a ramp's [i]logical[/i] cell is its lower end
-## ([method resolve_step]), so without this the sprite would stand at the bottom of a
-## slope it is visibly halfway up.
+## This is the only number in this file the eye can see and the step rules cannot - a
+## ramp's [i]logical[/i] cell is its lower end ([method resolve_step]), so without this
+## the sprite would stand at the bottom of a slope it is visibly halfway up.
 const RAMP_RISE := 0.5
 
 ## The direction a [code]ramp[/code] or [code]ladder[/code] item is modelled facing at
@@ -123,11 +124,66 @@ static func _facing(gm: GridMap, cell: Vector3i) -> Vector3i:
 
 
 ## How far above [method MapContext.cell_centre] this cell's surface renders, in world
-## units. Zero for everything except a ramp; see [constant RAMP_RISE].
+## units. Zero for everything except a ramp; see [method ramp_run].
 static func surface_offset(ctx: MapContext, cell: Vector3i) -> float:
 	if ctx == null or kind_at(ctx, cell) != Kind.RAMP:
 		return 0.0
-	return RAMP_RISE * ctx.cell_size.y
+	var run := ramp_run(ctx, cell)
+	var fraction := (float(run.y) - 0.5) / float(run.x)
+	return fraction * ctx.cell_size.y
+
+
+## How far above its own resting height a real body's weight would settle on a ramp or
+## stairs tile, in cells: a little higher, and a little back down the slope from
+## [method facing_of]'s uphill direction. Standing exactly at [method surface_offset]'s
+## idealised centre height reads as floating - a person's footing settles into an
+## incline rather than balancing on a mathematical surface - so [GridMotion] adds this on
+## top of it once an actor has [i]arrived[/i] and settled. Zero everywhere else, and
+## deliberately not part of [method surface_offset] itself, which the raycast-based
+## clearance check compares against real geometry and must stay purely geometric.
+const RAMP_STANCE_UP := 0.08
+const RAMP_STANCE_BACK := 0.15
+
+static func stance_offset(ctx: MapContext, cell: Vector3i) -> Vector3:
+	if ctx == null or kind_at(ctx, cell) != Kind.RAMP:
+		return Vector3.ZERO
+	var back := Vector3(facing_of(ctx, cell)) * -RAMP_STANCE_BACK
+	return Vector3(back.x * ctx.cell_size.x, RAMP_STANCE_UP * ctx.cell_size.y,
+		back.z * ctx.cell_size.z)
+
+
+## [param cell]'s run length and its own 1-based position in it, as
+## [code](length, index)[/code] - [constant RAMP_RISE] generalised. A one-tile ramp or
+## stairs item is a run of length 1, index 1, and reads back as the same 0.5 [method
+## surface_offset] always gave it: [code](1 - 0.5) / 1[/code].
+##
+## [b]A MeshLibrary item is one fixed mesh and one fixed collision shape, reused at every
+## cell it is placed on[/b] - there is no way for a placed cell to say "I am one of a
+## longer run" except by which item it is. A slope authored across two or more tiles to
+## rise the same one cell is therefore two or more distinct items, each named
+## [code]<kind>_<length>_<index>[/code] - [code]ramp_3_2[/code] is the middle third of a
+## three-tile ramp - and this reads that suffix back. A bare [code]"ramp"[/code] or
+## [code]"stairs"[/code], or any name the suffix does not parse from, is length 1, index 1.
+static func ramp_run(ctx: MapContext, cell: Vector3i) -> Vector2i:
+	var gm := floor_map(ctx)
+	if gm == null:
+		return Vector2i(1, 1)
+	var item := gm.get_cell_item(cell)
+	if item == GridMap.INVALID_CELL_ITEM:
+		return Vector2i(1, 1)
+	return _run_of(gm.mesh_library, item)
+
+
+static func _run_of(lib: MeshLibrary, item: int) -> Vector2i:
+	if lib == null:
+		return Vector2i(1, 1)
+	var parts := lib.get_item_name(item).split("_")
+	if parts.size() >= 3 and parts[-1].is_valid_int() and parts[-2].is_valid_int():
+		var index := parts[-1].to_int()
+		var length := parts[-2].to_int()
+		if length > 0 and index >= 1 and index <= length:
+			return Vector2i(length, index)
+	return Vector2i(1, 1)
 
 
 ## Where one step in [param dir] from [param from] actually lands, and whether a fall

@@ -1,9 +1,24 @@
+class_name MainUI
 extends Control
+
+## The one piece of UI every map scene shares: dialogue, the pause menu, and now the
+## debug readout each demo used to keep its own per-scene HUD [Label] for. A map calls
+## [method set_debug_text] instead of owning a label of its own, so the same overlay -
+## and the same 640x320 frame it already sits in - is what shows it.
 
 @export var dialogue: Dialogue = null
 @export var pause_menu: SimpleMenu = null
+@export var debug_label: Label = null
+
+
+## The hook a map (or anything else with a [MainUI] reference) writes its debug readout
+## through - cell, facing, control hints, whatever that scene wants on screen. Replaces
+## the whole text each call, the same way the per-scene HUD labels this superseded did.
+func set_debug_text(text: String) -> void:
+	debug_label.text = text
 
 func _ready() -> void:
+	self.show()
 	pause_menu.hide()
 	pause_menu.on_return.connect(_resume)
 	#TODO: temp

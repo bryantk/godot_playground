@@ -84,6 +84,18 @@ func move_and_slide(_velocity: Vector3, _delta: float) -> Vector3:
 	return Vector3.ZERO
 
 
+## The true top of solid ground directly under [param world], within [param max_above]
+## of it either way - a physics answer to "how tall is the mesh here", for the one thing
+## [Terrain]'s cell-based height rules cannot know: what a stairs or ramp item's collider
+## actually looks like. [method Terrain.surface_offset] gives every ramp-kind cell the
+## same half-cell rise a smooth ramp has, which a blocky stairs mesh does not match, and
+## that mismatch is what would let [GridMotion]'s straight visual tween cut through the
+## risers without this. Returns [param world].y unchanged if nothing solid is found in
+## range, which a caller reads as "no correction needed".
+func ground_height_near(_world: Vector3, _max_above: float) -> float:
+	return _world.y
+
+
 ## False for [Space2D]. This is how a command carrying a non-zero Y on a flat map
 ## produces a warning instead of a silent no-op.
 func supports_height() -> bool:

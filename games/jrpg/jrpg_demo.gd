@@ -28,7 +28,7 @@ const TILE := 16
 
 @onready var _player: Actor = $Actors/Player/Actor
 @onready var _pathing: TileMapLayer = $Pathing
-@onready var _hud: Label = $HUD/Label
+@onready var _main_ui: MainUI = $UILayer/MainUI
 
 var _steps := 0
 
@@ -57,7 +57,7 @@ func _process(_delta: float) -> void:
 	var ctx := _player.context()
 	if ctx == null:
 		return
-	_hud.text = "\n".join([
+	_main_ui.set_debug_text("\n".join([
 		"JRPG   cell %s   facing %s   %s" % [
 			_player.cell(), _player.facing(),
 			"stepping" if _player.is_moving() else "idle"],
@@ -67,7 +67,7 @@ func _process(_delta: float) -> void:
 		"",
 		"WASD/arrows step   Shift run   X+dir turn   . wait",
 		"1 pathing overlay: %s   Esc back" % ["on" if _pathing.visible else "OFF"],
-	])
+	]))
 
 
 ## The painted mask under the player, spelled out. Unpainted cells read as all four
