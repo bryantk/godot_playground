@@ -9,10 +9,66 @@ work queue; [open-questions.md](open-questions.md) is what is still undecided,
 
 ## Start here tomorrow
 
-**Segment 7 of [stage-c-plan.md](stage-c-plan.md): routes compile to commands.** Segments
-0–6 are built, tested and committed — segment 6 (`273066e`) added `tests/event_scheduler_test.gd`
-(33 assertions), on top of segment 4 (`b244ac4`), the four motion-key defects (`e81e38b`) and
-questions 48–52's planning session (`5d344ef`). All ten suites are green.
+**Corrected 2026-09-19 — segment 7 has *not* been started.** This section said so back on
+2026-09-14, right after segment 6 landed, and nothing since has touched `events/event_route.gd`
+(does not exist), `tests/event_route_test.gd` (does not exist), or rewired `RouteBrain` off its
+own polled-command loop onto the runner. What *did* land in between (below) is GameEvent/editor
+polish plus an out-of-band ramps/stairs/camera session — real work, just not segment 7, and not
+previously written down here. Do not mistake the `route`/`routes/*.route.json` plumbing already
+sitting in `EventDocument` (parsing and round-tripping a page's `route` field, segment 3's job)
+for segment 7 itself — nothing compiles that data into a command stream or executes it yet.
+
+**Segment 7 cannot start as planned yet, either.** stage-c-plan.md's working order is
+"5 needs 4, 6 needs 5, 7 needs 6" and segment 7's own text leans on `capture()`/`restore()` for
+route interruption — but **segment 5 (save/restore) was skipped**: segment 6 was built directly
+on segment 4, and nothing in `events/event_runner.gd` or `core/event_scheduler.gd` has
+`capture`, `restore`, `resumable`, `to_save` or `from_save` today (confirmed by grep, not
+inferred). Segment 7's "interruption is the same mechanism as saving" design assumes that
+machinery exists. Either build segment 5 first as the plan intended, or explicitly re-scope
+segment 7 to interrupt without it (and revisit `Actor.suspended_route` once 5 lands) — worth
+deciding before writing any route code, not discovering midway through it.
+
+Segments 0–6 are built, tested and committed — segment 6 (`273066e`) added
+`tests/event_scheduler_test.gd` (33 assertions at the time, 47 now — see below), on top of
+segment 4 (`b244ac4`), the four motion-key defects (`e81e38b`) and questions 48–52's planning
+session (`5d344ef`). All ten suites are still green.
+
+### GameEvent/editor follow-ups after segment 6, undocumented until now (2026-09-17/18)
+
+Seven commits between `ccac832` (this file's last update) and the ramps/stairs session below,
+none of them segment 7 and none of them written down here at the time:
+
+- **`4acc8c3`/`947c7b6` — three new page fields: `lock_facing`, `through`, `through_terrain`.**
+  Siblings of `art`/`conditions`/`settings`, applied to `GameEvent`'s own actor whenever the
+  active page (re)activates. `lock_facing` gates at the source, `Actor.set_facing` itself, so it
+  holds regardless of who is asking. `through` pushes into `Occupancy.set_phasing` directly
+  (`Actor._claim_spawn_cell` only reads `through_actors` once, at spawn, so a page switch has to
+  reach the table pathing actually consults) and changes the `action` trigger's proximity rule
+  from "adjacent and facing" to "on the same cell" for a through event. `947c7b6` regenerated
+  every `docs/events/*.json` example plus the two real `events/` documents through the actual
+  parse/stringify pipeline so the three fields are explicit rather than only implied by absence,
+  and added Lock facing/Through/Through terrain checkboxes to `graph_editor_panel.gd`'s page
+  inspector.
+- **`83e10b7`/`d699119` — `GameEvent` remembers and restores facing across an interaction, and
+  faces the interactor by default.** Captures the event's actor's facing right before a trigger
+  starts a runner and restores it after, unless a movement/facing executor actually touched that
+  same actor while it ran (`EventContext.mark_actor_touched`/`self_actor_touched`, armed *before*
+  `run_exclusive`/`run_background` since a synchronous graph can finish inside that call).
+  `_face_interactor()` then turns the actor toward the player by default on
+  `action`/`player_touch`/`event_touch` — the half of `lock_facing`'s own doc comment ("will NOT
+  look at the event/player... when true", implying the false case does look) that had never
+  actually been built. Also fixed a test-isolation bug: `event_scheduler_test.gd` never freed a
+  test's built world, so an earlier test's `GameEvent` stayed connected to the global `EventBus`
+  indefinitely and could race a later test for the exclusive slot.
+- **`7b6b5af`/`03ac513` — editor tooling: `Actor` no longer owns an event path, `GameEvent`
+  alone does; an "Open Event Graph" button on both inspectors.** `Actor.event_path` is gone
+  entirely — it duplicated `GameEvent.document_path` and was a leftover from before `GameEvent`
+  existed. Selecting an `Actor` or `GameEvent` now shows a button in its own inspector
+  (`actor_event_inspector.gd`, new) that opens or creates its event file in the graph editor's
+  bottom panel directly, rather than needing that dock already open with the node re-selected
+  there. This is editor-surface work stage-c-plan.md marked "out of scope, deliberately... built
+  later, against a working runtime" — it got built anyway, ahead of segment 7, because it made
+  the GameEvent work above easier to iterate on by hand.
 
 ### An out-of-band session on multi-tile ramps, stairs and the camera
 
@@ -52,6 +108,36 @@ while playing the demos. Landed together in one commit rather than folded into s
   `debug_flags.show_debug_view()`/`debug_view_toggled`: an in-game overlay for every
   blocked cell, toggled by the same key `is_fast_forward` already reserves the opposite
   sense of.
+
+### Same detour, continued (2026-09-19): slope speed, and both HUD pieces made global
+
+Also not segment 7. Two independent changes, two commits.
+
+- **`GridMotion` climbs ramps/stairs slower and descends them faster than flat ground**
+  (`slope_up_speed_scale`/`slope_down_speed_scale`, plus `slope_camera_align_scale` sharpening
+  the climb the more it lines up with the camera's own depth axis). Reads the true surface
+  height through `Terrain.surface_offset`, not the cell, so each half-cell of a ramp climb is
+  caught on its own. `MotionController.max_depth_boost` became a constant
+  (`MAX_DEPTH_BOOST`) in the same commit — nothing had ever varied it per actor.
+  `height_test.gd` gained 3 assertions (150 total) checking both halves of the ramp climb and
+  the stairs descent against a flat baseline.
+- **`DebugPassabilityView` and `MainUI` moved from per-scene children to global autoload
+  singletons** (`GameUI`, `DebugPassabilityView` in `project.godot`), so both exist before any
+  demo scene loads and survive switching between them instead of every demo carrying its own
+  copy. `MapContext` gained group membership (`&"map_context"`, `_enter_tree`/`_exit_tree`) so
+  the debug overlay can find whichever map is currently loaded without a `NodePath` into it — no
+  valid grid map means it skips drawing rather than freeing itself, since a global can't
+  `queue_free` over a demo scene it doesn't like. `GameUI` is a `CanvasLayer` so it draws above
+  whatever map is current regardless of tree order, and hides `MainUI` while no map is loaded
+  (the demo launcher). Verified against `demo_scenes_test.gd`, which runs all three demos plus
+  the launcher back to back in one process — exactly the case that needed the singletons to
+  follow the map across scene changes.
+
+**Current suite totals, all green** (re-run 2026-09-19):
+231 (stage_a) + 31 (areas) + 150 (height) + 112 (event_command) + 71 (actor_naming) +
+107 (event_condition) + 73 (event_document) + 20 (event_runner) + 47 (event_scheduler) = **842**,
+plus `demo_scenes_test.gd`'s unnumbered checks. Segments 5 and 7 still have no suite of their own
+(`event_save_test.gd`/`event_route_test.gd` don't exist).
 
 ### What segment 6 actually built
 
@@ -252,8 +338,9 @@ for t in stage_a areas demo_scenes height event_command actor_naming event_condi
 done
 ```
 
-**812 assertions, all green** as of the last commit (231+31+147+112+71+107+60+20+33, plus
-demo_scenes' unnumbered checks). Godot is not on PATH; use the
+**842 assertions, all green** as of 2026-09-19 (231+31+150+112+71+107+73+20+47, plus
+demo_scenes' unnumbered checks — see "Same detour, continued" above for what moved since the
+812 this line used to say). Godot is not on PATH; use the
 `_console` build or a headless run prints nothing.
 
 Three hazards worth re-reading before a long debugging session, all of which cost time
@@ -393,10 +480,10 @@ answering 46.
 - **Two questions expected mid-build**, flagged in the plan: whether `ask` and `choice`
   are one command or two (architecture.md §7.3 says `choice`, the example says `ask`), and
   whether `follow` is a command or a route mode, since it appears in both lists.
-- **`apply_art` does not match the `art` block** and will have to be reconciled in segment
-  6 — `SpriteView2D.apply_art` reads `"frames"` and loads a `SpriteFrames`, but the example
-  art block says `"sheet": "…png"`, and it early-returns for exactly the sheet-driven
-  actor that block describes.
+- ~~**`apply_art` does not match the `art` block** and will have to be reconciled in segment
+  6~~ **Fixed in segment 6** (`273066e`) — see "What segment 6 actually built" above. Both
+  `SpriteView2D`/`SpriteView3D.apply_art` now read `"sheet"` for the sheet-driven visual, which
+  is every actor prefab this project ships.
 
 ---
 
