@@ -61,13 +61,16 @@ func tick(delta: float) -> void:
 ## Requests the exclusive slot for [param runner], starting it at [param nodes].
 ## Refuses (returns false) without starting anything if the slot is already held -
 ## the caller's own lease, if it took one first, is untouched either way, so it can
-## retry the same runner later without re-acquiring anything.
-func run_exclusive(runner: EventRunner, nodes: Array[Dictionary]) -> bool:
+## retry the same runner later without re-acquiring anything. [param doc_path]/
+## [param page_index] are forwarded straight to [method EventRunner.begin] - see its
+## own doc for what they are for.
+func run_exclusive(runner: EventRunner, nodes: Array[Dictionary],
+		doc_path: String = "", page_index: int = -1) -> bool:
 	if _exclusive != null:
 		return false
 	_exclusive = runner
 	ModeStack.push(ModeStack.Mode.CUTSCENE)
-	runner.begin(nodes)
+	runner.begin(nodes, doc_path, page_index)
 	if runner.finished:
 		_exclusive = null
 		_release_all(runner)
@@ -76,9 +79,10 @@ func run_exclusive(runner: EventRunner, nodes: Array[Dictionary]) -> bool:
 
 
 ## Starts [param runner] as a background runner - a patrol, an ambient graph.
-func run_background(runner: EventRunner, nodes: Array[Dictionary]) -> void:
+func run_background(runner: EventRunner, nodes: Array[Dictionary],
+		doc_path: String = "", page_index: int = -1) -> void:
 	_background.append(runner)
-	runner.begin(nodes)
+	runner.begin(nodes, doc_path, page_index)
 	if runner.finished:
 		_background.erase(runner)
 		_release_all(runner)
@@ -97,6 +101,72 @@ func reset_for_test() -> void:
 	_exclusive = null
 	_background.clear()
 	_leases.clear()
+
+
+## Question 39's envelope, one level up from [method EventRunner.to_save] - every live
+## runner plus who leases what. Refused outright during BATTLE (returns [code]{}[/code]
+## and logs an error) rather than saving something the plan already named as explicitly
+## unsupported.
+func to_save() -> Dictionary:
+	if ModeStack.current() == ModeStack.Mode.BATTLE:
+		push_error("EventScheduler: to_save() is refused during BATTLE.")
+		return {}
+
+	var background: Array = []
+	for r in _background:
+		background.append(r.to_save())
+
+	var leases := {}
+	for actor_id: Variant in _leases:
+		var holder: EventRunner = _leases[actor_id]
+		if holder == _exclusive:
+			leases[actor_id] = "exclusive"
+		else:
+			var idx := _background.find(holder)
+			if idx >= 0:
+				leases[actor_id] = idx
+
+	return {
+		"exclusive": _exclusive.to_save() if _exclusive != null else null,
+		"background": background,
+		"leases": leases,
+	}
+
+
+## The inverse of [method to_save]. Drops whatever this scheduler was already doing
+## first ([method reset_for_test]'s own reasoning: nothing here should straddle two
+## sessions), then rebuilds every runner against [param map] and re-takes its leases.
+## [constant ModeStack.Mode.CUTSCENE] is pushed for a restored exclusive runner the same
+## way [method run_exclusive] pushes it for a fresh one - unless that runner came back
+## already finished (its document or actor gone), in which case there is nothing left
+## to hold the mode open for.
+func from_save(state: Dictionary, map: MapContext) -> void:
+	reset_for_test()
+	if state.is_empty():
+		return
+
+	var exclusive_state: Variant = state.get("exclusive")
+	if exclusive_state is Dictionary:
+		_exclusive = EventRunner.from_save(exclusive_state as Dictionary, map)
+		if not _exclusive.finished:
+			ModeStack.push(ModeStack.Mode.CUTSCENE)
+		else:
+			_exclusive = null
+
+	for entry: Variant in state.get("background", []) as Array:
+		var runner := EventRunner.from_save(entry as Dictionary, map)
+		if not runner.finished:
+			_background.append(runner)
+
+	for actor_id: Variant in state.get("leases", {}) as Dictionary:
+		var slot: Variant = (state["leases"] as Dictionary)[actor_id]
+		var holder: EventRunner = null
+		if slot == "exclusive":
+			holder = _exclusive
+		elif slot is int and slot >= 0 and slot < _background.size():
+			holder = _background[slot]
+		if holder != null:
+			_leases[StringName(actor_id)] = holder
 
 
 func is_exclusive_held() -> bool:

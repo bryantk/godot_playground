@@ -9,7 +9,30 @@ work queue; [open-questions.md](open-questions.md) is what is still undecided,
 
 ## Start here tomorrow
 
-**Corrected 2026-09-19 — segment 7 has *not* been started.** This section said so back on
+**Update 2026-09-20 — segment 5a (restart granularity) is built, tested and green.**
+`EventCommand.doc_hash`, `EventRunner.to_save`/`to_save`-companion `restore`/`from_save`,
+`EventScheduler.to_save`/`from_save`, and brain-suspend/motion-cancel ownership moved from
+`GameEvent` into `EventRunner` itself (fixing the real gap the plan called out: a lease never
+stopped whoever already had the actor, and only `GameEvent`'s own polling ever gave it back
+before - `EventScheduler.reset_for_test()`/a restore now do too). `tests/event_save_test.gd`,
+26 assertions, all eleven suites green (868 total).
+
+**Not built: 5b (mid-command resume).** A `wait` captured 6 seconds into a 10-second count
+restarts the full 10 on restore, not the remaining 4 - nothing calls a resumable executor's own
+`capture()`/`restore()` yet (the interface exists, unused), and `GridMotion`/`FreeMotion`/`Actor`/
+`ActorView` have no `to_save()`/`from_save()` at all. "Restart is always a legal downgrade"
+(question 39) is exactly why 5a alone is still correct, just coarser than 5b will make it - start
+here for that.
+
+**Also not built: a call-frame stack captured mid-`call`.** `EventRunner.restore()` handles it
+structurally (each frame carries its own `doc_path`/`page_index`, per the plan), but nothing
+tests a runner captured while inside a nested `call` - worth a case before trusting it.
+
+Segment 7 (routes) is still not started, and the previous note about it (below, 2026-09-19) is
+now current: segment 5 no longer blocks it, but nothing has touched `events/event_route.gd`
+either.
+
+**Superseded 2026-09-19 note, kept for the record:** segment 7 has *not* been started. This section said so back on
 2026-09-14, right after segment 6 landed, and nothing since has touched `events/event_route.gd`
 (does not exist), `tests/event_route_test.gd` (does not exist), or rewired `RouteBrain` off its
 own polled-command loop onto the runner. What *did* land in between (below) is GameEvent/editor
@@ -18,24 +41,22 @@ previously written down here. Do not mistake the `route`/`routes/*.route.json` p
 sitting in `EventDocument` (parsing and round-tripping a page's `route` field, segment 3's job)
 for segment 7 itself — nothing compiles that data into a command stream or executes it yet.
 
-**Segment 7 cannot start as planned yet, either.** stage-c-plan.md's working order is
-"5 needs 4, 6 needs 5, 7 needs 6" and segment 7's own text leans on `capture()`/`restore()` for
-route interruption — but **segment 5 (save/restore) was skipped**: segment 6 was built directly
-on segment 4, and nothing in `events/event_runner.gd` or `core/event_scheduler.gd` has
-`capture`, `restore`, `resumable`, `to_save` or `from_save` today (confirmed by grep, not
-inferred). Segment 7's "interruption is the same mechanism as saving" design assumes that
-machinery exists. Either build segment 5 first as the plan intended, or explicitly re-scope
-segment 7 to interrupt without it (and revisit `Actor.suspended_route` once 5 lands) — worth
-deciding before writing any route code, not discovering midway through it.
+~~**Segment 7 cannot start as planned yet, either.**~~ **No longer true as of 2026-09-20** -
+segment 5a landed (above), so `EventRunner` does have `capture`/`restore`-shaped machinery
+now (`to_save`/`restore`, not literally `capture`/`resumable` at the runner level - those stay
+per-executor, 5b's job). Segment 7's own "interruption is the same mechanism as saving" can lean
+on 5a's frame/cursor capture today; it just cannot lean on 5b's mid-command resume until that
+exists too. The original point stands as a lesson, not a live blocker: this was worth deciding
+explicitly before writing route code, and it was.
 
 Segments 0–6 are built, tested and committed — segment 6 (`273066e`) added
 `tests/event_scheduler_test.gd` (33 assertions at the time, 47 now — see below), on top of
 segment 4 (`b244ac4`), the four motion-key defects (`e81e38b`) and questions 48–52's planning
-session (`5d344ef`). All ten suites are still green.
+session (`5d344ef`). Segment 5a joined them today (above). Eleven suites, all green.
 
-**Decided 2026-09-20: segment 5 (save/restore) is next**, not segment 7 - see
-[stage-c-plan.md](stage-c-plan.md)'s own segment 5 section for the full shape (5a restart
-granularity first, 5b mid-command resume second).
+**Decided 2026-09-20: segment 5 (save/restore) is next, and 5a is now done** - see
+[stage-c-plan.md](stage-c-plan.md)'s own segment 5 section for the full shape. **5b
+(mid-command resume) is where to pick up**, per the update at the top of this section.
 
 ### Playtesting the iso free demo found five more real gaps (2026-09-19/20)
 
@@ -177,6 +198,10 @@ Also not segment 7. Two independent changes, two commits.
 107 (event_condition) + 73 (event_document) + 20 (event_runner) + 47 (event_scheduler) = **842**,
 plus `demo_scenes_test.gd`'s unnumbered checks. Segments 5 and 7 still have no suite of their own
 (`event_save_test.gd`/`event_route_test.gd` don't exist).
+
+**Updated 2026-09-20**: `event_save_test.gd` now exists (26 assertions, segment 5a - see the
+top of this file) - **868** total across eleven suites. `event_route_test.gd` (segment 7) still
+doesn't.
 
 ### What segment 6 actually built
 
@@ -372,14 +397,14 @@ silently stripped every `command`, `args`, `blocking`, `key` and `flows` in the 
 
 ```bash
 GODOT="/c/Users/kyle/Desktop/Godot_v4.7-stable_win64_console.exe"
-for t in stage_a areas demo_scenes height event_command actor_naming event_condition event_document event_runner event_scheduler; do
+for t in stage_a areas demo_scenes height event_command actor_naming event_condition event_document event_runner event_scheduler event_save; do
   timeout 110 "$GODOT" --headless --path . res://tests/${t}_test.tscn
 done
 ```
 
-**842 assertions, all green** as of 2026-09-19 (231+31+150+112+71+107+73+20+47, plus
-demo_scenes' unnumbered checks — see "Same detour, continued" above for what moved since the
-812 this line used to say). Godot is not on PATH; use the
+**868 assertions, all green** as of 2026-09-20 (231+31+150+112+71+107+73+20+47+26, plus
+demo_scenes' unnumbered checks — `event_save_test.gd` (26) is segment 5a, new today; see
+"Update 2026-09-20" at the top of this file). Godot is not on PATH; use the
 `_console` build or a headless run prints nothing.
 
 Three hazards worth re-reading before a long debugging session, all of which cost time

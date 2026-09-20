@@ -533,6 +533,56 @@ static func resolve_turn(token: Variant, facing: Vector3i, count: int = 4) -> Ve
 	return direction_of(token)
 
 
+# -- Save/restore ----------------------------------------------------------------
+
+## A stable hash over the parts of a graph that change what it *does* - a node's
+## command, args, key and any explicit blocking override, plus its wiring (flow ->
+## target) - never its id, title or position, which are editor bookkeeping (question
+## 39: dragging a node two pixels in the graph editor must not invalidate every save
+## that happens to be mid-graph). [EventRunner.to_save]/[method EventRunner.restore]
+## compare this against a document reloaded fresh from disk: a match resumes exactly
+## where a frame left off, a mismatch restarts that frame from its own entry instead of
+## dropping it - "restart is always a legal downgrade" (question 39).
+##
+## Nodes are sorted by id before hashing, so two structurally identical graphs authored
+## with their nodes in a different order still agree - and [JSON.stringify] (not string
+## concatenation) is what turns each node into a canonical, order-independent-within-
+## itself piece of text, so two dictionaries with the same keys in a different order
+## also agree.
+static func doc_hash(nodes: Array[Dictionary]) -> String:
+	var by_id: Dictionary = {}
+	for n in nodes:
+		by_id[str(n.get("id", ""))] = n
+	var ids := by_id.keys()
+	ids.sort()
+
+	var canon: Array = []
+	for id: Variant in ids:
+		var n: Dictionary = by_id[id]
+		var outputs: Array = []
+		for output: Variant in n.get("outputs", []) as Array:
+			if output is Dictionary:
+				outputs.append({
+					"flow": str((output as Dictionary).get("flow", "")),
+					"target": str((output as Dictionary).get("target", "")),
+				})
+		outputs.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+			return str(a["flow"]) < str(b["flow"]))
+		canon.append({
+			"id": str(id),
+			"command": str(n.get("command", "")),
+			"args": n.get("args", {}),
+			"key": str(n.get("key", "")),
+			"blocking": n.get("blocking") if n.has("blocking") else null,
+			"outputs": outputs,
+		})
+
+	var digest := HashingContext.new()
+	digest.start(HashingContext.HASH_SHA256)
+	digest.update(JSON.stringify(canon).to_utf8_buffer())
+	return digest.finish().hex_encode()
+
+
 # -- Parsing -------------------------------------------------------------------
 
 ## Reads a list of authored commands into their normalised form.

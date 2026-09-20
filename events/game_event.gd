@@ -46,13 +46,14 @@ class_name GameEvent extends Node
 ## [method Actor.set_facing]. `halt_control`/`return_control` (event_command.gd) are the
 ## manual equivalent, for locking past a run's own end on purpose.
 ##
-## [b]The actor's own brain is suspended for the run, unconditionally.[/b]
-## [method EventScheduler.try_lease] only ever said who *may* drive the actor - it never
-## stopped whoever already was, so a [RouteBrain]'s patrol kept walking straight through
-## its own event's dialogue until now. [method Actor.brain] is held with
-## [method Brain.suspend] from the same moment as the facing capture and `lock_player`,
-## and released at the same two points ([method poll] finishing, or the run being
-## refused) - see [method _resume_brain_if_suspended].
+## [b]The actor's own brain and in-flight route are the runner's business, not
+## this file's.[/b] [EventRunner] suspends [method Actor.brain] and cancels whatever
+## motion was already happening the moment it [method EventRunner.begin]s or
+## [method EventRunner.restore]s, and gives both back on every path that ends it - see
+## its own class doc. That used to live here, gated on [method poll] noticing the
+## runner finish; moving it into the runner itself is what makes [method
+## EventScheduler.reset_for_test]/a save restore also un-suspend correctly, not only
+## the ordinary finish this file's own polling would have caught.
 
 @export_file("*.event.json") var document_path: String = ""
 
@@ -92,13 +93,6 @@ var _has_pre_facing := false
 ## to) before that run's own pop is due.
 var _locked_player := false
 
-## Whether this run suspended [member Actor.brain] - true from the moment
-## [method _maybe_fire] commits to running until [method poll] sees it finish (or the
-## run is refused), the same lifecycle [member _locked_player] has and for the same
-## reason: a lease says who *may* drive the actor, not that whoever already was (a
-## [RouteBrain]'s patrol) actually stopped.
-var _suspended_brain := false
-
 
 func _ready() -> void:
 	_map = MapContext.of(self)
@@ -135,7 +129,6 @@ func poll() -> void:
 		_runner = null
 		_restore_facing_if_untouched()
 		_release_control_if_locked()
-		_resume_brain_if_suspended()
 		_refresh_active_page()
 
 
@@ -158,19 +151,6 @@ func _release_control_if_locked() -> void:
 	if _locked_player:
 		ModeStack.pop()
 	_locked_player = false
-
-
-## The other half of [member _suspended_brain] - un-suspends [member Actor.brain] if
-## [method _maybe_fire] suspended it for this run, and clears the flag either way. A
-## resumed [RouteBrain] carries on from wherever its own state left it (an index into
-## [member RouteBrain.commands], not this file's business), the same "pick up where it
-## was" a pause implies rather than the restart a cancel-and-relaunch would.
-func _resume_brain_if_suspended() -> void:
-	if _suspended_brain and _actor != null:
-		var brain := _actor.brain()
-		if brain != null:
-			brain.suspend(false)
-	_suspended_brain = false
 
 
 func event_id() -> StringName:
@@ -475,39 +455,13 @@ func _maybe_fire(trigger_name: StringName) -> void:
 	if _locked_player:
 		ModeStack.push(ModeStack.Mode.CUTSCENE)
 
-	# Suspended unconditionally, not only when a brain is actually present or driving -
-	# a route pausing for the run and resuming after is what "trigger and begin
-	# eventing" means regardless of trigger type, exclusive or background alike.
-	#
-	# motion().cancel() alongside it, not suspend() alone: a RouteBrain's move_to hands
-	# its whole path to GridMotion as a queue (events/commands/actor_execs.gd's own
-	# note on the same shape), which then walks it cell by cell entirely on its own via
-	# _advance() - suspending the brain stops it handing over any *new* command, but an
-	# already-issued multi-cell move keeps walking regardless, which is why the
-	# wanderer used to coast two or three tiles past the cell it actually collided on
-	# before visibly stopping. Cancelling drops the rest of that queue immediately; the
-	# route itself has no resume point yet (segment 7), so it picks up at whatever
-	# command the list's own cursor is on next rather than finishing the interrupted leg.
-	#
-	# Deferred, not called straight through: event_touch reaches here synchronously off
-	# EventBus.actor_stepped, which GridMotion._commit_step emits *while it is still
-	# running* - a reentrant cancel() mid-commit clears fields _commit_step itself is
-	# about to set right back (the in-flight tween's own _step_left/set_process(true)),
-	# which is how the sprite ended up stuck rather than merely late. Deferring lets the
-	# commit that triggered this finish first; the step already landed is the one thing
-	# no cancel could have undone anyway.
-	if _actor != null:
-		var brain := _actor.brain()
-		if brain != null:
-			brain.suspend(true)
-			_suspended_brain = true
-		_actor.motion().call_deferred(&"cancel")
-
+	# The actor's own brain and any in-flight route are EventRunner.begin()'s business
+	# now, not this file's - see the class doc.
 	var parallel := trigger_name == &"auto" and bool(settings.get("parallel", false))
 	if parallel:
-		EventScheduler.run_background(runner, graph)
+		EventScheduler.run_background(runner, graph, document_path, _active_page)
 	else:
-		if not EventScheduler.run_exclusive(runner, graph):
+		if not EventScheduler.run_exclusive(runner, graph, document_path, _active_page):
 			# Refused - the exclusive slot is already held. Give back the lease and
 			# the fields just armed rather than leaving the actor claimed by, and
 			# this event waiting on, a runner that never actually ran.
@@ -518,7 +472,6 @@ func _maybe_fire(trigger_name: StringName) -> void:
 			_runner_ctx = null
 			_has_pre_facing = false
 			_release_control_if_locked()
-			_resume_brain_if_suspended()
 			_fired_once[_active_page] = false
 			return
 

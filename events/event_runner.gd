@@ -47,6 +47,14 @@ class _Frame:
 	## node a later wait_for in the same graph wants to join.
 	var key_aliases: Dictionary = {}
 
+	## Where this frame's [member nodes] came from, for [method EventRunner.to_save] /
+	## [method EventRunner.restore] to reload fresh from disk rather than trusting a
+	## frozen copy - "" for a frame [method EventRunner.begin] was handed a literal
+	## array with no file behind it (every headless test today), in which case
+	## [member nodes] itself is what gets embedded in the save instead.
+	var doc_path: String = ""
+	var page_index: int = -1
+
 
 var ctx: EventContext
 var latch: KeyLatch
@@ -61,18 +69,32 @@ var keeps_running := false
 var _stack: Array[_Frame] = []
 var _budget := 0
 
+## The brain this runner suspended on [method begin]/[method restore], if any - see
+## [method _take_actor_over]. Tracked here, not by [GameEvent], because a lease only
+## ever says who *may* drive an actor; the runner is the thing that actually took over,
+## so it is the thing responsible for giving control back, on every path that ends it
+## ([method stop], [method _drive]'s own natural finish), not only the happy one a
+## caller remembers to unwind.
+var _suspended_brain: Brain = null
+
 
 func _init(a_ctx: EventContext) -> void:
 	ctx = a_ctx
 	latch = KeyLatch.new()
 
 
-## Starts running [param nodes] from its one [code]start[/code] node.
-func begin(nodes: Array[Dictionary]) -> void:
+## Starts running [param nodes] from its one [code]start[/code] node. [param doc_path]/
+## [param page_index] are this frame's own save/restore address (empty/[code]-1[/code]
+## for a literal graph with no file behind it, e.g. every headless test's own inline
+## array) - see [member _Frame.doc_path].
+func begin(nodes: Array[Dictionary], doc_path: String = "", page_index: int = -1) -> void:
 	if finished:
 		return
+	_take_actor_over()
 	var frame := _Frame.new()
 	frame.nodes = nodes
+	frame.doc_path = doc_path
+	frame.page_index = page_index
 	for n in nodes:
 		frame.by_id[str(n.get("id", ""))] = n
 	_stack.append(frame)
@@ -92,6 +114,36 @@ func stop() -> void:
 	_stack.clear()
 	finished = true
 	latch.detach()
+	_give_actor_back()
+
+
+## Suspends [member EventContext.self_actor]'s own [Brain] (a patrolling [RouteBrain],
+## most obviously) and drops whatever it was already doing - a lease alone never
+## stopped either, which is why an actor used to keep walking straight through its own
+## event. The motion cancel is deferred: [method begin] can be reached synchronously
+## from inside [signal EventBus.actor_stepped], which [GridMotion._commit_step] emits
+## *while still running* - a reentrant [method MotionController.cancel] there would
+## clear fields that same commit is about to set right back, leaving the sprite stuck
+## rather than merely interrupted.
+func _take_actor_over() -> void:
+	var actor := ctx.self_actor if ctx != null else null
+	if actor == null:
+		return
+	var brain := actor.brain()
+	if brain != null:
+		brain.suspend(true)
+		_suspended_brain = brain
+	var motion := actor.motion()
+	if motion != null:
+		motion.call_deferred(&"cancel")
+
+
+## The other half of [method _take_actor_over] - always safe to call, including when
+## nothing was ever suspended.
+func _give_actor_back() -> void:
+	if _suspended_brain != null:
+		_suspended_brain.suspend(false)
+	_suspended_brain = null
 
 
 ## Called by [EventScheduler] once per its own clock tick.
@@ -124,6 +176,102 @@ func resolve_key(authored_name: String) -> String:
 	return str(frame.key_aliases.get(authored_name, authored_name))
 
 
+# -- Save/restore (question 39, segment 5a - restart granularity only) -------------
+#
+# What a resumable command's own mid-flight progress would add (a move_to's remaining
+# cells, a wait's elapsed time) is segment 5b, not built here: this captures which
+# frame and which node each frame is on, nothing about what that node's own executor
+# was doing. Restoring always restarts whatever node the cursor names - there is no
+# live [EventCommandExec] on a freshly built runner for [method _drive] to find, so it
+# calls [method EventCommandExec.start] fresh the same way it would for a node reached
+# for the first time. [member _Frame.key_aliases] does not survive either, for the same
+# reason: it only ever named a *now-gone* executor's own minted key.
+
+## This runner's frame stack, keyed for [method restore] to rebuild - identity
+## ([member EventContext.map_id]/[member EventContext.event_id]) and
+## [member EventContext.self_actor]'s id travel too, since [EventContext] itself is
+## never serialised (question 51: the live [MapContext] reference has to be re-supplied
+## by whoever is restoring, not saved).
+func to_save() -> Dictionary:
+	var frames: Array = []
+	for frame: _Frame in _stack:
+		frames.append({
+			"doc_path": frame.doc_path,
+			"page_index": frame.page_index,
+			"doc_hash": EventCommand.doc_hash(frame.nodes),
+			# Embedded only when there is no file to reload from - see _Frame's own doc.
+			"nodes": frame.nodes.duplicate(true) if frame.doc_path == "" else [],
+			"cursor": frame.cursor,
+		})
+	return {
+		"map_id": str(ctx.map_id) if ctx != null else "",
+		"event_id": str(ctx.event_id) if ctx != null else "",
+		"self_actor_id": str(ctx.self_actor.actor_id) if ctx != null and ctx.self_actor != null else "",
+		"keeps_running": keeps_running,
+		"frames": frames,
+	}
+
+
+## Rebuilds a runner from [method to_save]'s envelope. [param map] is the live map to
+## resolve [code]self_actor_id[/code] and, for a doc-backed frame, to evaluate against
+## nothing at all - reloading a page's graph needs only the file and the saved page
+## index, not the map - but a caller with no live actor to hand back (the actor is
+## gone) still gets a runner, just one with a null [member EventContext.self_actor],
+## the same as a bodiless region trigger's ever was.
+static func from_save(state: Dictionary, map: MapContext) -> EventRunner:
+	var actor_id := StringName(str(state.get("self_actor_id", "")))
+	var self_actor: Actor = map.actor(actor_id) if map != null and actor_id != &"" else null
+	var new_ctx := EventContext.for_event(map, StringName(str(state.get("map_id", ""))),
+		StringName(str(state.get("event_id", ""))), self_actor)
+
+	var runner := EventRunner.new(new_ctx)
+	runner.keeps_running = bool(state.get("keeps_running", false))
+	runner.restore(state.get("frames", []))
+	return runner
+
+
+## Rebuilds [member _stack] from [method to_save]'s [code]frames[/code] array and picks
+## the run back up. A doc-backed frame is reloaded from disk, never trusted from the
+## save itself, so an edit made to the file since the save was taken is what the
+## restored run actually sees; [constant EventCommand.doc_hash] is what decides whether
+## that reload still matches what was captured (resume at the saved cursor) or has
+## drifted (restart this one frame from its own entry - "restart is always a legal
+## downgrade", question 39). A frame whose document or page has gone missing entirely
+## restarts the same way a hash mismatch does, rather than being dropped.
+func restore(frames: Array) -> void:
+	for entry: Variant in frames:
+		var saved: Dictionary = entry
+		var doc_path := str(saved.get("doc_path", ""))
+		var page_index := int(saved.get("page_index", -1))
+		var cursor := str(saved.get("cursor", ""))
+		var nodes: Array[Dictionary] = []
+
+		if doc_path == "":
+			for n: Variant in saved.get("nodes", []) as Array:
+				if n is Dictionary:
+					nodes.append(n as Dictionary)
+		else:
+			var doc := EventDocument.parse(FileAccess.get_file_as_string(doc_path))
+			var pages: Array = doc.get("pages", [])
+			if page_index >= 0 and page_index < pages.size():
+				nodes = (pages[page_index] as Dictionary).get("graph", [])
+			if EventCommand.doc_hash(nodes) != str(saved.get("doc_hash", "")):
+				cursor = ""  # _drive() re-finds the start node when cursor is empty
+
+		var frame := _Frame.new()
+		frame.nodes = nodes
+		frame.doc_path = doc_path
+		frame.page_index = page_index
+		frame.cursor = cursor
+		for n in nodes:
+			frame.by_id[str(n.get("id", ""))] = n
+		_stack.append(frame)
+
+	_take_actor_over()
+	_budget = NODE_BUDGET
+	_drive()
+
+
 # -- The trampoline ----------------------------------------------------------------
 #
 # One loop, not a chain of methods calling each other back - see the class doc.
@@ -133,6 +281,7 @@ func _drive() -> void:
 		if _stack.is_empty():
 			finished = true
 			latch.detach()
+			_give_actor_back()
 			return
 
 		var frame := _stack.back() as _Frame
@@ -282,6 +431,8 @@ func _begin_call(frame: _Frame, node: Dictionary) -> bool:
 
 	var new_frame := _Frame.new()
 	new_frame.nodes = cloned
+	new_frame.doc_path = path
+	new_frame.page_index = index
 	for n in cloned:
 		new_frame.by_id[str(n.get("id", ""))] = n
 	_stack.append(new_frame)

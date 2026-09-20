@@ -1,0 +1,26 @@
+[
+	{
+		"id": "start",
+		"command": "start",
+		"args": {},
+		"outputs": [{"flow": "next", "target": "n1"}]
+	},
+	{
+		"id": "n1",
+		"command": "set_flag",
+		"args": {"flag": "reached_n1"},
+		"outputs": [{"flow": "next", "target": "n2"}]
+	},
+	{
+		"id": "n2",
+		"command": "wait",
+		"args": {"seconds": 10.0},
+		"outputs": [{"flow": "next", "target": "n3"}]
+	},
+	{
+		"id": "n3",
+		"command": "set_flag",
+		"args": {"flag": "reached_n3"},
+		"outputs": []
+	}
+]
