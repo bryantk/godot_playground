@@ -478,11 +478,30 @@ func _maybe_fire(trigger_name: StringName) -> void:
 	# Suspended unconditionally, not only when a brain is actually present or driving -
 	# a route pausing for the run and resuming after is what "trigger and begin
 	# eventing" means regardless of trigger type, exclusive or background alike.
+	#
+	# motion().cancel() alongside it, not suspend() alone: a RouteBrain's move_to hands
+	# its whole path to GridMotion as a queue (events/commands/actor_execs.gd's own
+	# note on the same shape), which then walks it cell by cell entirely on its own via
+	# _advance() - suspending the brain stops it handing over any *new* command, but an
+	# already-issued multi-cell move keeps walking regardless, which is why the
+	# wanderer used to coast two or three tiles past the cell it actually collided on
+	# before visibly stopping. Cancelling drops the rest of that queue immediately; the
+	# route itself has no resume point yet (segment 7), so it picks up at whatever
+	# command the list's own cursor is on next rather than finishing the interrupted leg.
+	#
+	# Deferred, not called straight through: event_touch reaches here synchronously off
+	# EventBus.actor_stepped, which GridMotion._commit_step emits *while it is still
+	# running* - a reentrant cancel() mid-commit clears fields _commit_step itself is
+	# about to set right back (the in-flight tween's own _step_left/set_process(true)),
+	# which is how the sprite ended up stuck rather than merely late. Deferring lets the
+	# commit that triggered this finish first; the step already landed is the one thing
+	# no cancel could have undone anyway.
 	if _actor != null:
 		var brain := _actor.brain()
 		if brain != null:
 			brain.suspend(true)
 			_suspended_brain = true
+		_actor.motion().call_deferred(&"cancel")
 
 	var parallel := trigger_name == &"auto" and bool(settings.get("parallel", false))
 	if parallel:
