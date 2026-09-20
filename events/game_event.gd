@@ -366,14 +366,35 @@ func _check_continuous_touch() -> void:
 ## through event has no adjacent side that means anything (there is nothing stopping
 ## the player from standing on or passing through it), so it switches to "standing on
 ## the same cell" instead - grass, an item, a floor switch.
+##
+## [b]A free-motion player gets a distance check instead of either.[/b] A grid player's
+## body is always exactly on a cell, so cell arithmetic is exact; a free player can stop
+## anywhere, and the same arithmetic reads as a miss for one a few pixels short of
+## "aligned" - which is what it felt like to press the button next to an event and have
+## nothing happen. See [method _in_range_free].
 func _on_player_interacted() -> void:
 	var player := _player()
-	if player == null:
+	if player == null or _map == null:
 		return
-	var in_range := player.cell() == cell() if _through_actors() \
-		else player.cell() + player.facing() == cell()
+	var in_range := _in_range_free(player) if player.motion() is FreeMotion \
+		else (player.cell() == cell() if _through_actors() \
+			else player.cell() + player.facing() == cell())
 	if in_range:
 		_maybe_fire(&"action")
+
+
+## Interact range for a free-motion player: world distance to this event's own cell
+## centre, with no facing requirement - the same reasoning [member _through_actors]
+## already applies to a grid player (there is no meaningful "side" to face), extended
+## to every free-motion interaction rather than only a through one, since a free
+## player's facing is wherever it was last walking, not necessarily where it meant to
+## press the button. The reach is generous on purpose: "standing next to it" should
+## always be enough, whether or not the player's continuous position happens to have
+## crossed into the event's own cell.
+func _in_range_free(player: Actor) -> bool:
+	var reach := maxf(_map.cell_size.x, _map.cell_size.z) * 1.25
+	var offset := Space.flatten(_map.cell_centre(cell()) - player.world_position())
+	return offset.length() <= reach
 
 
 func _on_state_changed(_key: StringName) -> void:

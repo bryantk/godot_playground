@@ -13,10 +13,19 @@ extends Node
 ## membership ([method MapContext._enter_tree]) rather than a [NodePath] handed to it,
 ## which is what lets the same instance follow whichever map is loaded.
 ##
-## [b]No map, or a free-motion one, means doing nothing[/b] - not freeing itself the way a
-## scene-local instance used to. A global can't queue_free over a demo it doesn't like;
-## it just skips drawing until a grid map shows up, exactly as it does while
-## [method DebugFlags.show_debug_view] is off.
+## [b]No map, or one with no collision layer to speak of, means doing nothing[/b] - not
+## freeing itself the way a scene-local instance used to. A global can't queue_free over
+## a demo it doesn't like; it just skips drawing until a map with something to show up
+## shows up, exactly as it does while [method DebugFlags.show_debug_view] is off.
+##
+## [b]Not gated on [member MapContext.default_motion] any more.[/b] It used to draw only
+## for a GRID-default map, back when a free-motion demo's blockers were assumed
+## uninteresting - but a free player still walks into the same [member
+## MapContext.collision_node] walls, a page can still put a GRID-motion actor on a
+## free-default map (the iso free demo's own Wanderer), and [Occupancy] still tracks
+## whichever of those does claim cells. What actually decides whether there is anything
+## worth drawing is [member MapContext.collision_node] being set, not which motion the
+## map defaults to.
 ##
 ## [b]"Impassable" means fully walled, not one-sided.[/b] [method Passability.directions]
 ## can refuse only one side of a cell - a one-way ledge, a door painted shut from the
@@ -73,15 +82,15 @@ func _physics_process(_delta: float) -> void:
 
 
 ## The map this overlay should be drawing for right now, or null when there isn't one
-## worth drawing - no map loaded (the demo launcher) or one whose
-## [member MapContext.default_motion] has no grid cells to speak of.
+## worth drawing - no map loaded (the demo launcher), or one with no
+## [member MapContext.collision_node] to read blocked cells off at all.
 ##
 ## A battle scene that keeps its field map resident behind it (map_context.gd's own
 ## doc) would leave two [MapContext]s in the group at once; this does not try to pick
 ## the "right" one between them; there is no battle scene yet for that to matter.
 func _current_context() -> MapContext:
 	var found := get_tree().get_first_node_in_group(&"map_context")
-	if found == null or (found as MapContext).default_motion != Actor.MotionMode.GRID:
+	if found == null or (found as MapContext).collision_node.is_empty():
 		return null
 	return found as MapContext
 
