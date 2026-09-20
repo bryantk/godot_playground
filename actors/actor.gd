@@ -273,6 +273,56 @@ func facing() -> Vector3i:
 	return _facing
 
 
+## Segment E's own save/load action: enough to place this actor back where it was on a
+## freshly reloaded map - cell and facing for a grid actor, world position for a free
+## one (the same split [method effective_motion] already draws everywhere else).
+## Deliberately not everything [GridMotion.to_save]/[method FreeMotion] might one day
+## capture - a mid-command resume is [EventRunner]'s own business (segment 5b), reached
+## through [EventScheduler]/[EventRunner]'s own save, not this. This is just "where was
+## this actor standing".
+func to_save() -> Dictionary:
+	var c := cell()
+	var w := world_position()
+	var f := facing()
+	return {
+		"cell": [c.x, c.y, c.z],
+		"world": [w.x, w.y, w.z],
+		"facing": [f.x, f.y, f.z],
+	}
+
+
+## The inverse of [method to_save]. Placed via [method Occupancy.place], never
+## [method Occupancy.commit_step] - no step happened, so there is nothing to publish
+## [signal EventBus.actor_stepped] for.
+func from_save(state: Dictionary) -> void:
+	set_facing(_v3i_of(state.get("facing", [0, 0, 0])))
+
+	var adapt := adapter()
+	if adapt == null:
+		return
+
+	if effective_motion() == MotionMode.GRID and _ctx != null:
+		var c := _v3i_of(state.get("cell", [0, 0, 0]))
+		_ctx.occupancy.place(actor_id, c)
+		adapt.set_world_position(_ctx.cell_centre(c))
+	else:
+		adapt.set_world_position(_v3_of(state.get("world", [0.0, 0.0, 0.0])))
+
+
+static func _v3i_of(raw: Variant) -> Vector3i:
+	if raw is Array and (raw as Array).size() >= 3:
+		var a := raw as Array
+		return Vector3i(int(a[0]), int(a[1]), int(a[2]))
+	return Vector3i.ZERO
+
+
+static func _v3_of(raw: Variant) -> Vector3:
+	if raw is Array and (raw as Array).size() >= 3:
+		var a := raw as Array
+		return Vector3(float(a[0]), float(a[1]), float(a[2]))
+	return Vector3.ZERO
+
+
 func set_facing(dir: Vector3i) -> void:
 	if facing_locked or dir == Vector3i.ZERO or dir == _facing:
 		return

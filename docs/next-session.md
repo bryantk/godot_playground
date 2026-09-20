@@ -9,6 +9,26 @@ work queue; [open-questions.md](open-questions.md) is what is still undecided,
 
 ## Start here tomorrow
 
+**Update 2026-09-20 (latest) — a real save/load game action exists, built on top of
+segment 5.** New autoload `SaveGame` (`core/save_game.gd`), one slot (`user://save_slot_1.json`),
+composing `GameState.to_save()` + `EventScheduler.to_save()` + every current actor's own new
+`Actor.to_save()`/`from_save()` (cell/world/facing - the gap the note below used to name) into
+one envelope, keyed by `get_tree().current_scene.scene_file_path` rather than a separate
+map-id-to-scene registry. `load()` calls `change_scene_to_file`, waits for the new scene's
+`MapContext` to register (the same `&"map_context"` group `DebugPassabilityView` already uses),
+then restores `GameState` → actors → `EventScheduler`, in that order on purpose (actors have to
+be standing where they belong before a restored runner can lease them or push `CUTSCENE`).
+Wired to the pause menu (`SimpleMenu` gained Save/Load/Reset buttons, `SimpleMenu.refresh()`
+disables Load when there's nothing to load) - `P` already opened the pause menu before this
+session touched anything (`InputManager._input`'s raw `KEY_P` check, wired since before this
+session), so no new input plumbing was needed there. `EventScheduler.reset_for_test()` renamed
+to `reset()` - it's not test-only any more, `SaveGame.load()`/`Reset` both call it. New
+`tests/save_game_test.gd` (9 assertions) - the first test in the whole project that reloads a
+*real* scene rather than reusing the same live actor, which caught a real bug along the way:
+`MapContext.of(scene)` cannot find a `MapContext` sitting *below* the node it's called on (only
+above/beside), so `SaveGame.save()` needs the group lookup instead, same as `load()` already
+used. All twelve suites green (886 total).
+
 **Update 2026-09-20 (later) — segment 5b (mid-command resume) is built too, for `wait` and
 every `GridMotion` command.** `EventRunner._drive()` now actually calls a resumable executor's
 own `capture()`/`restore()` (`_Frame.pending_restore`) instead of always restarting the node
@@ -26,10 +46,10 @@ captured mid-step travels exactly 4 cells in total, not 3 or 5.
 on restore rather than resuming mid-flight (a legal downgrade, question 39), and nothing tests
 a capture mid-fall (a ladder release or a walk off a ledge) even though `GridMotion`'s own
 `falling`/`fall_wait`/`fall_pending` fields are already there for it - no height-capable map
-exists in `event_save_test.gd` to exercise it against. `Actor`/`ActorView` themselves still
-have no `to_save()`/`from_save()` either, per the plan's own file list for 5b - nothing in the
-tests built so far needed one, since every case so far restores against the same live actor
-rather than a truly rebuilt one.
+exists in `event_save_test.gd` to exercise it against. `ActorView` itself still has no
+`to_save()`/`from_save()` - an animation frame, specifically - though `Actor` now does (see the
+save/load action note above; a mid-command move/wait is still `EventRunner`'s own concern, not
+this).
 
 **Also not built: a call-frame stack captured mid-`call`.** `EventRunner.restore()` handles it
 structurally (each frame carries its own `doc_path`/`page_index`, per the plan), but nothing
@@ -220,6 +240,9 @@ doesn't.
 
 **Updated again 2026-09-20**: `event_save_test.gd` grew to 35 assertions with segment 5b - **877**
 total. `event_route_test.gd` still doesn't exist.
+
+**Updated a third time 2026-09-20**: `tests/save_game_test.gd` (new, 9 assertions) - **886**
+total across twelve suites.
 
 ### What segment 6 actually built
 
@@ -415,15 +438,15 @@ silently stripped every `command`, `args`, `blocking`, `key` and `flows` in the 
 
 ```bash
 GODOT="/c/Users/kyle/Desktop/Godot_v4.7-stable_win64_console.exe"
-for t in stage_a areas demo_scenes height event_command actor_naming event_condition event_document event_runner event_scheduler event_save; do
+for t in stage_a areas demo_scenes height event_command actor_naming event_condition event_document event_runner event_scheduler event_save save_game; do
   timeout 110 "$GODOT" --headless --path . res://tests/${t}_test.tscn
 done
 ```
 
-**877 assertions, all green** as of 2026-09-20 (231+31+150+112+71+107+73+20+47+35, plus
-demo_scenes' unnumbered checks — `event_save_test.gd` (35) is segment 5a+5b, both built today;
-see the top of this file). Godot is not on PATH; use the
-`_console` build or a headless run prints nothing.
+**886 assertions, all green** as of 2026-09-20 (231+31+150+112+71+107+73+20+47+35+9, plus
+demo_scenes' unnumbered checks — `event_save_test.gd` (35) is segment 5a+5b and
+`save_game_test.gd` (9) is the new save/load action, both built today; see the top of this
+file). Godot is not on PATH; use the `_console` build or a headless run prints nothing.
 
 Three hazards worth re-reading before a long debugging session, all of which cost time
 today:

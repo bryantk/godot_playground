@@ -15,3 +15,15 @@ text = "Return"
 [node name="Button2" type="Button" parent="." unique_id=1544015312]
 layout_mode = 2
 text = "Exit"
+
+[node name="SaveButton" type="Button" parent="."]
+layout_mode = 2
+text = "Save"
+
+[node name="LoadButton" type="Button" parent="."]
+layout_mode = 2
+text = "Load"
+
+[node name="ResetButton" type="Button" parent="."]
+layout_mode = 2
+text = "Reset"

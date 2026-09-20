@@ -52,7 +52,7 @@ class_name GameEvent extends Node
 ## [method EventRunner.restore]s, and gives both back on every path that ends it - see
 ## its own class doc. That used to live here, gated on [method poll] noticing the
 ## runner finish; moving it into the runner itself is what makes [method
-## EventScheduler.reset_for_test]/a save restore also un-suspend correctly, not only
+## EventScheduler.reset]/a save restore also un-suspend correctly, not only
 ## the ordinary finish this file's own polling would have caught.
 
 @export_file("*.event.json") var document_path: String = ""

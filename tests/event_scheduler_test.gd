@@ -56,7 +56,7 @@ func _wait_graph(seconds: float, flag: StringName) -> Array[Dictionary]:
 
 func _test_exclusive_refuses_a_second() -> void:
 	_section("EventScheduler -- a second exclusive request is refused, not queued")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 
 	var ctx := EventContext.for_event(null, &"m", &"e1")
 	var r1 := EventRunner.new(ctx)
@@ -70,13 +70,13 @@ func _test_exclusive_refuses_a_second() -> void:
 		"a second request is refused outright while the first still holds the slot")
 	r2.latch.detach()
 
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	_ok(ModeStack.current() == ModeStack.Mode.FIELD, "reset pops CUTSCENE back to FIELD")
 
 
 func _test_background_suspends_while_exclusive_held() -> void:
 	_section("EventScheduler -- background suspends while exclusive is held, resumes after")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 	var ctx := EventContext.for_event(null, &"m", &"e2")
@@ -105,13 +105,13 @@ func _test_background_suspends_while_exclusive_held() -> void:
 	_ok(background.finished, "the background runner then finishes on its own")
 	_ok(GameState.flag(&"background_done"), "and its flag is set")
 
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 
 func _test_keeps_running_opts_out() -> void:
 	_section("EventScheduler -- keeps_running opts a background runner out of suspension")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 	var ctx := EventContext.for_event(null, &"m", &"e3")
@@ -128,13 +128,13 @@ func _test_keeps_running_opts_out() -> void:
 		"a keeps_running background runner finishes on schedule despite the exclusive slot")
 	_ok(GameState.flag(&"waterfall_done"), "and its flag is set")
 
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 
 func _test_actor_lease_refuses_a_second_runner() -> void:
 	_section("EventScheduler -- a leased actor refuses a second runner")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 
 	var ctx := EventContext.for_event(null, &"m", &"e4")
 	var holder := EventRunner.new(ctx)
@@ -149,7 +149,7 @@ func _test_actor_lease_refuses_a_second_runner() -> void:
 	_ok(not EventScheduler.is_leased(&"guard"), "releasing frees it")
 	_ok(EventScheduler.try_lease(&"guard", other), "and a new runner can lease it")
 
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 
 
 # -- The seven triggers ---------------------------------------------------------------
@@ -160,7 +160,7 @@ func _test_actor_lease_refuses_a_second_runner() -> void:
 
 func _test_trigger_on_load() -> void:
 	_section("GameEvent -- on_load fires once the event is loaded")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 	var world := _build_world()
@@ -169,12 +169,12 @@ func _test_trigger_on_load() -> void:
 	_ok(GameState.flag(&"fired_on_load"), "on_load fired")
 	_ok(not GameState.flag(&"fired_action"), "and not action")
 	world["root"].free()
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 
 
 func _test_trigger_player_touch() -> void:
 	_section("GameEvent -- player_touch fires when the player steps onto the event's cell")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 	var world := _build_world()
@@ -186,12 +186,12 @@ func _test_trigger_player_touch() -> void:
 	_ok(GameState.flag(&"fired_player_touch"), "fires the moment the player steps onto it")
 	_ok(not GameState.flag(&"fired_leave_cell"), "and not leave_cell")
 	world["root"].free()
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 
 
 func _test_trigger_event_touch() -> void:
 	_section("GameEvent -- event_touch fires when the event's own actor steps onto the player")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 	var world := _build_world()
@@ -202,12 +202,12 @@ func _test_trigger_event_touch() -> void:
 	(ev["actor"] as Actor).motion().step_keyed(Vector3i(1, 0, 0))
 	_ok(GameState.flag(&"fired_event_touch"), "fires the moment the event steps onto the player")
 	world["root"].free()
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 
 
 func _test_trigger_leave_cell() -> void:
 	_section("GameEvent -- leave_cell fires when something steps off the event's cell")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 	var world := _build_world()
@@ -218,12 +218,12 @@ func _test_trigger_leave_cell() -> void:
 	player.motion().step_keyed(Vector3i(1, 0, 0))
 	_ok(GameState.flag(&"fired_leave_cell"), "fires the moment the player steps off it")
 	world["root"].free()
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 
 
 func _test_trigger_action() -> void:
 	_section("GameEvent -- action fires when the player interacts facing the event")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 	var world := _build_world()
@@ -235,12 +235,12 @@ func _test_trigger_action() -> void:
 	_ok(GameState.flag(&"fired_action"),
 		"fires when the player presses interact while facing the event's cell")
 	world["root"].free()
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 
 
 func _test_trigger_on_flag() -> void:
 	_section("GameEvent -- on_flag fires when GameState changes, not on a page switch")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 	var world := _build_world()
@@ -249,12 +249,12 @@ func _test_trigger_on_flag() -> void:
 	GameState.set_flag(&"anything")
 	_ok(GameState.flag(&"fired_on_flag"), "fires on an unrelated flag changing")
 	world["root"].free()
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 
 
 func _test_trigger_auto_parallel() -> void:
 	_section("GameEvent -- auto (parallel) starts as a background runner, not exclusive")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 	var world := _build_world()
@@ -263,14 +263,14 @@ func _test_trigger_auto_parallel() -> void:
 	_ok(not EventScheduler.is_exclusive_held(), "auto+parallel does not take the exclusive slot")
 	_ok(EventScheduler.background_runners().size() == 1, "and runs as one background runner")
 	world["root"].free()
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 
 
 # -- Page switch deferred to graph completion, and art applied on the switch ---------
 
 func _test_page_defers_until_graph_completes_and_art_changes() -> void:
 	_section("GameEvent -- a page switch defers until the running graph completes")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 	var world := _build_world()
@@ -292,7 +292,7 @@ func _test_page_defers_until_graph_completes_and_art_changes() -> void:
 	_ok(sheet.texture != null, "and page 2's sheet art is applied - the apply_art fix")
 
 	world["root"].free()
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 
@@ -301,7 +301,7 @@ func _test_page_defers_until_graph_completes_and_art_changes() -> void:
 
 func _test_facing_restored_when_untouched() -> void:
 	_section("GameEvent -- facing is restored after an interaction that never touches it")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 	var world := _build_world()
@@ -330,13 +330,13 @@ func _test_facing_restored_when_untouched() -> void:
 		"and facing is restored to what it was before the interaction, not the stray nudge")
 
 	world["root"].free()
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 
 func _test_facing_kept_when_graph_turns_it() -> void:
 	_section("GameEvent -- facing is kept when the graph itself turns the actor")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 	var world := _build_world()
@@ -355,7 +355,7 @@ func _test_facing_kept_when_graph_turns_it() -> void:
 		"and keeps the south face_direction the graph itself issued, not north again")
 
 	world["root"].free()
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 
@@ -363,7 +363,7 @@ func _test_facing_kept_when_graph_turns_it() -> void:
 
 func _test_lock_facing_ignores_face_commands() -> void:
 	_section("GameEvent -- lock_facing makes the actor ignore facing commands")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 	var world := _build_world()
@@ -382,13 +382,13 @@ func _test_lock_facing_ignores_face_commands() -> void:
 		"but its face_direction east never turned the actor - still the untouched default")
 
 	world["root"].free()
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 
 func _test_through_changes_proximity_and_phasing() -> void:
 	_section("GameEvent -- through switches action to same-cell and phases the actor")
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 	var world := _build_world()
@@ -410,7 +410,7 @@ func _test_through_changes_proximity_and_phasing() -> void:
 		"action fires for standing on the same cell, facing away from it")
 
 	world["root"].free()
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	GameState.clear()
 
 

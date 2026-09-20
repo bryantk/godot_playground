@@ -88,10 +88,13 @@ func run_background(runner: EventRunner, nodes: Array[Dictionary],
 		_release_all(runner)
 
 
-## Test-only reset - stops every runner and drops every lease without waiting for them
-## to finish on their own, and pops [ModeStack] back to FIELD if the exclusive slot had
-## pushed CUTSCENE. Mirrors [method GameState.clear].
-func reset_for_test() -> void:
+## Stops every runner and drops every lease without waiting for them to finish on their
+## own, and pops [ModeStack] back to FIELD if the exclusive slot had pushed CUTSCENE.
+## Mirrors [method GameState.clear]. Not test-only any more - [SaveGame] calls this too,
+## to drop whatever the map being left behind was doing before abandoning it for a
+## loaded one; the name outlived the "only tests reset this" assumption it was given
+## under.
+func reset() -> void:
 	if _exclusive != null:
 		_exclusive.stop()
 		if ModeStack.current() == ModeStack.Mode.CUTSCENE:
@@ -134,14 +137,14 @@ func to_save() -> Dictionary:
 
 
 ## The inverse of [method to_save]. Drops whatever this scheduler was already doing
-## first ([method reset_for_test]'s own reasoning: nothing here should straddle two
-## sessions), then rebuilds every runner against [param map] and re-takes its leases.
+## first ([method reset]'s own reasoning: nothing here should straddle two sessions),
+## then rebuilds every runner against [param map] and re-takes its leases.
 ## [constant ModeStack.Mode.CUTSCENE] is pushed for a restored exclusive runner the same
 ## way [method run_exclusive] pushes it for a fresh one - unless that runner came back
 ## already finished (its document or actor gone), in which case there is nothing left
 ## to hold the mode open for.
 func from_save(state: Dictionary, map: MapContext) -> void:
-	reset_for_test()
+	reset()
 	if state.is_empty():
 		return
 

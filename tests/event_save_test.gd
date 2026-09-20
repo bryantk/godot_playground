@@ -165,7 +165,7 @@ func _test_hash_mismatch_restarts() -> void:
 func _test_scheduler_round_trip() -> void:
 	_section("EventScheduler -- exclusive runner and its lease survive a round trip")
 	GameState.clear()
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	_write_scratch_doc(10.0, "sched_reached_n1")
 
 	var rig := _build_rig()
@@ -182,9 +182,9 @@ func _test_scheduler_round_trip() -> void:
 	_ok(brain.is_suspended(), "the actor's own brain is suspended for the run")
 
 	var saved := EventScheduler.to_save()
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	ModeStack.reset()
-	_ok(not brain.is_suspended(), "reset_for_test's stop() gave the brain back")
+	_ok(not brain.is_suspended(), "reset()'s stop() gave the brain back")
 
 	EventScheduler.from_save(saved, rig["ctx"])
 	_ok(EventScheduler.is_exclusive_held(), "the exclusive slot is held again after restore")
@@ -199,7 +199,7 @@ func _test_scheduler_round_trip() -> void:
 	_ok(ModeStack.is_field(), "and cutscene mode pops back to field")
 	_ok(not brain.is_suspended(), "and the brain is handed back")
 
-	EventScheduler.reset_for_test()
+	EventScheduler.reset()
 	ModeStack.reset()
 
 
