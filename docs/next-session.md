@@ -33,6 +33,45 @@ Segments 0–6 are built, tested and committed — segment 6 (`273066e`) added
 segment 4 (`b244ac4`), the four motion-key defects (`e81e38b`) and questions 48–52's planning
 session (`5d344ef`). All ten suites are still green.
 
+**Decided 2026-09-20: segment 5 (save/restore) is next**, not segment 7 - see
+[stage-c-plan.md](stage-c-plan.md)'s own segment 5 section for the full shape (5a restart
+granularity first, 5b mid-command resume second).
+
+### Playtesting the iso free demo found five more real gaps (2026-09-19/20)
+
+Five commits after the last update (`891d743`), none of them adding to any of the ten headless
+suites - each was verified with a one-off scratch probe (`tests/tmp_pass.gd`, restored after)
+rather than a persisted assertion. **Worth backfilling into `tests/event_scheduler_test.gd`
+before trusting this behaviour long-term**, especially the brain-suspend and route-cancel pair,
+which nothing regresses on today but a headless run.
+
+- **`21785bd`** — `action` and `jump` were both bound to Space; every press fired both. `action`
+  moved to Enter.
+- **`7deade7`** — new page field `lock_player` (siblings of `lock_facing`/`through`/
+  `through_terrain` in storage, but scoped to one triggered run rather than the whole time the
+  page is active): pushes `ModeStack.Mode.CUTSCENE` for the run's own duration. `halt_control`/
+  `return_control` are the manual, unscoped equivalent. `graph_editor_panel.gd` gained a Trigger
+  dropdown (`EventDocument.TRIGGERS`, the one place the seven strings are now spelled out) and a
+  Lock player checkbox. Also added the iso free demo's two exercise NPCs: `Wanderer` (patrols,
+  greets on `event_touch`) and `Spinner` (spins a full turn on `action`).
+- **`8c8eead`** — two bugs the NPCs above immediately exposed: `DebugPassabilityView` was gated
+  on `default_motion == GRID`, so it never drew on a free-motion map at all - re-gated on
+  `collision_node` being set instead. And `action`'s interact range used exact cell-arithmetic
+  ("adjacent cell + facing it"), exact for a grid actor but a near-miss for a free one stopped a
+  few pixels off - free players now get a world-distance check with no facing requirement.
+- **`bf4dd0a`** — `EventScheduler.try_lease` only ever recorded who *may* drive an actor; it
+  never stopped whoever already was, so a `RouteBrain`'s patrol kept walking through its own
+  event's dialogue. New `Brain.suspend(on)` (segment 5's own planned shape - see below) fixes
+  it; `GameEvent` suspends/resumes it around every triggered run. `DebugPassabilityView` also
+  gained a third colour for `MapContext.registered_event_cells()`, since `Occupancy` never knew
+  about a free-motion event's cell at all (the Spinner was invisible to it).
+- **`e328f34`** — `Brain.suspend` alone left `GridMotion`'s already-issued `move_to` queue
+  walking on its own via `_advance()`, so the Wanderer coasted two or three tiles past the cell
+  it actually touched the player on before stopping. `motion().call_deferred(&"cancel")`
+  alongside the suspend fixes it - deferred because `event_touch` reaches `GameEvent`
+  synchronously from inside `GridMotion._commit_step` itself, and a reentrant `cancel()` there
+  clobbered fields the still-running commit was about to set right back.
+
 ### GameEvent/editor follow-ups after segment 6, undocumented until now (2026-09-17/18)
 
 Seven commits between `ccac832` (this file's last update) and the ramps/stairs session below,
