@@ -45,6 +45,14 @@ class_name GameEvent extends Node
 ## capture/restore shape `lock_facing` already uses, aimed at [ModeStack] instead of
 ## [method Actor.set_facing]. `halt_control`/`return_control` (event_command.gd) are the
 ## manual equivalent, for locking past a run's own end on purpose.
+##
+## [b]The actor's own brain is suspended for the run, unconditionally.[/b]
+## [method EventScheduler.try_lease] only ever said who *may* drive the actor - it never
+## stopped whoever already was, so a [RouteBrain]'s patrol kept walking straight through
+## its own event's dialogue until now. [method Actor.brain] is held with
+## [method Brain.suspend] from the same moment as the facing capture and `lock_player`,
+## and released at the same two points ([method poll] finishing, or the run being
+## refused) - see [method _resume_brain_if_suspended].
 
 @export_file("*.event.json") var document_path: String = ""
 
@@ -84,6 +92,13 @@ var _has_pre_facing := false
 ## to) before that run's own pop is due.
 var _locked_player := false
 
+## Whether this run suspended [member Actor.brain] - true from the moment
+## [method _maybe_fire] commits to running until [method poll] sees it finish (or the
+## run is refused), the same lifecycle [member _locked_player] has and for the same
+## reason: a lease says who *may* drive the actor, not that whoever already was (a
+## [RouteBrain]'s patrol) actually stopped.
+var _suspended_brain := false
+
 
 func _ready() -> void:
 	_map = MapContext.of(self)
@@ -120,6 +135,7 @@ func poll() -> void:
 		_runner = null
 		_restore_facing_if_untouched()
 		_release_control_if_locked()
+		_resume_brain_if_suspended()
 		_refresh_active_page()
 
 
@@ -142,6 +158,19 @@ func _release_control_if_locked() -> void:
 	if _locked_player:
 		ModeStack.pop()
 	_locked_player = false
+
+
+## The other half of [member _suspended_brain] - un-suspends [member Actor.brain] if
+## [method _maybe_fire] suspended it for this run, and clears the flag either way. A
+## resumed [RouteBrain] carries on from wherever its own state left it (an index into
+## [member RouteBrain.commands], not this file's business), the same "pick up where it
+## was" a pause implies rather than the restart a cancel-and-relaunch would.
+func _resume_brain_if_suspended() -> void:
+	if _suspended_brain and _actor != null:
+		var brain := _actor.brain()
+		if brain != null:
+			brain.suspend(false)
+	_suspended_brain = false
 
 
 func event_id() -> StringName:
@@ -446,6 +475,15 @@ func _maybe_fire(trigger_name: StringName) -> void:
 	if _locked_player:
 		ModeStack.push(ModeStack.Mode.CUTSCENE)
 
+	# Suspended unconditionally, not only when a brain is actually present or driving -
+	# a route pausing for the run and resuming after is what "trigger and begin
+	# eventing" means regardless of trigger type, exclusive or background alike.
+	if _actor != null:
+		var brain := _actor.brain()
+		if brain != null:
+			brain.suspend(true)
+			_suspended_brain = true
+
 	var parallel := trigger_name == &"auto" and bool(settings.get("parallel", false))
 	if parallel:
 		EventScheduler.run_background(runner, graph)
@@ -461,6 +499,7 @@ func _maybe_fire(trigger_name: StringName) -> void:
 			_runner_ctx = null
 			_has_pre_facing = false
 			_release_control_if_locked()
+			_resume_brain_if_suspended()
 			_fired_once[_active_page] = false
 			return
 

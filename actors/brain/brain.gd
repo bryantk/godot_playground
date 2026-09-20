@@ -34,6 +34,16 @@ var intent := InputIntent.new()
 
 var _actor: Actor = null
 
+## True while [method suspend] holds this brain off producing an intent at all - a
+## [GameEvent] taking its actor over for a triggered run without a competing brain (a
+## [RouteBrain]'s patrol, most obviously) still walking or turning it underneath the
+## graph. Segment 5's own planned shape for this (stage-c-plan.md: "a lease must stop
+## the actor's brain... there is no suspend seam today"), built now, minimal, because a
+## page with both a route and an event is exactly what surfaces the gap - a lease alone
+## only says who *may* drive the actor, not that anything actually stopped whoever else
+## was already doing it.
+var _suspended := false
+
 
 func _ready() -> void:
 	# The parent, not a lookup by id: a brain drives the actor it is attached to, which
@@ -56,8 +66,20 @@ func motion() -> MotionController:
 	return _actor.motion() if _actor != null else null
 
 
+## Holds this brain off producing an intent (or takes it back off hold). Whatever the
+## actor was already doing when suspended stays as it left it - a step in flight still
+## settles, a facing does not un-turn - only the next frame's [method _think]/
+## [method _apply] pair stops happening. Idempotent either way.
+func suspend(on: bool) -> void:
+	_suspended = on
+
+
+func is_suspended() -> bool:
+	return _suspended
+
+
 func _process(delta: float) -> void:
-	if _actor == null:
+	if _actor == null or _suspended:
 		return
 	_think(delta)
 	_apply(delta)

@@ -214,6 +214,17 @@ func remove_event_at(cell: Vector3i, event: Node) -> void:
 		_events_by_cell.erase(cell)
 
 
+## Every cell at least one [GameEvent] is registered on - [DebugPassabilityView]'s own
+## reader, so an event with no [Actor] in [Occupancy] (any free-motion one; a bodiless
+## region trigger) still shows up somewhere, not just the walls and ladders the other
+## two tables already cover.
+func registered_event_cells() -> Array[Vector3i]:
+	var out: Array[Vector3i] = []
+	for cell: Vector3i in _events_by_cell:
+		out.append(cell)
+	return out
+
+
 # -- Lookup -------------------------------------------------------------------
 
 ## The [MapContext] governing [param node], found by walking up to the map root. Every

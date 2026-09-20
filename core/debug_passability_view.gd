@@ -36,9 +36,17 @@ extends Node
 ## [b]Ladders are 3D-only.[/b] [member MapContext.ladder_node] is only ever a [GridMap]
 ## (event-pages.md's height rules); a 2D map has no such layer, so the 2D half of this
 ## view draws impassable cells alone.
+##
+## [b]A third colour marks every [GameEvent]'s own cell[/b] ([method
+## MapContext.registered_event_cells]), regardless of whether anything blocks it -
+## [Occupancy] only ever knows about a [GridMotion] actor, so a free-motion event (the
+## iso free demo's own Spinner) or a bodiless region trigger would otherwise be
+## invisible to this view even though it is exactly the kind of thing worth seeing while
+## debugging trigger ranges.
 
 const WALL_COLOR := Color(0.95, 0.2, 0.2, 0.9)
 const LADDER_COLOR := Color(0.25, 0.95, 0.35, 0.9)
+const EVENT_COLOR := Color(0.35, 0.55, 1.0, 0.9)
 
 ## The map this instance is currently drawing for, or null between maps. Compared
 ## against every physics frame so a map switch tears down the old visuals and builds
@@ -50,6 +58,7 @@ var _is_3d := false
 ## 2D only: what the last rebuild found, read back by [method _on_draw_2d] - drawing only
 ## happens inside that callback, so the cells have to be cached rather than recomputed.
 var _cells_2d: Array[Vector3i] = []
+var _event_cells_2d: Array[Vector3i] = []
 
 ## 3D only: one wireframe box shape, reused by every instance regardless of colour - a
 ## box is just a transform and a material against a shared line mesh. Rebuilt whenever
@@ -57,6 +66,7 @@ var _cells_2d: Array[Vector3i] = []
 var _wire_mesh: ArrayMesh
 var _wall_material: StandardMaterial3D
 var _ladder_material: StandardMaterial3D
+var _event_material: StandardMaterial3D
 
 
 func _physics_process(_delta: float) -> void:
@@ -78,6 +88,7 @@ func _physics_process(_delta: float) -> void:
 		_rebuild_3d()
 	else:
 		_cells_2d = _blocked_cells()
+		_event_cells_2d = _ctx.registered_event_cells()
 		(_root as Node2D).queue_redraw()
 
 
@@ -102,6 +113,7 @@ func _setup() -> void:
 		_wire_mesh = _build_wire_box(Vector3(_ctx.cell_size.x, 1.0, _ctx.cell_size.z))
 		_wall_material = _unshaded_material(WALL_COLOR)
 		_ladder_material = _unshaded_material(LADDER_COLOR)
+		_event_material = _unshaded_material(EVENT_COLOR)
 		_root = Node3D.new()
 	else:
 		_root = Node2D.new()
@@ -116,6 +128,7 @@ func _teardown() -> void:
 		_root.queue_free()
 	_root = null
 	_cells_2d.clear()
+	_event_cells_2d.clear()
 
 
 func _rebuild_3d() -> void:
@@ -126,6 +139,8 @@ func _rebuild_3d() -> void:
 		_root.add_child(_wire_box_instance(cell, _wall_material))
 	for cell: Vector3i in _ladder_cells():
 		_root.add_child(_wire_box_instance(cell, _ladder_material))
+	for cell: Vector3i in _ctx.registered_event_cells():
+		_root.add_child(_wire_box_instance(cell, _event_material))
 
 
 func _wire_box_instance(cell: Vector3i, material: StandardMaterial3D) -> MeshInstance3D:
@@ -138,9 +153,13 @@ func _wire_box_instance(cell: Vector3i, material: StandardMaterial3D) -> MeshIns
 
 func _on_draw_2d() -> void:
 	var size := Vector2(_ctx.cell_size.x, _ctx.cell_size.z)
+	var draw := _root as Node2D
 	for cell: Vector3i in _cells_2d:
 		var centre := Space.as_v2(_ctx.cell_centre(cell))
-		(_root as Node2D).draw_rect(Rect2(centre - size * 0.5, size), WALL_COLOR, false)
+		draw.draw_rect(Rect2(centre - size * 0.5, size), WALL_COLOR, false)
+	for cell: Vector3i in _event_cells_2d:
+		var centre := Space.as_v2(_ctx.cell_centre(cell))
+		draw.draw_rect(Rect2(centre - size * 0.5, size), EVENT_COLOR, false)
 
 
 ## The union of every terrain-walled cell and every cell [Occupancy] currently blocks -
