@@ -55,6 +55,16 @@ class _Frame:
 	var doc_path: String = ""
 	var page_index: int = -1
 
+	## Segment 5b: a resumable executor's own [method EventCommandExec.capture] result,
+	## set by [method EventRunner.restore] and consumed the next time [method
+	## EventRunner._drive] reaches [member cursor] - [method EventCommandExec.restore]
+	## is called instead of [method EventCommandExec.start] exactly once, for exactly
+	## that node, then this clears. Never set on a frame that restarted from a hash
+	## mismatch - there is no guarantee the node at that cursor is even the same command
+	## any more.
+	var pending_restore: bool = false
+	var pending_exec_state: Dictionary = {}
+
 
 var ctx: EventContext
 var latch: KeyLatch
@@ -90,7 +100,8 @@ func _init(a_ctx: EventContext) -> void:
 func begin(nodes: Array[Dictionary], doc_path: String = "", page_index: int = -1) -> void:
 	if finished:
 		return
-	_take_actor_over()
+	_suspend_actor_brain()
+	_cancel_actor_prior_motion()
 	var frame := _Frame.new()
 	frame.nodes = nodes
 	frame.doc_path = doc_path
@@ -118,14 +129,10 @@ func stop() -> void:
 
 
 ## Suspends [member EventContext.self_actor]'s own [Brain] (a patrolling [RouteBrain],
-## most obviously) and drops whatever it was already doing - a lease alone never
-## stopped either, which is why an actor used to keep walking straight through its own
-## event. The motion cancel is deferred: [method begin] can be reached synchronously
-## from inside [signal EventBus.actor_stepped], which [GridMotion._commit_step] emits
-## *while still running* - a reentrant [method MotionController.cancel] there would
-## clear fields that same commit is about to set right back, leaving the sprite stuck
-## rather than merely interrupted.
-func _take_actor_over() -> void:
+## most obviously) - a lease alone never stopped it, which is why an actor used to keep
+## walking straight through its own event. Called from both [method begin] and [method
+## restore]: either way this runner is taking the actor over.
+func _suspend_actor_brain() -> void:
 	var actor := ctx.self_actor if ctx != null else null
 	if actor == null:
 		return
@@ -133,12 +140,29 @@ func _take_actor_over() -> void:
 	if brain != null:
 		brain.suspend(true)
 		_suspended_brain = brain
+
+
+## Drops whatever motion the actor was already mid-flight on *before* this runner took
+## over - [method begin] only, never [method restore]: a restore's own
+## [method MotionController.from_save] (segment 5b) is what re-establishes this
+## runner's *own* prior motion, and cancelling would erase the very state about to be
+## written back into it.
+##
+## Deferred: [method begin] can be reached synchronously from inside [signal
+## EventBus.actor_stepped], which [GridMotion._commit_step] emits *while still
+## running* - a reentrant [method MotionController.cancel] there would clear fields
+## that same commit is about to set right back, leaving the sprite stuck rather than
+## merely interrupted.
+func _cancel_actor_prior_motion() -> void:
+	var actor := ctx.self_actor if ctx != null else null
+	if actor == null:
+		return
 	var motion := actor.motion()
 	if motion != null:
 		motion.call_deferred(&"cancel")
 
 
-## The other half of [method _take_actor_over] - always safe to call, including when
+## The other half of [method _suspend_actor_brain] - always safe to call, including when
 ## nothing was ever suspended.
 func _give_actor_back() -> void:
 	if _suspended_brain != null:
@@ -194,15 +218,22 @@ func resolve_key(authored_name: String) -> String:
 ## by whoever is restoring, not saved).
 func to_save() -> Dictionary:
 	var frames: Array = []
-	for frame: _Frame in _stack:
-		frames.append({
+	for i in _stack.size():
+		var frame: _Frame = _stack[i]
+		var entry := {
 			"doc_path": frame.doc_path,
 			"page_index": frame.page_index,
 			"doc_hash": EventCommand.doc_hash(frame.nodes),
 			# Embedded only when there is no file to reload from - see _Frame's own doc.
 			"nodes": frame.nodes.duplicate(true) if frame.doc_path == "" else [],
 			"cursor": frame.cursor,
-		})
+		}
+		# Only the top frame can ever have a live executor - every frame beneath it is
+		# a suspended caller sitting on its own already-resolved "call" node, waiting
+		# for the frame above to pop back to it (see _pop_frame).
+		if i == _stack.size() - 1 and frame.exec != null and frame.exec.resumable():
+			entry["exec_state"] = frame.exec.capture()
+		frames.append(entry)
 	return {
 		"map_id": str(ctx.map_id) if ctx != null else "",
 		"event_id": str(ctx.event_id) if ctx != null else "",
@@ -265,9 +296,16 @@ func restore(frames: Array) -> void:
 		frame.cursor = cursor
 		for n in nodes:
 			frame.by_id[str(n.get("id", ""))] = n
+
+		# Segment 5b: a resumable executor's own capture, only ever present when the
+		# cursor above wasn't just reset by a hash mismatch - see _Frame.pending_restore.
+		if cursor != "" and saved.has("exec_state"):
+			frame.pending_restore = true
+			frame.pending_exec_state = saved["exec_state"]
+
 		_stack.append(frame)
 
-	_take_actor_over()
+	_suspend_actor_brain()
 	_budget = NODE_BUDGET
 	_drive()
 
@@ -327,7 +365,14 @@ func _drive() -> void:
 
 		var coerced := _coerce_args(name, n)
 		ex.setup(n, coerced, ctx, self)
-		ex.start()
+		if frame.pending_restore:
+			# Segment 5b: this is the one node a restore is picking back up mid-flight -
+			# restore() instead of start(), and only ever once per frame.
+			frame.pending_restore = false
+			ex.restore(frame.pending_exec_state)
+			frame.pending_exec_state = {}
+		else:
+			ex.start()
 
 		var authored_key := str(n.get("key", ""))
 		if authored_key != "" and ex.own_key() != "":

@@ -1,16 +1,23 @@
 extends Node
 
-## Headless assertions over [EventRunner]/[EventScheduler] save-restore - segment 5a of
-## docs/stage-c-plan.md, restart granularity only.
+## Headless assertions over [EventRunner]/[EventScheduler] save-restore - segments 5a
+## (restart granularity) and 5b (mid-command resume) of docs/stage-c-plan.md.
 ##
 ##     godot --headless --path . res://tests/event_save_test.tscn
 ##
-## [b]Not built here (5b, mid-command resume):[/b] a [code]wait[/code] captured 6 seconds
-## into a 10-second count restarts the full 10 on restore, not 4 remaining - nothing
-## here calls a resumable executor's own [method EventCommandExec.capture]/[method
-## EventCommandExec.restore] yet, only [EventRunner]'s own frame/cursor. "Restart is
-## always a legal downgrade" (question 39) is exactly why this is still correct, just
-## coarser than 5b will make it.
+## [b]5b's actual scope here: [code]wait[/code] and [GridMotion]'s own commands[/b]
+## ([code]move_to[/code]/[code]move_by[/code]/[code]step[/code]/[code]jump[/code]'s
+## ladder-release fall). A resumable command's own [method EventCommandExec.capture]/
+## [method EventCommandExec.restore] are now actually called by [EventRunner] - see
+## [method EventRunner.restore]'s [code]pending_restore[/code] handling - rather than
+## existing unused.
+##
+## [b]Not covered by a test yet, though the same code path backs it:[/b] a capture
+## mid-fall (a ladder release or a walk off a ledge) - [method GridMotion.to_save]/
+## [method GridMotion.from_save] carry [code]falling[/code]/[code]fall_wait[/code]/
+## [code]fall_pending[/code] alongside the step fields, but nothing here builds a
+## height-capable map to exercise it. [FreeMotion] has no capture at all - every
+## free-motion command restarts (a legal downgrade, question 39).
 ##
 ## [b]Known gap:[/b] a runner captured mid-[code]call[/code] (a nested frame) is not
 ## exercised - every case here is a single top-level frame.
@@ -24,7 +31,7 @@ var _failed := 0
 
 func _ready() -> void:
 	print("")
-	print("event save/restore -- segment 5a, restart granularity")
+	print("event save/restore -- segment 5a (restart granularity) and 5b (mid-command resume)")
 	print("")
 
 	_test_doc_hash()
@@ -32,6 +39,8 @@ func _ready() -> void:
 	_test_hash_mismatch_restarts()
 	_test_scheduler_round_trip()
 	_test_battle_refuses_save()
+	_test_wait_resumes_remaining_time()
+	_test_move_to_mid_step_resume()
 
 	var abs_path := ProjectSettings.globalize_path(SCRATCH_DOC)
 	if FileAccess.file_exists(SCRATCH_DOC):
@@ -202,9 +211,101 @@ func _test_battle_refuses_save() -> void:
 	ModeStack.reset()
 
 
+# -- Segment 5b: mid-command resume ---------------------------------------------
+
+## The cheapest 5b case: [Wait] already had a real [method EventCommandExec.capture]/
+## [method EventCommandExec.restore] since segment 4 (the interface existed, unused) -
+## this proves [EventRunner] now actually calls them.
+func _test_wait_resumes_remaining_time() -> void:
+	_section("EventRunner -- a wait resumes with its remaining time, not a fresh count")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var actor: Actor = rig["actor"]
+	var ctx := EventContext.for_event(rig["ctx"], &"test_map", &"save_test", actor)
+
+	var nodes: Array[Dictionary] = [
+		{"id": "start", "command": "start", "args": {}, "outputs": [{"flow": "next", "target": "n1"}]},
+		{"id": "n1", "command": "wait", "args": {"seconds": 1.5},
+			"outputs": [{"flow": "next", "target": "n2"}]},
+		{"id": "n2", "command": "set_flag", "args": {"flag": "waited"}, "outputs": []},
+	]
+
+	var runner := EventRunner.new(ctx)
+	runner.begin(nodes)
+	runner.tick(0.6)
+	_ok(not runner.finished, "still waiting")
+
+	var restored := EventRunner.from_save(runner.to_save(), rig["ctx"])
+	restored.tick(0.85)
+	_ok(not restored.finished and not GameState.flag(&"waited"),
+		"0.85s of a 0.9s remainder isn't quite enough - a fresh 1.5s would have finished by now")
+	restored.tick(0.1)
+	_ok(restored.finished and GameState.flag(&"waited"),
+		"the remaining ~0.05s finishes it - resumed at 0.9s left, not restarted at 1.5")
+
+
+## The plan's own headline case: a multi-cell [code]move_to[/code] captured mid-step
+## restores to the same remainder and travels exactly the cells it was asked for in
+## total - the assertion that catches a step replayed (5 cells) or dropped (3).
+##
+## Drives [method GridMotion._process] by hand with fixed deltas rather than
+## [code]await get_tree().process_frame[/code] - this rig's nodes are genuinely live in
+## a running [SceneTree] (unlike every viewless rig elsewhere in this suite), but a
+## headless run's real per-frame delta is not something a test should depend on being
+## small (or large) enough to land mid-step. A synchronous run of direct calls, with no
+## [code]await[/code] in between, cannot race the engine's own automatic [method
+## Node._process] dispatch either - nothing yields back to it until this function does.
+func _test_move_to_mid_step_resume() -> void:
+	_section("EventRunner/GridMotion -- a move_to captured mid-step travels exactly 4 cells")
+	GameState.clear()
+
+	var rig := _build_rig(true)
+	var actor: Actor = rig["actor"]
+	var ctx: MapContext = rig["ctx"]
+	var motion := actor.motion()
+	var ectx := EventContext.for_event(ctx, &"test_map", &"save_test", actor)
+
+	var nodes: Array[Dictionary] = [
+		{"id": "start", "command": "start", "args": {}, "outputs": [{"flow": "next", "target": "n1"}]},
+		{"id": "n1", "command": "move_to", "args": {"cell": [4, 0, 0]},
+			"outputs": [{"flow": "next", "target": ""}]},
+	]
+
+	var runner := EventRunner.new(ectx)
+	runner.begin(nodes)  # commits the first cell synchronously - see the class doc
+
+	motion._process(0.1)  # partway through a 0.25s step at speed 4.0 - not yet settled
+	runner.tick(0.1)
+
+	_ok(not runner.finished, "still mid-move")
+	_eq(actor.cell(), Vector3i(1, 0, 0), "the first cell is already committed - the body snaps at commit")
+	_eq(ctx.occupancy.cells_of(actor.actor_id).size(), 1,
+		"exactly one cell claimed while mid-step - the body is never logically between cells")
+
+	var restored := EventRunner.from_save(runner.to_save(), ctx)
+
+	var finished := false
+	for i in 200:
+		motion._process(0.05)
+		restored.tick(0.05)
+		if restored.finished:
+			finished = true
+			break
+
+	_ok(finished, "the restored move_to runs to completion")
+	_eq(actor.cell(), Vector3i(4, 0, 0), "arrived exactly at the destination, not short or past it")
+	_eq(ctx.occupancy.cells_of(actor.actor_id).size(), 1,
+		"and still exactly one cell claimed once it settles")
+
+
 # -- Harness --------------------------------------------------------------------
 
-func _build_rig() -> Dictionary:
+## [param with_view] adds an [ActorView] over a bare [Node3D] visual - without one, a
+## step settles synchronously inside commit (every rig elsewhere in this suite is
+## viewless on purpose), which is no good for a test that needs a step genuinely
+## in flight to capture mid-tween.
+func _build_rig(with_view: bool = false) -> Dictionary:
 	var root := Node3D.new()
 	add_child(root)
 
@@ -230,6 +331,7 @@ func _build_rig() -> Dictionary:
 	var motion := GridMotion.new()
 	motion.name = "Motion"
 	motion.direction_count = 4
+	motion.speed = 4.0
 	actor.add_child(motion)
 
 	# A bare Brain, not a RouteBrain: only suspend()/is_suspended() are under test here,
@@ -237,6 +339,15 @@ func _build_rig() -> Dictionary:
 	var brain := Brain.new()
 	brain.name = "Brain"
 	actor.add_child(brain)
+
+	if with_view:
+		var visual := Node3D.new()
+		visual.name = "Visual"
+		body.add_child(visual)
+		var view := ActorView.new()
+		view.name = "View"
+		actor.add_child(view)
+		view.bind_visual(visual)
 
 	return {"root": root, "ctx": ctx, "actor": actor, "brain": brain}
 

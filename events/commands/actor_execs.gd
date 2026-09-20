@@ -13,8 +13,10 @@
 ## nothing to suspend it against a lease exists before segment 6/7's scheduler policy.
 
 
-## Walks to a cell. Blocking, RESUME_STATE - GridMotion's own capture()/restore()
-## (segment 5) will back this once it exists; today a save simply restarts it.
+## Walks to a cell. Blocking, RESUME_STATE - backed by [method GridMotion.to_save]/
+## [method GridMotion.from_save] (segment 5b) when the actor is a grid one; a
+## [FreeMotion] actor has no mid-flight capture yet, so it restarts instead (a legal
+## downgrade, question 39).
 class MoveTo extends EventCommandExec:
 	var _key := ""
 
@@ -40,6 +42,26 @@ class MoveTo extends EventCommandExec:
 		var a := actor()
 		if a != null:
 			a.motion().cancel()
+
+	func resumable() -> bool:
+		return true
+
+	func capture() -> Dictionary:
+		var a := actor()
+		var m := a.motion() if a != null else null
+		return {"motion": (m as GridMotion).to_save()} if m is GridMotion else {}
+
+	func restore(state: Dictionary) -> void:
+		var a := actor()
+		if a == null:
+			return
+		var m := a.motion()
+		if not (m is GridMotion):
+			start()
+			return
+		ctx.mark_actor_touched(a)
+		var keys := (m as GridMotion).from_save(state.get("motion", {}))
+		_key = str(keys.get("route_key", ""))
 
 
 ## Walks a relative number of cells - the same executor as [code]move_to[/code], since
@@ -70,6 +92,26 @@ class MoveBy extends EventCommandExec:
 		if a != null:
 			a.motion().cancel()
 
+	func resumable() -> bool:
+		return true
+
+	func capture() -> Dictionary:
+		var a := actor()
+		var m := a.motion() if a != null else null
+		return {"motion": (m as GridMotion).to_save()} if m is GridMotion else {}
+
+	func restore(state: Dictionary) -> void:
+		var a := actor()
+		if a == null:
+			return
+		var m := a.motion()
+		if not (m is GridMotion):
+			start()
+			return
+		ctx.mark_actor_touched(a)
+		var keys := (m as GridMotion).from_save(state.get("motion", {}))
+		_key = str(keys.get("route_key", ""))
+
 
 ## One grid cell in a direction - question 40's defect (a): [method GridMotion.step]
 ## returns a bare bool, so this reaches for [method GridMotion.step_keyed] where the
@@ -96,6 +138,26 @@ class StepCmd extends EventCommandExec:
 
 	func own_key() -> String:
 		return _key
+
+	func resumable() -> bool:
+		return true
+
+	func capture() -> Dictionary:
+		var a := actor()
+		var m := a.motion() if a != null else null
+		return {"motion": (m as GridMotion).to_save()} if m is GridMotion else {}
+
+	func restore(state: Dictionary) -> void:
+		var a := actor()
+		if a == null:
+			return
+		var m := a.motion()
+		if not (m is GridMotion):
+			start()
+			return
+		ctx.mark_actor_touched(a)
+		var keys := (m as GridMotion).from_save(state.get("motion", {}))
+		_key = str(keys.get("step_key", ""))
 
 
 ## Turns to face a direction or a relative turn (question 41) - resolved against the
@@ -154,6 +216,29 @@ class JumpCmd extends EventCommandExec:
 		var a := actor()
 		if a != null:
 			a.motion().cancel()
+
+	## Grid only: the one case a grid game's [code]jump[/code] has - a ladder release,
+	## paid out as a fall chain [method GridMotion.to_save] already captures. [FreeMotion]'s
+	## own real jump has no mid-flight capture yet, so it restarts.
+	func resumable() -> bool:
+		return true
+
+	func capture() -> Dictionary:
+		var a := actor()
+		var m := a.motion() if a != null else null
+		return {"motion": (m as GridMotion).to_save()} if m is GridMotion else {}
+
+	func restore(state: Dictionary) -> void:
+		var a := actor()
+		if a == null:
+			return
+		var m := a.motion()
+		if not (m is GridMotion):
+			start()
+			return
+		ctx.mark_actor_touched(a)
+		var keys := (m as GridMotion).from_save(state.get("motion", {}))
+		_key = str(keys.get("fall_key", ""))
 
 
 ## Instant, no animation - [code]path: "raw"[/code] on [method MotionController.move_to],

@@ -363,6 +363,118 @@ func jump(_strength: float) -> String:
 	return ""
 
 
+# -- Save/restore (segment 5b, question 39: mid-command resume) ---------------
+#
+# The body needs nothing captured - it is already sitting exactly on _step_to, and
+# Occupancy already agrees, because "the body snaps, it is authoritative from here on"
+# (the class doc) is true from the instant of commit, not just at settle. What a
+# restore actually needs is the sprite's own remainder, the queue behind it, and the
+# fall counters - everything else here is either derived (recomputed fresh in
+# from_save, never trusted from a frozen number a repainted ramp or a retuned
+# cell_size would make stale) or per-frame (_step_intent, _run_scale - Brain rewrites
+# both every frame, and restoring _step_intent would take a phantom step the instant
+# _process next ran).
+
+## What [method from_save] needs to pick the step in flight, the queue behind it and
+## any fall back up exactly where they were.
+func to_save() -> Dictionary:
+	var queue: Array = []
+	for c in _queue:
+		queue.append([c.x, c.y, c.z])
+	return {
+		"moving": _moving,
+		"step_from": [_step_from.x, _step_from.y, _step_from.z],
+		"step_to": [_step_to.x, _step_to.y, _step_to.z],
+		"step_left": _step_left,
+		"queue": queue,
+		# Keys name an in-flight await, and nothing survives a load still awaiting the
+		# one that was current before - only whether one was outstanding is captured;
+		# method from_save mints the fresh replacement.
+		"route_pending": _route_key != "",
+		"step_pending": _step_key != "",
+		"fall_pending": _fall_key != "",
+		"falling": _falling,
+		"fall_wait": _fall_wait,
+		"fall_begun": _fall_begun,
+	}
+
+
+## The inverse of [method to_save]. Returns the fresh keys minted for whichever of a
+## route/step/fall was outstanding at capture ("" for one that was not) - the caller
+## (an [EventCommandExec]'s own [method EventCommandExec.restore]) re-arms itself
+## against whichever key matches what it was originally awaiting, exactly as if this
+## controller had just minted it for a brand new call.
+##
+## Deliberately re-uses the ordinary step/fall machinery rather than re-implementing
+## completion: once the fields below are back in place, [method _process],
+## [method _settle] and [method _advance] carry on precisely as they would have if
+## nothing had ever paused - a multi-cell [member _queue] behind the restored step
+## commits each remaining cell for real, with its own [signal EventBus.actor_stepped]
+## and [Occupancy] update, because those steps genuinely have not happened yet.
+func from_save(state: Dictionary) -> Dictionary:
+	var ctx := context()
+
+	_queue.clear()
+	for c: Variant in state.get("queue", []) as Array:
+		_queue.append(_cell_of(c))
+
+	var route_key := ""
+	if bool(state.get("route_pending", false)):
+		route_key = _next_key("move")
+		_route_key = route_key
+
+	var step_key := ""
+	if bool(state.get("step_pending", false)):
+		step_key = _next_key("step")
+		_step_key = step_key
+		_last_step_key = step_key
+
+	var fall_key := ""
+	if bool(state.get("fall_pending", false)):
+		fall_key = _next_key("fall")
+		_fall_key = fall_key
+
+	_falling = int(state.get("falling", 0))
+	_fall_wait = float(state.get("fall_wait", 0.0))
+	_fall_begun = bool(state.get("fall_begun", false))
+
+	if bool(state.get("moving", false)) and ctx != null:
+		_step_from = _cell_of(state.get("step_from", [0, 0, 0]))
+		_step_to = _cell_of(state.get("step_to", [0, 0, 0]))
+		_step_left = float(state.get("step_left", 0.0))
+		_step_back = _surface_of(ctx, _step_from) - _surface_of(ctx, _step_to)
+		_rest = Vector3(0.0, Terrain.surface_offset(ctx, _step_to), 0.0)
+		_step_over_terrain = not (_actor != null and _actor.through_terrain) \
+			and Terrain.governs(ctx) \
+			and (Terrain.kind_at(ctx, _step_from) == Terrain.Kind.RAMP
+				or Terrain.kind_at(ctx, _step_to) == Terrain.Kind.RAMP)
+		_moving = true
+		var view := _actor.view() if _actor != null else null
+		if view != null:
+			var offset := _rest + _step_back * _step_left
+			offset.y += _ground_clearance()
+			view.set_step_offset(offset)
+		set_process(true)
+	elif _falling > 0 or _fall_wait > 0.0:
+		set_process(true)
+	elif not _queue.is_empty():
+		# Vanishingly unlikely to be captured (move_to calls _advance() synchronously,
+		# so "queued but not yet stepping" exists for less than a function call) but
+		# cheap to make correct rather than assumed away.
+		_advance()
+
+	return {"route_key": route_key, "step_key": step_key, "fall_key": fall_key}
+
+
+## A saved cell - a 3-element array, the same shape [RouteBrain]/[EventCommand] already
+## read a cell out of JSON with - back to a [Vector3i].
+func _cell_of(raw: Variant) -> Vector3i:
+	if raw is Array and (raw as Array).size() >= 3:
+		var a := raw as Array
+		return Vector3i(int(a[0]), int(a[1]), int(a[2]))
+	return Vector3i.ZERO
+
+
 # -- Internals ----------------------------------------------------------------
 
 ## The single moment a step happens.

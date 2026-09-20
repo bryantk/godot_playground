@@ -9,24 +9,39 @@ work queue; [open-questions.md](open-questions.md) is what is still undecided,
 
 ## Start here tomorrow
 
-**Update 2026-09-20 — segment 5a (restart granularity) is built, tested and green.**
-`EventCommand.doc_hash`, `EventRunner.to_save`/`to_save`-companion `restore`/`from_save`,
-`EventScheduler.to_save`/`from_save`, and brain-suspend/motion-cancel ownership moved from
-`GameEvent` into `EventRunner` itself (fixing the real gap the plan called out: a lease never
-stopped whoever already had the actor, and only `GameEvent`'s own polling ever gave it back
-before - `EventScheduler.reset_for_test()`/a restore now do too). `tests/event_save_test.gd`,
-26 assertions, all eleven suites green (868 total).
+**Update 2026-09-20 (later) — segment 5b (mid-command resume) is built too, for `wait` and
+every `GridMotion` command.** `EventRunner._drive()` now actually calls a resumable executor's
+own `capture()`/`restore()` (`_Frame.pending_restore`) instead of always restarting the node
+fresh - `Wait` already had a real implementation since segment 4 and was simply never called
+until now. `GridMotion.to_save()`/`from_save()` back `move_to`/`move_by`/`step`/`jump`'s
+ladder-release fall: the body needs no capture at all (it is already exactly on `_step_to` the
+instant a step commits, and `Occupancy` already agrees - "the body is never logically between
+cells"), only the sprite's own tween remainder, the queue behind it, and the fall counters.
+Keys are re-minted on restore, never trusted from before - `EventRunner`/`EventCommandExec`
+never survive a load still awaiting one that no longer exists. 9 new assertions (35 total in
+`tests/event_save_test.gd`), including the plan's own headline case: a 4-cell `move_to`
+captured mid-step travels exactly 4 cells in total, not 3 or 5.
 
-**Not built: 5b (mid-command resume).** A `wait` captured 6 seconds into a 10-second count
-restarts the full 10 on restore, not the remaining 4 - nothing calls a resumable executor's own
-`capture()`/`restore()` yet (the interface exists, unused), and `GridMotion`/`FreeMotion`/`Actor`/
-`ActorView` have no `to_save()`/`from_save()` at all. "Restart is always a legal downgrade"
-(question 39) is exactly why 5a alone is still correct, just coarser than 5b will make it - start
-here for that.
+**Still not built: `FreeMotion` has no capture at all** - every free-motion command restarts
+on restore rather than resuming mid-flight (a legal downgrade, question 39), and nothing tests
+a capture mid-fall (a ladder release or a walk off a ledge) even though `GridMotion`'s own
+`falling`/`fall_wait`/`fall_pending` fields are already there for it - no height-capable map
+exists in `event_save_test.gd` to exercise it against. `Actor`/`ActorView` themselves still
+have no `to_save()`/`from_save()` either, per the plan's own file list for 5b - nothing in the
+tests built so far needed one, since every case so far restores against the same live actor
+rather than a truly rebuilt one.
 
 **Also not built: a call-frame stack captured mid-`call`.** `EventRunner.restore()` handles it
 structurally (each frame carries its own `doc_path`/`page_index`, per the plan), but nothing
 tests a runner captured while inside a nested `call` - worth a case before trusting it.
+
+**Superseded 2026-09-20 note, kept for the record:** segment 5a (restart granularity) is built,
+tested and green. `EventCommand.doc_hash`, `EventRunner.to_save`/`restore`/`from_save`,
+`EventScheduler.to_save`/`from_save`, and brain-suspend/motion-cancel ownership moved from
+`GameEvent` into `EventRunner` itself (fixing the real gap the plan called out: a lease never
+stopped whoever already had the actor, and only `GameEvent`'s own polling ever gave it back
+before - `EventScheduler.reset_for_test()`/a restore now do too). `tests/event_save_test.gd`,
+26 assertions, all eleven suites green (868 total) - since risen to 877 with 5b, above.
 
 Segment 7 (routes) is still not started, and the previous note about it (below, 2026-09-19) is
 now current: segment 5 no longer blocks it, but nothing has touched `events/event_route.gd`
@@ -54,9 +69,9 @@ Segments 0–6 are built, tested and committed — segment 6 (`273066e`) added
 segment 4 (`b244ac4`), the four motion-key defects (`e81e38b`) and questions 48–52's planning
 session (`5d344ef`). Segment 5a joined them today (above). Eleven suites, all green.
 
-**Decided 2026-09-20: segment 5 (save/restore) is next, and 5a is now done** - see
-[stage-c-plan.md](stage-c-plan.md)'s own segment 5 section for the full shape. **5b
-(mid-command resume) is where to pick up**, per the update at the top of this section.
+**Segment 5 (save/restore) is now fully built**, 5a and 5b both, with the gaps named above.
+Segment 6 needs nothing further from it; **segment 7 (routes) is the next stage-c-plan.md
+segment with no code behind it at all.**
 
 ### Playtesting the iso free demo found five more real gaps (2026-09-19/20)
 
@@ -202,6 +217,9 @@ plus `demo_scenes_test.gd`'s unnumbered checks. Segments 5 and 7 still have no s
 **Updated 2026-09-20**: `event_save_test.gd` now exists (26 assertions, segment 5a - see the
 top of this file) - **868** total across eleven suites. `event_route_test.gd` (segment 7) still
 doesn't.
+
+**Updated again 2026-09-20**: `event_save_test.gd` grew to 35 assertions with segment 5b - **877**
+total. `event_route_test.gd` still doesn't exist.
 
 ### What segment 6 actually built
 
@@ -402,9 +420,9 @@ for t in stage_a areas demo_scenes height event_command actor_naming event_condi
 done
 ```
 
-**868 assertions, all green** as of 2026-09-20 (231+31+150+112+71+107+73+20+47+26, plus
-demo_scenes' unnumbered checks — `event_save_test.gd` (26) is segment 5a, new today; see
-"Update 2026-09-20" at the top of this file). Godot is not on PATH; use the
+**877 assertions, all green** as of 2026-09-20 (231+31+150+112+71+107+73+20+47+35, plus
+demo_scenes' unnumbered checks — `event_save_test.gd` (35) is segment 5a+5b, both built today;
+see the top of this file). Godot is not on PATH; use the
 `_console` build or a headless run prints nothing.
 
 Three hazards worth re-reading before a long debugging session, all of which cost time
