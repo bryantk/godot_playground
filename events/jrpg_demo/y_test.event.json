@@ -1,16 +1,14 @@
 {
 	"format": 1,
-	"id": "spinner",
+	"id": "y_test",
 	"pages": [
 		{
 			"conditions": [],
 			"settings": {
 				"trigger": "player_touch"
 			},
-			"art": {
-				"idle": "idle"
-			},
-			"lock_facing": true,
+			"art": {},
+			"lock_facing": false,
 			"through": true,
 			"through_terrain": false,
 			"lock_player": false,
@@ -20,7 +18,7 @@
 					"id": "start",
 					"title": "start",
 					"position": {
-						"x": -420,
+						"x": -180,
 						"y": 0
 					},
 					"command": "start",
@@ -36,13 +34,13 @@
 					"id": "n1",
 					"title": "set_y_level",
 					"position": {
-						"x": -199,
-						"y": 50
+						"x": 139,
+						"y": 5
 					},
 					"command": "set_y_level",
 					"args": {
 						"actor": "@player",
-						"y_level": 1.0
+						"y_level": 1
 					},
 					"outputs": [
 						{

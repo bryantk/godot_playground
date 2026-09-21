@@ -1,7 +1,8 @@
 ## State executors: [code]set_flag[/code], [code]set_self_flag[/code],
 ## [code]set_var[/code], [code]add_var[/code], [code]halt_control[/code],
-## [code]return_control[/code]. All non-blocking and complete synchronously -
-## [GameState] and [ModeStack] are both global autoloads, so there is nothing to wait on.
+## [code]return_control[/code], [code]print_debug[/code]. All non-blocking and complete
+## synchronously - [GameState] and [ModeStack] are both global autoloads, so there is
+## nothing to wait on, and [code]print_debug[/code] only ever talks to the console.
 
 
 ## Sets a global flag. [code]value[/code] defaults to true, matching a bare "set_flag"
@@ -50,6 +51,14 @@ class ReturnControl extends EventCommandExec:
 		ModeStack.pop()
 
 
+## Prints [code]text[/code] to the console and nowhere else - no dialogue window, no
+## [GameState], nothing a save round-trips. For watching a graph run in a build with no
+## debugger attached, or an event with no visual at all to eyeball instead.
+class PrintDebug extends EventCommandExec:
+	func start() -> void:
+		print(str(args.get("text", "")))
+
+
 static func table() -> Dictionary:
 	return {
 		"set_flag": SetFlag,
@@ -58,4 +67,5 @@ static func table() -> Dictionary:
 		"add_var": AddVar,
 		"halt_control": HaltControl,
 		"return_control": ReturnControl,
+		"print_debug": PrintDebug,
 	}

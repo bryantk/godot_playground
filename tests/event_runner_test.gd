@@ -27,6 +27,7 @@ func _ready() -> void:
 	_test_call_and_exit_call()
 	_test_goto_cycle_trips_budget()
 	_test_nonblocking_key_joined_by_wait_for()
+	_test_print_debug_runs_and_continues()
 
 	print("")
 	print("  %d passed, %d failed" % [_passed, _failed])
@@ -211,6 +212,30 @@ func _test_nonblocking_key_joined_by_wait_for() -> void:
 
 	_ok(runner.finished, "the graph completes")
 	_eq(guard.cell(), Vector3i(2, 0, 0), "and the guard actually moved the 2 cells")
+
+
+# -- print_debug: prints and moves on, nothing else observable -----------------------
+
+func _test_print_debug_runs_and_continues() -> void:
+	_section("EventRunner -- print_debug prints to the console and flows to next")
+	GameState.clear()
+
+	var nodes: Array[Dictionary] = [
+		{"id": "start", "command": "start", "args": {},
+			"outputs": [{"flow": "next", "target": "n1"}]},
+		{"id": "n1", "command": "print_debug", "args": {"text": "hello from a graph"},
+			"outputs": [{"flow": "next", "target": "n2"}]},
+		{"id": "n2", "command": "set_flag", "args": {"flag": "after_print_debug"}, "outputs": []},
+	]
+
+	var ctx := EventContext.for_event(null, &"test_map", &"print_debug_test", null)
+	var runner := EventRunner.new(ctx)
+	runner.begin(nodes)
+
+	_ok(runner.finished, "an all-synchronous chain finishes inside begin() alone")
+	_eq(runner.error, "", "with no error - print_debug has an executor, not the generic fallback")
+	_ok(GameState.flag(&"after_print_debug"), "and control reached the node after it")
+	GameState.clear()
 
 
 # -- Test rig ------------------------------------------------------------------------

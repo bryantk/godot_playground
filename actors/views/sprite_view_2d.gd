@@ -104,3 +104,8 @@ func _on_anim_finished(key: String) -> void:
 func _write_offset() -> void:
 	if _visual is Node2D:
 		(_visual as Node2D).position = Space.as_v2(_offset)
+
+
+func _write_y_level() -> void:
+	if _visual is CanvasItem:
+		(_visual as CanvasItem).z_index = y_level

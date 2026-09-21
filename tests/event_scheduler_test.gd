@@ -23,6 +23,7 @@ func _ready() -> void:
 
 	_test_trigger_on_load()
 	_test_trigger_player_touch()
+	await _test_trigger_player_touch_through_lets_the_player_step_onto_it()
 	_test_trigger_event_touch()
 	_test_trigger_leave_cell()
 	_test_trigger_action()
@@ -191,6 +192,32 @@ func _test_trigger_player_touch() -> void:
 	_ok(not GameState.flag(&"fired_leave_cell"), "and not leave_cell")
 	world["root"].free()
 	EventScheduler.reset()
+
+
+func _test_trigger_player_touch_through_lets_the_player_step_onto_it() -> void:
+	_section("GameEvent -- through: true lets a voluntary step land on the event's own cell")
+	EventScheduler.reset()
+	GameState.clear()
+
+	var world := _build_world()
+	var player := _build_actor(world, &"player", Vector3i(0, 0, 0))
+	# Placed and left to settle (Actor._claim_spawn_cell's own deferred Occupancy
+	# claim) before the player's step is attempted, unlike _test_trigger_player_touch -
+	# that test's step succeeds whether or not the event actually blocks, since nothing
+	# there ever waits for the deferred claim to land. This one means to prove the
+	# opposite would refuse, so it has to actually wait.
+	_build_event(world, &"ev", Vector3i(1, 0, 0), FIXTURES + "sched_player_touch_through.event.json")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	_ok(not GameState.flag(&"fired_player_touch"), "not yet - the player hasn't moved")
+	var stepped: bool = player.motion().step(Vector3i(1, 0, 0))
+	_ok(stepped, "the step onto 'ev' own cell is not refused - through: true phases it")
+	_eq(player.cell(), Vector3i(1, 0, 0), "and the player actually landed there")
+	_ok(GameState.flag(&"fired_player_touch"), "which fires player_touch")
+	world["root"].free()
+	EventScheduler.reset()
+	GameState.clear()
 
 
 func _test_trigger_event_touch() -> void:

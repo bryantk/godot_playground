@@ -1718,6 +1718,29 @@ func _selected_actor() -> Actor:
 	var found := ActorNaming.actors_under(node)
 	return found[0] if not found.is_empty() else null
 
+## The [GameEvent] the selection means, for a bodiless region trigger - one with no
+## [Actor] at all, so [method _selected_actor] finds nothing and [method
+## find_or_create_game_event_for_actor] has no actor to seek a sibling beside. Only
+## consulted when [method _selected_actor] comes back null: an actor's own sibling
+## [GameEvent] stays reached through that path, which is also where a missing one gets
+## created, so a placement with both is not ambiguous about which this returns.
+func _selected_game_event() -> GameEvent:
+	var selection := EditorInterface.get_selection().get_selected_nodes()
+	if selection.is_empty():
+		return null
+
+	var node: Node = selection[0]
+	return _first_game_event_under(node)
+
+static func _first_game_event_under(node: Node) -> GameEvent:
+	if node is GameEvent:
+		return node as GameEvent
+	for child in node.get_children():
+		var found := _first_game_event_under(child)
+		if found != null:
+			return found
+	return null
+
 ## The folder a map's event files live in: one per map, named for the edited scene's
 ## own file - stage-c-plan.md's [code]res://events/<map_id>/<event_id>.event.json[/code]
 ## layout. Falls back to "map" for a scene with no file yet, so the helpers built on
@@ -1734,23 +1757,34 @@ func _default_event_path(event_id: String) -> String:
 	var map_root := EditorInterface.get_edited_scene_root()
 	return "%s/%s.event.json" % [_map_event_dir(map_root), event_id]
 
-## Loads the selected actor's event file into the graph - the toolbar's own "Load Actor
-## Event" menu item, which reads the editor's current selection rather than taking a
-## node directly (see [method _selected_actor]). An [Actor] carries no document path of
-## its own (that is [GameEvent]'s business); this finds the [GameEvent] sibling
-## [method GameEvent._find_actor]'s own fallback expects, creating one there first if
-## none exists yet.
+## Loads the selected actor's (or bodiless event's) file into the graph - the toolbar's
+## own "Load Actor Event" menu item, which reads the editor's current selection rather
+## than taking a node directly (see [method _selected_actor]). An [Actor] carries no
+## document path of its own (that is [GameEvent]'s business); this finds the
+## [GameEvent] sibling [method GameEvent._find_actor]'s own fallback expects, creating
+## one there first if none exists yet.
+##
+## [b]No [Actor] in the selection at all is not a failure[/b] - a region trigger, a
+## chest, anything [method GameEvent] class doc calls "a bodiless region trigger" is
+## exactly a [GameEvent] with none, and [method _selected_game_event] is this button's
+## way of still finding one to open.
 func _on_load_actor_event() -> void:
 	if not _live():
 		return
 
 	var actor := _selected_actor()
-	if actor == null:
-		_set_status("Select an Actor, or a node containing one, to load its event file.",
-			_status_color(false))
+	if actor != null:
+		open_or_create_game_event(find_or_create_game_event_for_actor(actor))
 		return
 
-	open_or_create_game_event(find_or_create_game_event_for_actor(actor))
+	var event := _selected_game_event()
+	if event != null:
+		open_or_create_game_event(event)
+		return
+
+	_set_status(
+		"Select an Actor or a GameEvent, or a node containing one, to load its event file.",
+		_status_color(false))
 
 ## The [GameEvent] already sitting beside [param actor] - a sibling under the same
 ## parent, which is the shape [method GameEvent._find_actor]'s own fallback checks for

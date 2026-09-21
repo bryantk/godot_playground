@@ -13,6 +13,31 @@ class_name ActorView extends Node
 ## takes the first child, which is the normal arrangement.
 @export var visual_path: NodePath = NodePath()
 
+## Height, faked: higher draws over lower. Exported so a placement can start elevated
+## (an actor standing on a platform), and reachable at runtime through
+## [method set_y_level] - the `set_y_level` event command's target.
+##
+## Meaningful only relative to the other actors and sprites on the same map; a map's
+## floor and "above" tile layers bracket the whole range with their own z_index rather
+## than agreeing on it with this, so an actor stays between them regardless of where its
+## own y_level sits.
+@export var y_level: int = 0:
+	set(value):
+		y_level = value
+		_write_y_level()
+
+## Whether the visual is shown. Exported so a placement can start hidden - a chest not
+## yet revealed, a cutscene actor's stand-in - and reachable at runtime through
+## [method set_visible]. A stored property rather than a one-shot write for the same
+## reason [member y_level] is: something (a [GameEvent]'s own init push, event-pages.md
+## §4.3) may set this before [member visual_path] has resolved anything to write it
+## into, and [method _after_bind] re-applies it the moment that changes, so the value
+## is never silently dropped for having arrived early.
+@export var visible: bool = true:
+	set(value):
+		visible = value
+		_write_visible()
+
 var _visual: Node = null
 var _offset: Vector3 = Vector3.ZERO
 var _bound := false
@@ -52,6 +77,8 @@ func visual() -> Node:
 func _after_bind() -> void:
 	_bound = true
 	_warn_if_detached()
+	_write_y_level()
+	_write_visible()
 
 
 func _first_child() -> Node:
@@ -95,11 +122,32 @@ func apply_art(_art: Dictionary) -> void:
 	pass
 
 
+## Set [member visible] and apply it immediately. What the `set_visible` event command
+## calls; the export exists for a placement's resting visibility, this for changing it
+## while the map is live.
 func set_visible(v: bool) -> void:
+	visible = v
+
+
+func _write_visible() -> void:
 	if _visual is CanvasItem:
-		(_visual as CanvasItem).visible = v
+		(_visual as CanvasItem).visible = visible
 	elif _visual is Node3D:
-		(_visual as Node3D).visible = v
+		(_visual as Node3D).visible = visible
+
+
+## Set [member y_level] and apply it immediately. What the `set_y_level` event command
+## calls; the export exists for a placement's resting height, this for changing it -
+## a lift rising a step, a pit sinking one - while the map is live.
+func set_y_level(v: int) -> void:
+	y_level = v
+
+
+## Subclasses write [member y_level] into whatever their visual understands. The base
+## does nothing because [SpriteView3D]'s billboards are already depth-sorted by the 3D
+## renderer and have no equivalent of [CanvasItem.z_index] worth touching.
+func _write_y_level() -> void:
+	pass
 
 
 ## Plays [param anim] and returns a completion key, matching the pattern

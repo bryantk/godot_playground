@@ -12,6 +12,7 @@
 [ext_resource type="Script" uid="uid://djxeq3x4vd420" path="res://core/areas/speed_modifier.gd" id="16_speed"]
 [ext_resource type="PackedScene" path="res://games/isoish/actor_isoish_grid.tscn" id="18_grid"]
 [ext_resource type="Script" uid="uid://djiw6eurhp8ym" path="res://events/game_event.gd" id="20_game_event"]
+[ext_resource type="Script" path="res://core/debug_area_3d.gd" id="21_debug_area"]
 
 [sub_resource type="Environment" id="Environment_tl0cg"]
 background_mode = 1
@@ -154,6 +155,9 @@ speed = 2.0
 script = ExtResource("20_game_event")
 document_path = "res://events/isoish_demo/wanderer.event.json"
 
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Wanderer/GameEvent"]
+script = ExtResource("21_debug_area")
+
 [node name="Spinner" parent="Upscale/World/Map/Actors" instance=ExtResource("4_xyfnl")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 10.5)
 
@@ -163,6 +167,9 @@ actor_id = &"spinner"
 [node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Spinner" index="4"]
 script = ExtResource("20_game_event")
 document_path = "res://events/isoish_demo/spinner.event.json"
+
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Spinner/GameEvent"]
+script = ExtResource("21_debug_area")
 
 [node name="Camera" type="Camera3D" parent="Upscale/World/Map" unique_id=2109221331]
 

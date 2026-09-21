@@ -67,6 +67,45 @@ class_name GameEvent extends Node
 
 @export_file("*.event.json") var document_path: String = ""
 
+## This event's actor/sprite initialization data - event-pages.md §4.3's shape, kept
+## here rather than scattered across the [Actor]/[ActorView] it owns, so placing an NPC
+## means filling in one node's inspector instead of drilling into two. Pushed onto
+## whichever [Actor] [method _find_actor] finds by [method _push_init], on
+## [method Node._enter_tree] - before that [Actor]'s own [method Node._ready] runs
+## (see [method _push_init]'s own doc for why that ordering is guaranteed), so
+## registration and the spawn-cell claim it triggers already see the pushed values.
+##
+## [b]actor_id[/b] left blank here falls back to the placement node's own name
+## ([method _derived_actor_id]) rather than staying blank - but only when the [Actor]'s
+## own [member Actor.actor_id] is blank too, so a scene authored before this field
+## existed keeps whatever id it already hand-typed there.
+##
+## [b]through_actors[/b], [b]through_terrain[/b] and [b]facing_locked[/b] are only this
+## actor's resting default, not a fallback a page's own settings defer to: every parsed
+## page carries all three explicitly - [method EventDocument.parse] normalizes a source
+## document that omits one to an authored [code]false[/code], the same as writing it out
+## - so [method _apply_actor_flags] always has a real value of its own the moment any
+## page is active, and applies it on every switch. What these three actually govern is
+## the actor before that ever happens: a document with no pages at all (conditions that
+## never resolve one, or no [code]pages[/code] key), where [method _apply_actor_flags]
+## never runs and whatever [method _push_init] set here is all the actor ever gets.
+@export_group("Actor")
+@export var actor_id: StringName = &""
+@export var through_actors: bool = false
+@export var through_terrain: bool = false
+@export var motion_mode: Actor.MotionMode = Actor.MotionMode.INHERIT
+@export_range(4, 8, 4) var facing_count: int = 4
+@export var facing_locked: bool = false
+
+## This actor's initial draw order and visibility - see [member ActorView.y_level] and
+## [method ActorView.set_visible]. A one-time push, unlike the settings above: no page
+## mechanism re-applies either one, so whatever this event sets here is exactly what
+## the actor starts (and, unless a page or a `set_y_level`/`set_visible` command changes
+## it later, stays) at.
+@export_group("Sprite")
+@export var y_level: int = 0
+@export var visible: bool = true
+
 var _map: MapContext = null
 var _actor: Actor = null
 var _view: ActorView = null
@@ -107,6 +146,70 @@ var _has_pre_facing := false
 ## switch aside, a flag change mid-run still cannot retarget which run this pop belongs
 ## to) before that run's own pop is due.
 var _locked_player := false
+
+
+## Pushes this event's own [@export_group("Actor")]/[@export_group("Sprite")] fields
+## onto the [Actor]/[ActorView] it owns, before either one's own [method Node._ready]
+## has run.
+##
+## [b]The ordering this depends on[/b]: for a whole subtree added to the live tree in
+## one call - a packed scene instanced or loaded, which is every hand-authored map -
+## [method Node._enter_tree] cascades top-down through the entire subtree before any of
+## that subtree's [method Node._ready] calls begin (confirmed against Godot 4's actual
+## node-lifecycle order, not merely the docs' summary of it). Doing this push here
+## rather than in [method _ready] is what makes it not matter whether the [Actor] or
+## this [GameEvent] happens to sit first in the parent's child list - event-pages.md
+## §4.3 diagrams [GameEvent] as the [Actor]'s parent, but the demos actually author it
+## as a sibling instead, and both orderings need this to land before [method
+## Actor._ready] registers the actor (a synchronous, non-deferred call that reads
+## [member Actor.actor_id] directly) and before [method Actor._claim_spawn_cell] reads
+## [member Actor.through_actors] for [Occupancy]'s spawn-time phasing.
+##
+## [b]Not safe for an actor added to an already-live tree one node at a time[/b] - a
+## future `spawn` command that adds an [Actor] and only then adds this [GameEvent]
+## would find the [Actor] already through its own [method Node._ready] by the time this
+## fires. Nothing in this project builds an actor that way yet (see [ActorFactory]'s own
+## class doc); that command's own author will need to either add both together or call
+## this early by hand.
+func _enter_tree() -> void:
+	_push_init()
+
+
+func _push_init() -> void:
+	var a := _find_actor()
+	if a == null:
+		return
+
+	if actor_id != &"":
+		a.actor_id = actor_id
+	elif a.actor_id == &"":
+		# Nobody named this placement anywhere - not this field, and not a hand-typed
+		# id still sitting on the Actor node from before this field existed. Rather than
+		# push it into the world blank (core/map_context.gd's own registration
+		# push_error), fall back to the name the author already gave the node it sits
+		# under - every placement gets one of those for free, and it is usually already
+		# exactly what a hand-typed id would have said anyway (`Npc_17_9`, `Wanderer`).
+		a.actor_id = _derived_actor_id()
+	a.through_actors = through_actors
+	a.through_terrain = through_terrain
+	a.motion_mode = motion_mode
+	a.facing_count = facing_count
+	a.facing_locked = facing_locked
+
+	var v := a.view()
+	if v != null:
+		v.y_level = y_level
+		v.set_visible(visible)
+
+
+## The placement node's own name, as a last-resort [member Actor.actor_id] - see
+## [method _push_init]. [method _find_actor] already covers "the [Actor] is a sibling"
+## and "the [Actor] is this node's own child" (event-pages.md §4.3's two authored
+## shapes), and in both this node's own parent is that placement, not the [Actor] or
+## a document's document-relative anything.
+func _derived_actor_id() -> StringName:
+	var parent := get_parent()
+	return StringName(parent.name) if parent != null else &""
 
 
 func _ready() -> void:
@@ -254,8 +357,12 @@ func _apply_art() -> void:
 
 ## Applies a page's [code]lock_facing[/code]/[code]through[/code]/[code]through_terrain[/code]
 ## to the actor GameEvent owns, on activation - siblings of [code]art[/code], applied the
-## same way. [code]through[/code] also updates [Occupancy]'s own phasing table directly,
-## not just the export property: [method Actor._claim_spawn_cell] only ever reads
+## same way. [method EventDocument.parse] always writes all three explicitly (an
+## omitted key normalizes to [code]false[/code]), so this reads them the same way it
+## always has - see the [member through_actors] group's own doc for what that means for
+## [member facing_locked]/[member through_actors]/[member through_terrain] instead.
+## [code]through[/code] also updates [Occupancy]'s own phasing table directly, not just
+## the export property: [method Actor._claim_spawn_cell] only ever reads
 ## [member Actor.through_actors] once, at spawn, so a page switch has to push the change
 ## to where pathing actually looks for it.
 func _apply_actor_flags() -> void:
@@ -350,10 +457,10 @@ func _player() -> Actor:
 
 # -- The seven triggers --------------------------------------------------------------
 
-func _on_actor_stepped(actor_id: StringName, from: Vector3i, to: Vector3i) -> void:
+func _on_actor_stepped(stepped_id: StringName, from: Vector3i, to: Vector3i) -> void:
 	var my_cell := cell()
 
-	if _actor != null and actor_id == _actor.actor_id and to == my_cell:
+	if _actor != null and stepped_id == _actor.actor_id and to == my_cell:
 		_reregister_at(to)
 		var watching := _player()
 		if watching != null and to == watching.cell():
@@ -361,7 +468,7 @@ func _on_actor_stepped(actor_id: StringName, from: Vector3i, to: Vector3i) -> vo
 		return
 
 	var player := _player()
-	if player == null or actor_id != player.actor_id:
+	if player == null or stepped_id != player.actor_id:
 		return
 
 	if to == my_cell:

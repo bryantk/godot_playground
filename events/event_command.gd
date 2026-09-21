@@ -306,6 +306,14 @@ const COMMANDS: Dictionary = {
 		"blurb": "Add to a declared variable.",
 	},
 
+	# -- Debug -------------------------------------------------------------------
+	"print_debug": {
+		"args": {"text": T_STRING},
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"blurb": "Print text to the console - for watching a graph run without a window.",
+	},
+
 	# -- Input -------------------------------------------------------------------
 	"halt_control": {
 		# The manual half of "lock player" (event-pages.md): a page's own lock_player
@@ -391,6 +399,12 @@ const COMMANDS: Dictionary = {
 		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
 		"blurb": "Show or hide an actor.",
+	},
+	"set_y_level": {
+		"args": {"actor": T_ACTOR + "?", "y_level": T_INT},
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"blurb": "Change an actor's draw order relative to other actors and sprites.",
 	},
 
 	# -- Battle ----------------------------------------------------------------

@@ -4,14 +4,11 @@ var _parent : Node
 
 func _ready() -> void:
 	_parent = get_parent()
-	_parent.set("visible", false)
-	# Hide or remove the marker if this is not a debug build
-	if OS.is_debug_build():
-		_parent.set("visible", true)
+	_sync_visibility()
 
-func _unhandled_input(event: InputEvent) -> void:
-	if not event.is_pressed() or event.is_echo():
-		return
+func _process(_delta: float) -> void:
+	_sync_visibility()
 
-	if event.is_action("debug_toggle"):
-		_parent.set("visible", !_parent.get("visible"))
+func _sync_visibility() -> void:
+	var v = true if Engine.is_editor_hint() else DebugFlags.show_debug_view()
+	_parent.set("visible", v)
