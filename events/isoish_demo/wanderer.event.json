@@ -16,7 +16,15 @@
 			"through": false,
 			"through_terrain": true,
 			"lock_player": false,
-			"route": [],
+			"route": {
+				"mode": "waypoints",
+				"loop": "cycle",
+				"on_blocked": "wait",
+				"waypoints": [
+					{"cell": [15, 0, 7], "wait": 1.0},
+					{"cell": [11, 0, 7], "wait": 1.0}
+				]
+			},
 			"graph": [
 				{
 					"id": "start",

@@ -23,19 +23,24 @@ func _ok(c: bool, w: String) -> void:
 ## are the same scene file on disk; what separates them is the child hanging off the
 ## actor. This is the assertion that catches the tempting regression - giving NPCs their
 ## own scene again the next time one needs something the player does not have.
+##
+## [b]"Routed" no longer means "has a Brain".[/b] Since stage-c-plan.md segment 7, an
+## autonomous patrol is a page's own [code]route[/code] field, compiled and run by a
+## sibling [GameEvent] - the actor it drives has no [Brain] of its own at all, same as
+## the idle one. [method _is_routed] tells them apart by asking that sibling instead.
 func _check_brains(ctx: MapContext, player: Actor) -> void:
 	var routed: Actor = null
 	var idle: Actor = null
 	for who: Actor in ctx.actors():
 		if who == player:
 			continue
-		if who.brain() is RouteBrain:
+		if _is_routed(who):
 			routed = who
 		elif who.brain() == null:
 			idle = who
 
 	_ok(player.brain() is PlayerBrain, "the player's brain is a PlayerBrain")
-	_ok(routed != null, "an NPC is driven by a RouteBrain")
+	_ok(routed != null, "an NPC is driven by a page route")
 	_ok(idle != null, "an NPC has no brain and is only scenery")
 	if routed == null or idle == null:
 		return
@@ -61,9 +66,20 @@ func _check_brains(ctx: MapContext, player: Actor) -> void:
 		waited += 0.1
 		moved = routed.cell() != was_routed
 
-	_ok(moved, "the routed NPC walked its list (%s -> %s after %0.1fs)" % [
+	_ok(moved, "the routed NPC walked its route (%s -> %s after %0.1fs)" % [
 		was_routed, routed.cell(), waited])
 	_ok(idle.cell() == was_idle, "the brainless NPC stayed put")
+
+
+## True when [param who] is a child of a node that also has a sibling [GameEvent]
+## currently driving a route (event-pages.md §3, stage-c-plan.md segment 7) - the
+## structural test for "this is the patrol", now that patrolling carries no [Brain].
+func _is_routed(who: Actor) -> bool:
+	var parent := who.get_parent()
+	if parent == null:
+		return false
+	var ev := parent.get_node_or_null("GameEvent")
+	return ev is GameEvent and (ev as GameEvent).is_routed()
 
 
 ## X plus a direction turns to face it and takes no step. Held, not tapped: there is

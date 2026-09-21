@@ -9,7 +9,61 @@ work queue; [open-questions.md](open-questions.md) is what is still undecided,
 
 ## Start here tomorrow
 
-**Update 2026-09-20 (latest) — a real save/load game action exists, built on top of
+**Update 2026-09-20 (latest of all) — segment 7 (routes) is built, in three commits.**
+`events/event_route.gd` compiles a page's `route` dictionary (fixed/waypoints/steps/
+toward/away/random, all three `loop` modes, all four `on_blocked` policies) into the
+same command-node shape `EventRunner` already walks - three new registry commands
+(`route_step`/`route_move_to`/`route_seek`) give a compiled node a second "blocked" flow
+port, which is how `on_blocked` becomes ordinary graph wiring rather than new runner
+logic. `wait`'s retry and `toward`/`away`/`random`'s own self-loop are paced through a
+small `RETRY_DELAY` wait node rather than retrying same-tick, since an unpaced retry
+against a permanent block is indistinguishable from a `goto` cycle to `EventRunner`'s
+node budget. `EventRoute.resolve()` handles a shared `{"use": "name"}` reference against
+`res://events/routes/<name>.route.json`. 70 assertions in `tests/event_route_test.gd`.
+
+`GameEvent` now starts an active page's route as its own background runner, leased the
+same way a triggered graph is - the two never run at once. The moment a triggered graph
+is about to start, `_suspend_route_for_lease()` captures the route runner's in-flight
+progress onto `Actor.suspended_route` (question 52's bookmark, `{hash, frames}`) and
+discards it; once the graph finishes, `_start_route()` recompiles the route and either
+resumes from that bookmark (hash still matches) or restarts from the top ("restart is
+always a legal downgrade" at route granularity). A page switch discards the route
+outright instead, since art/logic/route all change together. `EventScheduler` gained
+`adopt_background()` for registering an already-restored runner, mirroring what
+`from_save()` already does internally. `Actor.suspended_route` carries the bookmark
+through `to_save()`/`from_save()` as plain JSON-safe data. Found and fixed a real bug
+along the way: every worked example in `docs/events/` authors an empty route as `[]`
+(an array), which `EventRoute`/`GameEvent` were never told to expect - `_route_of_page`
+now reads anything that isn't a Dictionary as stationary. Three new assertions in
+`tests/event_scheduler_test.gd`, including the headline case: a patrol interrupted one
+step and a third of a second into a wait resumes there rather than restarting (a wrong
+resume would double the first step and land the actor a whole cell further out, which
+the ending-cell assertion alone already catches).
+
+**`RouteBrain` is deleted.** It polled `is_moving()` and walked its own command list - a
+second execution engine the plan named as the thing to retire once routes compiled to
+commands. All three demos' patrolling NPCs (`Npc_8_12` in `jrpg_demo`, `Event__2` in
+`isoish_grid_demo`, the `Wanderer` in the iso free demo, which already had a `GameEvent`
+sibling for its `event_touch` greeting and just gained a `route` on the same page) now
+patrol through a page-authored `route` field instead. `demo_scenes_test.gd`'s own
+"driven by a RouteBrain" check is now "driven by a page route" (`GameEvent.is_routed()`),
+since neither the patrol nor the idle NPC has a `Brain` any more - nothing but a sibling
+`GameEvent`'s own state tells them apart now.
+
+**Not built, deliberately out of segment 7's own scope**: a route referenced via
+`{"use": "name"}` is resolved by `EventRoute.resolve()`, but nothing in `EventDocument`'s
+page parsing calls it automatically yet - a page authored against a shared route today
+needs something to call `resolve()` before handing the result to `GameEvent`. Worth
+doing before the Routes panel (question 45) needs it. Also not built: the editor
+surfaces themselves (Routes panel, viewport gizmos) - decided, deliberately deferred
+until segment 7's runtime existed to build them against.
+
+**Current suite totals, all green** (re-run 2026-09-20): 231 (stage_a) + 31 (areas) +
+150 (height) + 112 (event_command) + 71 (actor_naming) + 107 (event_condition) + 73
+(event_document) + 20 (event_runner) + 59 (event_scheduler) + 35 (event_save) + 9
+(save_game) + 70 (event_route) = **968**, plus `demo_scenes_test.gd`'s unnumbered checks.
+
+**Update 2026-09-20 (earlier) — a real save/load game action exists, built on top of
 segment 5.** New autoload `SaveGame` (`core/save_game.gd`), one slot (`user://save_slot_1.json`),
 composing `GameState.to_save()` + `EventScheduler.to_save()` + every current actor's own new
 `Actor.to_save()`/`from_save()` (cell/world/facing - the gap the note below used to name) into
@@ -63,9 +117,10 @@ stopped whoever already had the actor, and only `GameEvent`'s own polling ever g
 before - `EventScheduler.reset_for_test()`/a restore now do too). `tests/event_save_test.gd`,
 26 assertions, all eleven suites green (868 total) - since risen to 877 with 5b, above.
 
-Segment 7 (routes) is still not started, and the previous note about it (below, 2026-09-19) is
-now current: segment 5 no longer blocks it, but nothing has touched `events/event_route.gd`
-either.
+~~Segment 7 (routes) is still not started, and the previous note about it (below,
+2026-09-19) is now current: segment 5 no longer blocks it, but nothing has touched
+`events/event_route.gd` either.~~ **Built later the same day** — see the top of this
+file.
 
 **Superseded 2026-09-19 note, kept for the record:** segment 7 has *not* been started. This section said so back on
 2026-09-14, right after segment 6 landed, and nothing since has touched `events/event_route.gd`
@@ -90,8 +145,9 @@ segment 4 (`b244ac4`), the four motion-key defects (`e81e38b`) and questions 48�
 session (`5d344ef`). Segment 5a joined them today (above). Eleven suites, all green.
 
 **Segment 5 (save/restore) is now fully built**, 5a and 5b both, with the gaps named above.
-Segment 6 needs nothing further from it; **segment 7 (routes) is the next stage-c-plan.md
-segment with no code behind it at all.**
+Segment 6 needs nothing further from it; ~~**segment 7 (routes) is the next stage-c-plan.md
+segment with no code behind it at all.**~~ **Also built later the same day** — segment 7
+is done too, see the top of this file. Stage C is now fully built, segments 0 through 7.
 
 ### Playtesting the iso free demo found five more real gaps (2026-09-19/20)
 

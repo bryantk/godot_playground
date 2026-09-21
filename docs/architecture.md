@@ -213,28 +213,31 @@ func _apply(delta: float) -> void     # base hands it to Grid | Free motion
 
 **Player and NPC are the same scene.** One actor prefab per game is instanced for every
 actor on the map; what makes one of them the player is a `PlayerBrain` child on its
-`Actor`, and what makes another a patrol is a `RouteBrain`. An actor with no brain stands
-there, which is exactly what scenery wants. The alternative — a `player_x.tscn` beside an
-`npc_x.tscn` — duplicated the sprite, the view wiring and the collision shape twice per
-game and made every fix to an actor a fix in two files.
+`Actor`. An actor with no brain stands there, which is exactly what scenery wants. The
+alternative — a `player_x.tscn` beside an `npc_x.tscn` — duplicated the sprite, the view
+wiring and the collision shape twice per game and made every fix to an actor a fix in two
+files.
 
 Brains speak one currency, `InputIntent`, and the base class is what turns an intent into
-motion. That split matters: filling the intent varies by *who is asking* (a keyboard, a
-command list, an event graph), applying it varies by *which controller the actor has*
-(`GridMotion` takes a committed step, `FreeMotion` continuous steering), and neither side
-needs to know the other's answer.
+motion. That split matters: filling the intent varies by *who is asking* (a keyboard, an
+event graph's own compiled command), applying it varies by *which controller the actor
+has* (`GridMotion` takes a committed step, `FreeMotion` continuous steering), and neither
+side needs to know the other's answer.
 
 | Brain | Fills the intent from | Status |
 | --- | --- | --- |
 | `PlayerBrain` | the keyboard, through `InputProfile` and the map's camera yaw | stage A, was `InputDriver` |
-| `RouteBrain` | a fixed list of `move_to` / `step` / `face` / `wait` commands, looping | stage A |
 | event graphs | a runner driving the actor through a lease | stage C, §7 |
 
-`RouteBrain`'s command list is the event format's — the same names and argument keys
-event-pages.md specifies — so stage C's runner executes what a route already holds rather
-than a format anyone has to migrate. What a route deliberately has not got is branching
-or any way to notice the player: an actor that should react wants an event graph, and
-`RouteBrain` growing conditions would be that system built twice.
+**A patrol was `RouteBrain` through stage C segment 6; it is a compiled `route`
+since segment 7 (2026-09-20), and `RouteBrain` is deleted.** What made another actor a
+patrol used to be a `RouteBrain` child running its own fixed command list. Segment 7
+retired that in favour of `EventRoute.compile()` turning a page's own `route` field
+(event-pages.md §3) into the same command stream an event graph runs, executed by its
+own background `EventRunner` off a sibling `GameEvent` — not a `Brain` at all, so a
+patrolling actor now looks exactly like scenery from `Actor`'s own point of view. The
+reasoning below (one format, no branching) is unchanged; only which system owns running
+it moved.
 
 ### `MotionController`
 
@@ -804,7 +807,6 @@ actors/
   brain/
     brain.gd               Brain base — intent in, motion out
     player_brain.gd        PlayerBrain — the keyboard (was core/input_driver.gd)
-    route_brain.gd         RouteBrain — a looping command list
   motion/
     motion_controller.gd   base
     grid_motion.gd

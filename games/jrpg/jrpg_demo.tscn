@@ -8,7 +8,6 @@
 [ext_resource type="Script" uid="uid://djxeq3x4vd420" path="res://core/areas/speed_modifier.gd" id="5_ika12"]
 [ext_resource type="Script" uid="uid://bw0on2cdcl40l" path="res://actors/brain/player_brain.gd" id="5_irolo"]
 [ext_resource type="Script" uid="uid://dfyo0bfp6lnmf" path="res://core/areas/area_zone.gd" id="6_e1s23"]
-[ext_resource type="Script" uid="uid://kgmsoygjvc80" path="res://actors/brain/route_brain.gd" id="6_q5ugx"]
 [ext_resource type="Script" uid="uid://dbqof4tvekdto" path="res://core/camera/room_camera_2d.gd" id="12_gxjgp"]
 [ext_resource type="Resource" path="res://games/jrpg/jrpg_input.tres" id="14_eih3y"]
 [ext_resource type="TileSet" uid="uid://6via8glhbs70" path="res://games/jrpg/jrpg_pathing.tres" id="15_pathing"]
@@ -110,29 +109,9 @@ position = Vector2(136, 200)
 [node name="Actor" parent="Actors/Npc_8_12" index="0"]
 actor_id = &"npc_8_12"
 
-[node name="Brain" type="Node" parent="Actors/Npc_8_12/Actor" index="3" unique_id=1018433058]
-script = ExtResource("6_q5ugx")
-commands = Array[Dictionary]([{
-"args": {
-"cell": [12, 0, 12]
-},
-"command": "move_to"
-}, {
-"args": {
-"seconds": 1.0
-},
-"command": "wait"
-}, {
-"args": {
-"cell": [8, 0, 12]
-},
-"command": "move_to"
-}, {
-"args": {
-"seconds": 1.5
-},
-"command": "wait"
-}])
+[node name="GameEvent" type="Node" parent="Actors/Npc_8_12" unique_id=1018433058]
+script = ExtResource("17_game_event")
+document_path = "res://events/jrpg_demo/npc_patrol.event.json"
 
 [node name="Sprite" parent="Actors/Npc_8_12" index="1"]
 modulate = Color(0.65, 0.8, 1, 1)

@@ -12,9 +12,10 @@ extends Node2D
 ## What is left here is behaviour: the pulse counter, the escape key, and the HUD text.
 ##
 ## The player and both NPCs are one prefab, [code]actor_jrpg.tscn[/code]. What makes
-## one of them the player is the [Brain] hanging off its [Actor] - a [PlayerBrain]
-## here, a [RouteBrain] pacing the NPC at the bottom of the map, and no brain at all on
-## the other, which is why it stands there.
+## the player the player is the [Brain] hanging off its [Actor] - a [PlayerBrain] here.
+## Neither NPC has one: one stands there with nothing to drive it, and the other paces
+## because a sibling [GameEvent] compiles and runs its page's own [code]route[/code]
+## (event-pages.md §3, stage-c-plan.md segment 7) - not a [Brain] any more.
 ##
 ## Collision is hand-painted, not derived from the art: the [code]Pathing[/code] layer
 ## carries one tile per cell saying which of its four sides may be crossed, and

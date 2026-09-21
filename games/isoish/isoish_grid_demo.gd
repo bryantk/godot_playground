@@ -15,9 +15,11 @@ extends Node
 ## [code]INHERIT[/code] so the map's [code]default_motion[/code] is what decides - the
 ## precedence rule that keeps "grid movement in a 3D town" possible.
 ##
-## What separates the three is the [Brain] child each placement carries: a [PlayerBrain]
-## on the player, a [RouteBrain] pacing the guard north of the wall, and nothing at all
-## on the one standing in the doorway.
+## What separates the three: the player carries a [PlayerBrain]. Neither NPC has a
+## [Brain] any more - the one standing in the doorway simply has nothing driving it,
+## and the guard north of the wall paces because a sibling [GameEvent] compiles and
+## runs its page's own [code]route[/code] (event-pages.md §3, stage-c-plan.md
+## segment 7) instead of the [code]RouteBrain[/code] this scene used to carry.
 ##
 ## Controls: WASD/arrows step, X+direction turns in place, Shift runs, Q/E rotate the view,
 ## 1 4-way/8-way, 2 sub-texel smoothing, 3 terrain data on/off, Esc back.

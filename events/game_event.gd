@@ -182,6 +182,14 @@ func is_busy() -> bool:
 	return _runner != null and not _runner.finished
 
 
+## Whether this event's active page is currently driving its actor through a
+## background route runner - what distinguishes an autonomously-patrolling actor from
+## one that is merely scenery or interaction-only, now that neither has a [Brain] of
+## its own to tell them apart by (see [method _start_route]'s class-doc note).
+func is_routed() -> bool:
+	return _route_runner != null
+
+
 func active_page() -> int:
 	return _active_page
 

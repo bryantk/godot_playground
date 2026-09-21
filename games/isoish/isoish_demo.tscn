@@ -11,7 +11,6 @@
 [ext_resource type="Script" uid="uid://dfyo0bfp6lnmf" path="res://core/areas/area_zone.gd" id="15_zone"]
 [ext_resource type="Script" uid="uid://djxeq3x4vd420" path="res://core/areas/speed_modifier.gd" id="16_speed"]
 [ext_resource type="PackedScene" path="res://games/isoish/actor_isoish_grid.tscn" id="18_grid"]
-[ext_resource type="Script" uid="uid://kgmsoygjvc80" path="res://actors/brain/route_brain.gd" id="19_route"]
 [ext_resource type="Script" uid="uid://djiw6eurhp8ym" path="res://events/game_event.gd" id="20_game_event"]
 
 [sub_resource type="Environment" id="Environment_tl0cg"]
@@ -150,30 +149,6 @@ motion_mode = 1
 
 [node name="Motion" parent="Upscale/World/Map/Actors/Wanderer/Actor" index="1"]
 speed = 2.0
-
-[node name="Brain" type="Node" parent="Upscale/World/Map/Actors/Wanderer/Actor" index="3"]
-script = ExtResource("19_route")
-commands = Array[Dictionary]([{
-"args": {
-"cell": [15, 0, 7]
-},
-"command": "move_to"
-}, {
-"args": {
-"seconds": 1.0
-},
-"command": "wait"
-}, {
-"args": {
-"cell": [11, 0, 7]
-},
-"command": "move_to"
-}, {
-"args": {
-"seconds": 1.0
-},
-"command": "wait"
-}])
 
 [node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Wanderer" index="4"]
 script = ExtResource("20_game_event")

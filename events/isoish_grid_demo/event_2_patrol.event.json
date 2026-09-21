@@ -1,0 +1,25 @@
+{
+	"format": 1,
+	"id": "event_2_patrol",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {},
+			"art": {},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
+			"lock_player": false,
+			"route": {
+				"mode": "waypoints",
+				"loop": "cycle",
+				"on_blocked": "wait",
+				"waypoints": [
+					{"cell": [7, 0, 1], "wait": 1.0},
+					{"cell": [7, 0, 4], "wait": 1.5}
+				]
+			},
+			"graph": []
+		}
+	]
+}
