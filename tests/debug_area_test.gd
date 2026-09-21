@@ -18,6 +18,7 @@ func _ready() -> void:
 	_test_2d_hidden_then_shown_by_the_debug_flag()
 	_test_2d_follows_the_placement_through_a_plain_node_parent()
 	_test_3d_builds_a_wire_box_sized_to_area_size()
+	_test_3d_box_rests_on_the_anchor_rather_than_straddling_it()
 	_test_3d_follows_the_placement_through_a_plain_node_parent()
 
 	print("")
@@ -92,6 +93,27 @@ func _test_3d_builds_a_wire_box_sized_to_area_size() -> void:
 	var first_mesh := box.mesh
 	area.area_size = Vector3(2, 3, 4)
 	_ok(box.mesh != first_mesh, "changing area_size rebuilds the mesh rather than scaling the node")
+
+	area.free()
+
+
+## Regression: the box used to sit centred on the anchor - which is an actor's own
+## ground position, not its middle - so it hung half its own height below the floor.
+func _test_3d_box_rests_on_the_anchor_rather_than_straddling_it() -> void:
+	_section("DebugArea3D -- the box rests on the anchor's ground, not centred through it")
+
+	var area := DebugArea3D.new()
+	area.area_size = Vector3(1, 2, 1)
+	add_child(area)
+
+	var box := area.get_node_or_null("WireBox") as MeshInstance3D
+	_eq(box.position, Vector3(0, 1, 0), "raised by half its own height, so its base is at y=0")
+
+	area.area_size = Vector3(1, 6, 1)
+	_eq(box.position, Vector3(0, 3, 0), "and re-raised when area_size's own height changes")
+
+	area.offset = Vector3(0, 1, 0)
+	_eq(box.position, Vector3(0, 4, 0), "offset stacks on top of the half-height raise")
 
 	area.free()
 

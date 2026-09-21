@@ -18,15 +18,17 @@ class_name DebugArea3D extends Node3D
 		# at all - _ready() picks up whatever area_size ends up holding by then, and
 		# calling _rebuild() this early would be building a mesh nobody can see yet
 		# for no reason. Once _box exists, a later edit (the inspector, live) is the
-		# case this rebuilds for.
+		# case this rebuilds for. Position too, not just the mesh: _box_position()
+		# reads area_size.y.
 		if _box != null:
 			_rebuild()
+			_box.position = _box_position()
 
 @export var offset: Vector3 = Vector3.ZERO:
 	set(value):
 		offset = value
 		if _box != null:
-			_box.position = offset
+			_box.position = _box_position()
 
 @export var color: Color = Color(0.35, 0.55, 1.0, 0.9):
 	set(value):
@@ -81,10 +83,21 @@ func _rebuild() -> void:
 		_box = MeshInstance3D.new()
 		_box.name = "WireBox"
 		_box.material_override = _material
-		_box.position = offset
+		_box.position = _box_position()
 		add_child(_box)
 
 	_box.mesh = _build_wire_box(area_size)
+
+
+## [member offset] plus half [member area_size]'s own height: [method _find_anchor]'s
+## anchor is an actor's own [member Node3D.position], which [Actor.world_position]'s
+## own doc calls the ground it stands on, not its middle - the same convention
+## [method DebugPassabilityView._wire_box_instance] rests its box on with a hardcoded
+## [code]Vector3(0.0, 0.5, 0.0)[/code]. Deriving it from [member area_size] instead of
+## a fixed 0.5 is what keeps the box resting on the ground rather than sinking half
+## into it when [member area_size]'s own height is not 1.
+func _box_position() -> Vector3:
+	return offset + Vector3(0.0, area_size.y * 0.5, 0.0)
 
 
 ## The 12 edges of a [param size] box, centred on the origin, as line-primitive
