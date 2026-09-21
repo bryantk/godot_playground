@@ -233,6 +233,33 @@ const COMMANDS: Dictionary = {
 		"blurb": "Pause until an actor is centred on its cell.",
 	},
 
+	# -- Route (segment 7) -------------------------------------------------------
+	#
+	# Never authored by hand - EventRoute.compile() is the only writer of these three.
+	# Each has a second flow port, "blocked", that a page's own move_to/step never
+	# need: a route's on_blocked policy (event-pages.md §3) is which target the
+	# compiler wires that port to, not something these executors decide.
+
+	"route_step": {
+		"args": {"actor": T_ACTOR + "?", "direction": T_DIR},
+		"flows": ["next", "blocked"], "blocking": true, "space": SPACE_GRID,
+		"resume": RESUME_STATE,
+		"blurb": "One compiled-route grid step, branching on whether it was refused.",
+	},
+	"route_move_to": {
+		"args": {"actor": T_ACTOR + "?", "cell": T_CELL, "speed": T_FLOAT + "?"},
+		"flows": ["next", "blocked"], "blocking": true, "space": SPACE_ANY,
+		"resume": RESUME_STATE,
+		"blurb": "One compiled-route walk-to-cell, branching on whether it stopped short.",
+	},
+	"route_seek": {
+		"args": {"actor": T_ACTOR + "?", "target": T_ACTOR + "?", "mode": T_STRING,
+			"speed": T_FLOAT + "?"},
+		"flows": ["next", "blocked"], "blocking": true, "space": SPACE_GRID,
+		"resume": RESUME_RESTART,
+		"blurb": "One compiled-route step toward/away/random, target read live.",
+	},
+
 	# -- Dialogue --------------------------------------------------------------
 	"say": {
 		"args": {"text": T_STRING, "location": T_INT + "?"},

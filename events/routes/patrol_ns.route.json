@@ -1,0 +1,7 @@
+{
+	"mode": "steps",
+	"loop": "pingpong",
+	"on_blocked": "wait",
+	"speed": 1.0,
+	"steps": ["n", "n"]
+}

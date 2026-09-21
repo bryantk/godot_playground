@@ -104,6 +104,7 @@ const _DialogueExecs := preload("res://events/commands/dialogue_execs.gd")
 const _StateExecs := preload("res://events/commands/state_execs.gd")
 const _MapExecs := preload("res://events/commands/map_execs.gd")
 const _PresentationExecs := preload("res://events/commands/presentation_execs.gd")
+const _RouteExecs := preload("res://events/commands/route_execs.gd")
 
 static var _table: Dictionary = {}
 
@@ -111,7 +112,7 @@ static func _ensure_table() -> void:
 	if not _table.is_empty():
 		return
 	for source: GDScript in [_FlowExecs, _ActorExecs, _DialogueExecs, _StateExecs,
-			_MapExecs, _PresentationExecs]:
+			_MapExecs, _PresentationExecs, _RouteExecs]:
 		var part: Dictionary = source.table()
 		for key: Variant in part:
 			_table[key] = part[key]
