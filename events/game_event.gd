@@ -46,14 +46,24 @@ class_name GameEvent extends Node
 ## [method Actor.set_facing]. `halt_control`/`return_control` (event_command.gd) are the
 ## manual equivalent, for locking past a run's own end on purpose.
 ##
-## [b]The actor's own brain and in-flight route are the runner's business, not
-## this file's.[/b] [EventRunner] suspends [method Actor.brain] and cancels whatever
-## motion was already happening the moment it [method EventRunner.begin]s or
-## [method EventRunner.restore]s, and gives both back on every path that ends it - see
-## its own class doc. That used to live here, gated on [method poll] noticing the
-## runner finish; moving it into the runner itself is what makes [method
-## EventScheduler.reset]/a save restore also un-suspend correctly, not only
-## the ordinary finish this file's own polling would have caught.
+## [b]The actor's own brain is the runner's business, not this file's.[/b] [EventRunner]
+## suspends [method Actor.brain] and cancels whatever motion was already happening the
+## moment it [method EventRunner.begin]s or [method EventRunner.restore]s, and gives
+## both back on every path that ends it - see its own class doc. That used to live
+## here, gated on [method poll] noticing the runner finish; moving it into the runner
+## itself is what makes [method EventScheduler.reset]/a save restore also un-suspend
+## correctly, not only the ordinary finish this file's own polling would have caught.
+##
+## [b]A page's autonomous route (event-pages.md §3) is this file's business, though[/b] -
+## [method _start_route]/[method _stop_route] compile it ([EventRoute], stage-c-plan.md
+## segment 7) and run it as its own background [EventRunner], leased the same way the
+## triggered graph is. The two runners never coexist on the same actor: the moment
+## [method _maybe_fire] is about to start a triggered run, [method
+## _suspend_route_for_lease] captures the route runner's own progress onto [member
+## Actor.suspended_route] (question 52's bookmark, at route granularity - the same
+## "restart is always a legal downgrade" rule as a whole document's save) and discards
+## it, and [method poll] starts a fresh one back up - resumed if the route has not
+## changed underneath it, restarted from its own beginning if it has.
 
 @export_file("*.event.json") var document_path: String = ""
 
@@ -70,6 +80,11 @@ var _fired_once: Dictionary = {}
 var _runner: EventRunner = null
 var _runner_ctx: EventContext = null
 var _player_cache: Actor = null
+
+## The active page's own autonomous route, running as its own background [EventRunner] -
+## see the class doc's note on [method _start_route]/[method _stop_route]. Never held
+## at the same time as [member _runner]: whichever fires first takes the actor.
+var _route_runner: EventRunner = null
 
 ## Cell equality with the player as of last frame - [method _check_continuous_touch]'s
 ## own edge detector, so overlapping for many frames fires once, at entry, the same as
@@ -108,6 +123,7 @@ func _ready() -> void:
 	_register()
 	_maybe_fire(&"on_load")
 	_maybe_fire(&"auto")
+	_start_route()
 
 
 func _exit_tree() -> void:
@@ -130,6 +146,7 @@ func poll() -> void:
 		_restore_facing_if_untouched()
 		_release_control_if_locked()
 		_refresh_active_page()
+		_start_route()
 
 
 ## Restores the facing captured just before this interaction, but only if no
@@ -214,9 +231,11 @@ func _refresh_active_page() -> void:
 	var index := EventDocument.active_page(pages, _condition_ctx())
 	if index == _active_page:
 		return
+	_stop_route()
 	_active_page = index
 	_apply_art()
 	_apply_actor_flags()
+	_start_route()
 
 
 func _apply_art() -> void:
@@ -429,6 +448,10 @@ func _maybe_fire(trigger_name: StringName) -> void:
 	if graph.is_empty():
 		return
 
+	# The two runners never coexist on one actor - see the class doc. A route already
+	# holding the lease has to give it up before the triggered graph can take it.
+	_suspend_route_for_lease()
+
 	var ctx := EventContext.for_event(
 		_map, _map.map_id if _map != null else &"", event_id(), _actor)
 	var runner := EventRunner.new(ctx)
@@ -455,8 +478,9 @@ func _maybe_fire(trigger_name: StringName) -> void:
 	if _locked_player:
 		ModeStack.push(ModeStack.Mode.CUTSCENE)
 
-	# The actor's own brain and any in-flight route are EventRunner.begin()'s business
-	# now, not this file's - see the class doc.
+	# The actor's own brain is EventRunner.begin()'s business, not this file's - see the
+	# class doc. Its in-flight route was already handed off above, by
+	# _suspend_route_for_lease().
 	var parallel := trigger_name == &"auto" and bool(settings.get("parallel", false))
 	if parallel:
 		EventScheduler.run_background(runner, graph, document_path, _active_page)
@@ -478,3 +502,94 @@ func _maybe_fire(trigger_name: StringName) -> void:
 	# A synchronous run (no blocking node in it) is already finished by the time
 	# either scheduler call above returns - poll() picks that up on its own next
 	# pass, including the facing restore, so nothing further happens here.
+
+
+# -- The active page's own route (event-pages.md §3, stage-c-plan.md segment 7) ----
+
+## [code]page.get("route", {})[/code] is not enough on its own: every worked example in
+## docs/events/ authors an empty route as [code][][/code] (an array), event-pages.md §2's
+## "a page with no route stands still" having predated this dictionary shape entirely -
+## so a page with no real route at all is read as stationary rather than raising a type
+## error against [EventRoute].
+func _route_of_page(page: Dictionary) -> Dictionary:
+	var raw: Variant = page.get("route", {})
+	return EventRoute.resolve(raw as Dictionary) if raw is Dictionary else {}
+
+
+## Starts the active page's route as a background runner, resuming [member
+## Actor.suspended_route] if it still matches what the page compiles to today and
+## starting fresh otherwise. A no-op whenever one is already running - both call sites
+## ([method _ready], [method poll]) call this unconditionally, and only one of them
+## needs to actually do anything on a given call.
+func _start_route() -> void:
+	if _route_runner != null or _actor == null or _active_page < 0:
+		return
+
+	var route := _route_of_page(_pages()[_active_page])
+	if EventRoute.is_stationary(route):
+		return
+	var nodes := EventRoute.compile(route)
+	if nodes.is_empty():
+		return
+
+	var ctx := EventContext.for_event(
+		_map, _map.map_id if _map != null else &"", event_id(), _actor)
+	var runner := EventRunner.new(ctx)
+	if not EventScheduler.try_lease(_actor.actor_id, runner):
+		# Something else already holds this actor (a triggered graph mid-run reaching
+		# here through a re-entrant poll, in practice) - the route stays idle until a
+		# later _start_route call, once whatever holds the lease lets it go.
+		runner.latch.detach()
+		return
+	_route_runner = runner
+
+	var suspended := _actor.suspended_route
+	if not suspended.is_empty() and str(suspended.get("hash", "")) == EventCommand.doc_hash(nodes):
+		_actor.suspended_route = {}
+		runner.restore(suspended.get("frames", []) as Array)
+		EventScheduler.adopt_background(runner)
+	else:
+		# Either nothing was suspended, or the route has changed shape since it was -
+		# "restart is always a legal downgrade" at route granularity (question 52).
+		_actor.suspended_route = {}
+		EventScheduler.run_background(runner, nodes)
+
+	if runner.finished:
+		EventScheduler.release_lease(_actor.actor_id, runner)
+		_route_runner = null
+
+
+## Discards the current route runner outright, with no bookmark left behind - a page
+## switch (event-pages.md's own art/logic/route triple all changing together) means the
+## old route is not coming back, so there is nothing worth resuming it into later.
+func _stop_route() -> void:
+	if _route_runner == null:
+		return
+	EventScheduler.release_lease(_actor.actor_id, _route_runner)
+	_route_runner.stop()
+	_route_runner = null
+
+
+## The other half of preemption: a lease being taken away captures where the route was
+## and writes it to [member Actor.suspended_route] (question 52) instead of discarding
+## it, since this route - unlike a page switch's - is coming right back the moment the
+## lease is released. [method EventRunner.to_save] is called before [method
+## EventRunner.stop], not after: [code]stop()[/code] cancels whatever the runner's
+## current node is mid-executing, which is exactly the in-flight state
+## [code]to_save()[/code]'s own per-node [method EventCommandExec.capture] needs to see
+## first.
+func _suspend_route_for_lease() -> void:
+	if _route_runner == null:
+		return
+
+	var route := _route_of_page(_pages()[_active_page]) if _active_page >= 0 else {}
+	var nodes := EventRoute.compile(route)
+	var saved := _route_runner.to_save()
+	_actor.suspended_route = {
+		"hash": EventCommand.doc_hash(nodes),
+		"frames": saved.get("frames", []),
+	}
+
+	EventScheduler.release_lease(_actor.actor_id, _route_runner)
+	_route_runner.stop()
+	_route_runner = null

@@ -36,6 +36,10 @@ func _ready() -> void:
 	_test_lock_facing_ignores_face_commands()
 	_test_through_changes_proximity_and_phasing()
 
+	_test_route_starts_as_a_background_runner()
+	_test_route_interrupted_by_a_trigger_resumes_mid_wait()
+	_test_suspended_route_survives_a_save_round_trip()
+
 	print("")
 	print("  %d passed, %d failed" % [_passed, _failed])
 	print("")
@@ -414,6 +418,126 @@ func _test_through_changes_proximity_and_phasing() -> void:
 	GameState.clear()
 
 
+# -- Routes (segment 7): starting, interruption, and resume ------------------------
+
+func _test_route_starts_as_a_background_runner() -> void:
+	_section("GameEvent -- a page's route starts on its own as a background runner")
+	EventScheduler.reset()
+	GameState.clear()
+
+	var world := _build_world()
+	var rig := _build_event_viewless(world, &"ev", Vector3i(0, 0, 0),
+		FIXTURES + "sched_route_interrupt.event.json")
+	var npc: Actor = rig["actor"]
+
+	_ok(EventScheduler.is_leased(&"ev"), "the route leased its own actor on activation")
+	# A viewless actor's grid step settles synchronously (event_runner_test.gd's own
+	# class doc), so the first step is already taken by the time begin() returns - the
+	# route only actually pauses once it reaches its own first 'wait'.
+	_eq(npc.cell(), Vector3i(0, 0, -1), "the route's first step has already landed")
+
+	EventScheduler.tick(1.0 / 60.0)
+	_eq(npc.cell(), Vector3i(0, 0, -1), "and it is holding there, mid-wait, a tick later")
+
+	world["root"].free()
+	EventScheduler.reset()
+	GameState.clear()
+
+
+## The headline case stage-c-plan.md's segment 7 names: a patrol interrupted mid-route
+## resumes from the same point, not from its own beginning. [code]sched_route_interrupt
+## .event.json[/code]'s route is two steps north with a one-second wait after each
+## (segment 5b's own [code]wait[/code] resume, at route granularity) - ticking 20 of
+## the wait's 60 frames lands the actor one step north and partway through that wait,
+## which is where [code]action[/code] interrupts it. A restart-from-entry bug would
+## replay the first step a second time on top of the one already taken, landing the
+## actor two steps further out than a real resume does - the two are far enough apart
+## that a wrong resume cannot pass by accident.
+func _test_route_interrupted_by_a_trigger_resumes_mid_wait() -> void:
+	_section("GameEvent -- a triggered graph preempts the route, which resumes mid-wait after")
+	EventScheduler.reset()
+	GameState.clear()
+
+	var world := _build_world()
+	# Adjacent to, and facing, the cell the route's own first step lands the NPC on -
+	# not its spawn cell, since 'action' checks where the actor actually is right now.
+	var player := _build_actor(world, &"player", Vector3i(0, 0, -2))
+	var rig := _build_event_viewless(world, &"ev", Vector3i(0, 0, 0),
+		FIXTURES + "sched_route_interrupt.event.json")
+	var ev: GameEvent = rig["event"]
+	var npc: Actor = rig["actor"]
+
+	# One step north, then 20 of the 60 frames (1/3 of a second) into the wait after it.
+	for _i in 21:
+		EventScheduler.tick(1.0 / 60.0)
+	_eq(npc.cell(), Vector3i(0, 0, -1), "exactly one step taken before the interruption")
+
+	player.set_facing(Vector3i(0, 0, 1))
+	EventBus.player_interacted.emit()
+	ev.poll()
+	_ok(GameState.flag(&"fired_interrupt"), "the triggered graph ran to completion")
+	_eq(npc.cell(), Vector3i(0, 0, -1), "and the actor has not moved further during it")
+
+	# Drain the rest of the route: a genuine resume only owes ~40 more wait frames plus
+	# one more step and its own full second - nowhere near enough ticks for a
+	# restart-from-entry (which would need a second full first step, plus everything
+	# a real resume also owes) to also finish inside this budget.
+	var ticks := 0
+	while EventScheduler.background_runners().size() > 0 and ticks < 200:
+		EventScheduler.tick(1.0 / 60.0)
+		ticks += 1
+
+	_eq(npc.cell(), Vector3i(0, 0, -2),
+		"the route finishes with exactly two steps total - the resumed one, not a third")
+
+	world["root"].free()
+	EventScheduler.reset()
+	GameState.clear()
+
+
+## Not a full res://user save round trip (SaveGame's own job, tested in
+## tests/save_game_test.gd) - this checks the narrower contract segment 7 actually adds
+## to it: [method Actor.to_save]/[method Actor.from_save] carry [member
+## Actor.suspended_route] through unchanged, as plain JSON-safe data, which is what lets
+## a save taken mid-interruption resume the same way a live lease release does.
+func _test_suspended_route_survives_a_save_round_trip() -> void:
+	_section("Actor -- a suspended route bookmark survives to_save()/from_save()")
+	EventScheduler.reset()
+	GameState.clear()
+
+	var world := _build_world()
+	var rig := _build_event_viewless(world, &"ev", Vector3i(0, 0, 0),
+		FIXTURES + "sched_route_interrupt.event.json")
+	var ev: GameEvent = rig["event"]
+	var npc: Actor = rig["actor"]
+
+	for _i in 21:
+		EventScheduler.tick(1.0 / 60.0)
+
+	EventBus.player_interacted.emit()  # no player nearby to satisfy 'action' - refused
+	npc.set_facing(Vector3i(1, 0, 0))
+	ev._suspend_route_for_lease()
+	_ok(not npc.suspended_route.is_empty(), "capturing the route wrote a bookmark")
+
+	var saved := npc.to_save()
+	_ok(saved.has("suspended_route"), "to_save() carries it")
+
+	var json_round_trip: Variant = JSON.parse_string(JSON.stringify(saved))
+	_ok(json_round_trip is Dictionary, "and it survives real JSON encoding, not just Godot's own types")
+
+	npc.suspended_route = {}
+	npc.from_save(json_round_trip as Dictionary)
+	_eq(npc.suspended_route.get("hash", ""), saved["suspended_route"]["hash"],
+		"from_save() restores the same hash")
+	_eq((npc.suspended_route.get("frames", []) as Array).size(),
+		(saved["suspended_route"]["frames"] as Array).size(),
+		"and the same frame count")
+
+	world["root"].free()
+	EventScheduler.reset()
+	GameState.clear()
+
+
 # -- The test rig ---------------------------------------------------------------------
 
 func _build_world() -> Dictionary:
@@ -506,6 +630,46 @@ func _build_event(world: Dictionary, id: StringName, cell: Vector3i,
 	sheet.hframes = 3
 	sheet.vframes = 3
 	body.add_child(sheet)
+
+	root.add_child(body)
+	return {"root": root, "event": event, "actor": actor}
+
+
+## Like [method _build_event], but with no [ActorView] at all - the route tests need
+## none of the art-reconciliation behaviour that rig exists for, and a real view means
+## [GridMotion] no longer settles a step synchronously (it waits on the sprite's own
+## tween, driven by [method Node._process], which nothing here ever calls). Every
+## timing assertion a route test makes - "exactly one step taken", "resumes mid-wait" -
+## depends on a viewless actor's step resolving inside the same tick it starts, the
+## same assumption event_runner_test.gd's own rig is built around.
+func _build_event_viewless(world: Dictionary, id: StringName, cell: Vector3i,
+		doc_path: String) -> Dictionary:
+	var root: Node = world["root"]
+	var ctx: MapContext = world["ctx"]
+
+	var body := Node3D.new()
+	body.name = str(id) + "_body"
+	body.position = ctx.cell_centre(cell)
+
+	var event := GameEvent.new()
+	event.name = str(id)
+	event.document_path = doc_path
+	body.add_child(event)
+
+	var actor := Actor.new()
+	actor.name = "Actor"
+	actor.actor_id = id
+	actor.facing_count = 4
+	event.add_child(actor)
+
+	var adapter := Space3D.new()
+	adapter.name = "Space"
+	actor.add_child(adapter)
+
+	var motion := GridMotion.new()
+	motion.name = "Motion"
+	motion.direction_count = 4
+	actor.add_child(motion)
 
 	root.add_child(body)
 	return {"root": root, "event": event, "actor": actor}

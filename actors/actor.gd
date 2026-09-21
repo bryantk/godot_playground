@@ -89,6 +89,20 @@ signal facing_changed(dir: Vector3i)
 ## Taking it over is the next step, and this signature is the one that hook will use.
 signal falling(from: Vector3i, to: Vector3i)
 
+## A background route's own paused progress, question 52: written the moment a lease
+## seizes this actor away from whatever [EventRunner] was driving its route (stage-c-
+## plan.md segment 7), consumed and cleared the next time that route resumes. Carried
+## here rather than on the runner or [EventScheduler] because a route's runner is
+## discarded the instant it is preempted - there being nothing left to ask - and
+## because whatever later drives this actor's route (a fresh [GameEvent] activation, a
+## reload from disk) finds its resume point by reading the actor, with no back-channel
+## to whoever used to own it. [code]{"hash": String, "frames": Array}[/code] - the same
+## shape [method EventRunner.to_save]'s own [code]frames[/code] key already is, plus a
+## [method EventCommand.doc_hash] of the route as newly recompiled, so a changed route
+## restarts from its own beginning instead of resuming into a graph that no longer
+## matches (segment 5a's "restart is always a legal downgrade", at route granularity).
+var suspended_route: Dictionary = {}
+
 var _ctx: MapContext = null
 var _adapter: SpaceAdapter = null
 var _motion: MotionController = null
@@ -284,11 +298,14 @@ func to_save() -> Dictionary:
 	var c := cell()
 	var w := world_position()
 	var f := facing()
-	return {
+	var out := {
 		"cell": [c.x, c.y, c.z],
 		"world": [w.x, w.y, w.z],
 		"facing": [f.x, f.y, f.z],
 	}
+	if not suspended_route.is_empty():
+		out["suspended_route"] = suspended_route
+	return out
 
 
 ## The inverse of [method to_save]. Placed via [method Occupancy.place], never
@@ -296,6 +313,7 @@ func to_save() -> Dictionary:
 ## [signal EventBus.actor_stepped] for.
 func from_save(state: Dictionary) -> void:
 	set_facing(_v3i_of(state.get("facing", [0, 0, 0])))
+	suspended_route = (state.get("suspended_route", {}) as Dictionary).duplicate(true)
 
 	var adapt := adapter()
 	if adapt == null:

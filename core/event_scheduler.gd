@@ -88,6 +88,22 @@ func run_background(runner: EventRunner, nodes: Array[Dictionary],
 		_release_all(runner)
 
 
+## Registers [param runner] as a background runner without starting it fresh - for a
+## caller that already called [method EventRunner.restore] itself, rather than
+## [method EventRunner.begin], and just needs this scheduler's clock to pick it up.
+## Mirrors what [method from_save] already does for a runner restored as part of a
+## whole-scheduler load. [GameEvent]'s own route resume (question 52, stage-c-plan.md
+## segment 7) is the other caller: a route's [Actor.suspended_route] bookmark is
+## restored onto a fresh runner outside any [method EventRunner.to_save]/[method
+## EventScheduler.from_save] envelope, since it can happen many times in a session with
+## no save involved at all - a patrol simply being let go after a cutscene ends.
+func adopt_background(runner: EventRunner) -> void:
+	if runner.finished:
+		_release_all(runner)
+		return
+	_background.append(runner)
+
+
 ## Stops every runner and drops every lease without waiting for them to finish on their
 ## own, and pops [ModeStack] back to FIELD if the exclusive slot had pushed CUTSCENE.
 ## Mirrors [method GameState.clear]. Not test-only any more - [SaveGame] calls this too,
