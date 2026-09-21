@@ -327,7 +327,10 @@ func advance() -> bool:
 		States.WAITING:
 			_state = States.TRANSITION
 			return true
-		States.REVEALING:
+		States.REVEALING, States.TRANSITION:
+			# Still busy - either still typing, or already mid-scroll to the next
+			# block from an earlier advance() this same block. A second press before
+			# either finishes is not an error, just premature; ignore it silently.
 			pass
 		_:
 			print("error state: %s" % _state)

@@ -9,6 +9,35 @@ work queue; [open-questions.md](open-questions.md) is what is still undecided,
 
 ## Start here tomorrow
 
+**Playtesting the iso free demo after segment 7 landed found two more things to fix or
+decide (2026-09-20 night, not yet built) — read before touching that demo again:**
+
+- **The Wanderer doesn't face the player on `event_touch`, and teleports/moves oddly
+  when it collides with the player.** `GameEvent._face_interactor()` is supposed to
+  handle the facing for free (§ the class doc's "actor faces whoever approached"), and
+  nothing about that changed today - but the Wanderer is also the *only* actor in the
+  whole project whose page carries both a real `route` and a real `graph` at once,
+  because its route used to be a separate `RouteBrain` and only joined the page today
+  (segment 7, part 3). Prime suspect: `_suspend_route_for_lease()` /
+  `_start_route()`'s resume path, exercised for the first time outside a headless test
+  and on a free-motion-demo grid actor rather than the pure grid maps
+  `tests/event_scheduler_test.gd`'s own rig uses. Worth checking whether the "teleport"
+  is actually the route's `move_to` and the interaction's own facing/positioning
+  fighting over the actor in the same frame, before assuming it's a new bug rather than
+  an old one the RouteBrain split never exercised this way.
+- **The Spinner should not block movement, and `lock_player` needs to be a real
+  per-interaction choice, not a fixed page setting.** Today `spinner.event.json`'s page
+  has `"through": false` (it walls the player off while spinning - not the intent) and
+  `"lock_player": true` (always locks input for the whole spin). Kyle wants: (1) the
+  spinner spins in place while the player can walk past/around it freely - `through`/
+  `through_terrain: true`, same as the Wanderer's own page already sets; (2) locking
+  input during the graph should be the *common* case but explicitly optional per
+  interaction, not hardcoded true - `lock_player` already exists as exactly this kind
+  of per-page toggle, so this may be "flip the value" rather than a new field, unless
+  what's wanted is finer-grained than one bool per page (e.g. a page that sometimes
+  locks and sometimes doesn't, depending on how it was triggered) - worth confirming
+  which before changing anything.
+
 **Update 2026-09-20 (latest of all) — segment 7 (routes) is built, in three commits.**
 `events/event_route.gd` compiles a page's `route` dictionary (fixed/waypoints/steps/
 toward/away/random, all three `loop` modes, all four `on_blocked` policies) into the
