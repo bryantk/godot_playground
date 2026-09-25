@@ -29,6 +29,7 @@ func _ready() -> void:
 	_test_nonblocking_key_joined_by_wait_for()
 	_test_print_debug_runs_and_continues()
 	_test_define_route_retries_when_blocked()
+	_test_define_route_retry_targets_original_cell_not_recomputed()
 	_test_define_route_jumps_to_blocked_target()
 	_test_move_by_restore_keeps_original_target_not_current_position()
 
@@ -284,6 +285,52 @@ func _test_define_route_retries_when_blocked() -> void:
 	_eq(guard.cell(), Vector3i.ZERO, "the guard has made no progress - every attempt is refused")
 
 	runner.stop()
+	GameState.clear()
+
+
+## The overshoot the single-cell test above cannot exercise: a multi-cell move_by that
+## commits *part* of its distance before a transient obstruction refuses the rest, then
+## retries once that obstruction clears. The retry must still aim at the cell this move
+## was originally authored to reach - not a new one re-derived by re-applying "cells"
+## against wherever the partial attempt left the actor, which would overshoot by however
+## far it already got.
+func _test_define_route_retry_targets_original_cell_not_recomputed() -> void:
+	_section("EventRunner -- a retried move_by keeps its original target, not one recomputed off partial progress")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var guard: Actor = rig["guard"]
+	var map: MapContext = rig["ctx"]
+	map.occupancy.place(&"blocker", Vector3i(2, 0, 0))
+	var ctx := EventContext.for_event(map, &"test_map", &"retry_target_test", guard)
+
+	var nodes: Array[Dictionary] = [
+		{"id": "start", "command": "start", "args": {},
+			"outputs": [{"flow": "next", "target": "dr"}]},
+		{"id": "dr", "command": "define_route", "args": {},
+			"outputs": [{"flow": "next", "target": "mv"}]},
+		{"id": "mv", "command": "move_by", "args": {"cells": [3, 0, 0]},
+			"outputs": [{"flow": "next", "target": "done"}]},
+		{"id": "done", "command": "set_flag", "args": {"flag": "route_done"}, "outputs": []},
+	]
+
+	var runner := EventRunner.new(ctx)
+	runner.begin(nodes)
+
+	_eq(guard.cell(), Vector3i(1, 0, 0),
+		"the first attempt commits the one cell it could before the blocker refuses the rest")
+	_ok(not runner.finished, "blocked, and retrying")
+
+	# Clears before the retry actually fires - a transient obstruction, not the
+	# permanent one the test above leaves in place for its own entire run.
+	map.occupancy.release_actor(&"blocker")
+	runner.tick(1.0 / 60.0)  # the one-tick pause resolves and the retry itself fires
+
+	_ok(runner.finished, "the route finishes once the retry succeeds")
+	_eq(guard.cell(), Vector3i(3, 0, 0),
+		"landed exactly at the originally authored target - not one shifted 3 more " +
+		"cells past wherever the blocked attempt left off")
+	_ok(GameState.flag(&"route_done"), "and the graph actually continued past the move")
 	GameState.clear()
 
 

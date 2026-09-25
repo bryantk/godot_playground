@@ -88,14 +88,29 @@ class MoveBy extends EventCommandExec:
 		if a == null:
 			return
 		ctx.mark_actor_touched(a)
+		var delta := Vector3i(args.get("cells", Vector3i.ZERO))
+		_target_cell = a.cell() + delta
+		_key = a.motion().move_by(delta, _opts())
+
+	## The same target this move already committed to at its own first [method start],
+	## approached from wherever the actor now stands via [method MotionController.move_to]
+	## rather than [method MotionController.move_by] re-applying "cells" a second time -
+	## see [method EventCommandExec.retry]'s own doc for why re-deriving a fresh relative
+	## delta here would overshoot past a target this already made partial progress on.
+	func retry() -> void:
+		var a := actor()
+		if a == null:
+			return
+		ctx.mark_actor_touched(a)
+		_key = a.motion().move_to(_target_cell, _opts())
+
+	func _opts() -> Dictionary:
 		var opts := {}
 		if args.has("speed"):
 			opts["speed"] = args["speed"]
 		if args.has("path"):
 			opts["path"] = args["path"]
-		var delta := Vector3i(args.get("cells", Vector3i.ZERO))
-		_target_cell = a.cell() + delta
-		_key = a.motion().move_by(delta, opts)
+		return opts
 
 	func tick(_delta: float) -> int:
 		return Status.DONE if _key == "" or runner.latch.consume(_key) else Status.RUNNING
@@ -152,6 +167,12 @@ class StepCmd extends EventCommandExec:
 	var _key := ""
 	## See [member MoveBy._target_cell] - meaningful for a grid actor, which is the only
 	## kind this command declares itself for ([code]SPACE_GRID[/code]).
+	##
+	## [b]No [method retry] override needed[/b], unlike [MoveBy]: a single grid step is
+	## atomic - it either lands exactly on this cell or the actor never left the one it
+	## started on - so the base [method EventCommandExec.retry]'s plain [method start]
+	## recomputes the identical target every time rather than one shifted by partial
+	## progress that a step, unlike a multi-cell move, can never have made.
 	var _target_cell := Vector3i.ZERO
 
 	func start() -> void:

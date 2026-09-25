@@ -90,15 +90,25 @@ class _Frame:
 	## EventRunner._resolve_finished_node].
 	var route_scope: Dictionary = {}
 
+	## The executor a retry pause is waiting to retry - kept alive across the pause
+	## rather than discarded, so [method EventCommandExec.retry] retries toward the
+	## same target it already committed to (a partly-completed [code]move_by[/code]'s
+	## own [member EventCommandExec.was_blocked] target, not a fresh one re-derived from
+	## wherever the actor ended up short of it - see that method's own doc on why a
+	## relative move cannot simply be re-started from scratch). Null whenever [member
+	## exec] is not [class _RouteRetryPause].
+	var retry_exec: EventCommandExec = null
+
 
 ## One scheduler tick of nothing - what a blocked move retries after, when the active
 ## [code]define_route[/code] policy leaves "blocked" unwired. Never reached through
-## [method EventCommandExec.create] (it names no command of its own),
-## and never advances a frame's cursor the way an ordinary finished executor does -
-## [method tick]'s own check for it is what keeps [method _resolve_finished_node]'s
-## [code]frame.exec = _RouteRetryPause.new()[/code] from being immediately overwritten
-## by the very next scheduler tick reading it as an ordinary completed command and
-## walking its (nonexistent) "next" port.
+## [method EventCommandExec.create] (it names no command of its own), and never
+## advances a frame's cursor the way an ordinary finished executor does - [method
+## tick]'s own check for it hands off to [method _retry_after_pause] instead of reading
+## it as an ordinary completed command and walking its (nonexistent) "next" port. The
+## blocked executor itself waits out the pause in [member _Frame.retry_exec], not
+## discarded - see [method EventCommandExec.retry]'s own doc for why retrying has to
+## mean asking that same instance to try again, not re-dispatching the node fresh.
 class _RouteRetryPause extends EventCommandExec:
 	func tick(_delta: float) -> int:
 		return Status.DONE
@@ -219,11 +229,7 @@ func tick(delta: float) -> void:
 		return
 
 	if frame.exec is _RouteRetryPause:
-		# The one frame a blocked, retrying move paused for - frame.cursor was never
-		# moved off it, so _drive() below finds the very same node and starts it fresh.
-		frame.exec = null
-		_budget = NODE_BUDGET
-		_drive()
+		_retry_after_pause(frame)
 		return
 
 	if frame.exec.tick(delta) != EventCommandExec.Status.DONE:
@@ -539,6 +545,11 @@ func _resolve_finished_node(frame: _Frame, ex: EventCommandExec) -> bool:
 	if ex.was_blocked() and not frame.route_scope.is_empty():
 		var target := str(frame.route_scope.get("blocked_target", ""))
 		if target == "":
+			# ex itself is kept, not discarded - see _retry_after_pause() and
+			# EventCommandExec.retry()'s own doc for why re-dispatching this node fresh
+			# (a plain node lookup would only ever call start() again) is not the same
+			# thing as retrying it.
+			frame.retry_exec = ex
 			frame.exec = _RouteRetryPause.new()
 			return false
 
@@ -549,6 +560,29 @@ func _resolve_finished_node(frame: _Frame, ex: EventCommandExec) -> bool:
 
 	_advance_cursor(frame, ex.flow_port())
 	return true
+
+
+## The other half of [class _RouteRetryPause]: the one scheduler tick of pause is over,
+## so [member _Frame.retry_exec] gets another attempt - via [method
+## EventCommandExec.retry], not [method EventCommandExec.start] - and is ticked once at
+## [code]delta == 0.0[/code] the same way a freshly dispatched node is in [method
+## _drive], to catch a viewless actor settling synchronously again. Finished the same
+## way [method _drive]'s own dispatch resolves one; still blocked, it goes back to
+## being this frame's live [member _Frame.exec] and waits for the next real [method
+## tick] like any other in-flight command.
+func _retry_after_pause(frame: _Frame) -> void:
+	frame.exec = null
+	var ex := frame.retry_exec
+	frame.retry_exec = null
+
+	ex.retry()
+	if ex.tick(0.0) != EventCommandExec.Status.DONE:
+		frame.exec = ex
+		return
+
+	if _resolve_finished_node(frame, ex):
+		_budget = NODE_BUDGET
+		_drive()
 
 
 ## Drops the top frame and, if it was a called sub-frame, resumes whatever is beneath

@@ -56,6 +56,26 @@ func flow_port() -> String:
 	return "next"
 
 
+## A blocked attempt trying again, inside an active [code]define_route[/code] scope
+## whose "blocked" is left unwired ([method EventRunner._retry_after_pause]) - the same
+## instance retrying, never a fresh one built through [method create]. The base
+## implementation just calls [method start] again, correct for anything whose target is
+## already absolute ([code]move_to[/code]'s own cell, say) or that never reports [method
+## was_blocked] true in the first place.
+##
+## [b]A relative move overrides this[/b] ([code]move_by[/code]/[code]step[/code], events/
+## commands/actor_execs.gd) because [method start] re-reads its own authored delta
+## against wherever the actor happens to be [i]right now[/i] - which, after a move that
+## got partway there before being refused, is no longer where it started. Retrying via
+## [method start] there would aim the same delta again from the partially-advanced
+## position, walking further past the original target with every failed-then-partial
+## attempt instead of finishing at it. Retrying toward the already-captured target this
+## command committed to at its own first [method start] - not re-deriving a new one - is
+## what [method retry] exists to let each command choose for itself.
+func retry() -> void:
+	start()
+
+
 ## Interrupted from outside - a lease, a cutscene seizing the actor. Must leave nothing
 ## waiting on a key this command owns (the invariant segment 4's four motion-key fixes
 ## exist to uphold).
