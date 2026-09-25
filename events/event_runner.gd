@@ -60,6 +60,15 @@ class _Frame:
 	var by_id: Dictionary = {}
 	var cursor: String = ""
 	var exec: EventCommandExec = null
+
+	## Which of the start node's own ports [method EventRunner._drive] takes when it
+	## first reaches it - "next" unless [method begin] was told otherwise. A page's own
+	## triggered run passes the trigger name that fired it (one of
+	## [constant EventCommand.TRIGGERS]); a route or a [code]call[/code]'s cloned
+	## sub-frame never does, and lands on "next" - the one port a start node always has
+	## regardless of whether it also carries the seven trigger ports (see [method
+	## EventCommand.flows_of]).
+	var entry_flow: String = "next"
 	## Authored node "key" -> the real key its executor minted, for a non-blocking
 	## node a later wait_for in the same graph wants to join.
 	var key_aliases: Dictionary = {}
@@ -144,8 +153,10 @@ func _init(a_ctx: EventContext) -> void:
 ## Starts running [param nodes] from its one [code]start[/code] node. [param doc_path]/
 ## [param page_index] are this frame's own save/restore address (empty/[code]-1[/code]
 ## for a literal graph with no file behind it, e.g. every headless test's own inline
-## array) - see [member _Frame.doc_path].
-func begin(nodes: Array[Dictionary], doc_path: String = "", page_index: int = -1) -> void:
+## array) - see [member _Frame.doc_path]. [param entry_flow] is which of the start
+## node's own ports to take - see [member _Frame.entry_flow].
+func begin(nodes: Array[Dictionary], doc_path: String = "", page_index: int = -1,
+		entry_flow: String = "next") -> void:
 	if finished:
 		return
 	_suspend_actor_controller()
@@ -154,6 +165,7 @@ func begin(nodes: Array[Dictionary], doc_path: String = "", page_index: int = -1
 	frame.nodes = nodes
 	frame.doc_path = doc_path
 	frame.page_index = page_index
+	frame.entry_flow = entry_flow
 	for n in nodes:
 		frame.by_id[str(n.get("id", ""))] = n
 	_stack.append(frame)
@@ -280,6 +292,7 @@ func to_save() -> Dictionary:
 			# Embedded only when there is no file to reload from - see _Frame's own doc.
 			"nodes": frame.nodes.duplicate(true) if frame.doc_path == "" else [],
 			"cursor": frame.cursor,
+			"entry_flow": frame.entry_flow,
 			"route_scope": frame.route_scope.duplicate(true),
 		}
 		# Only the top frame can ever have a live executor - every frame beneath it is
@@ -348,6 +361,7 @@ func restore(frames: Array) -> void:
 		frame.doc_path = doc_path
 		frame.page_index = page_index
 		frame.cursor = cursor
+		frame.entry_flow = str(saved.get("entry_flow", "next"))
 		for n in nodes:
 			frame.by_id[str(n.get("id", ""))] = n
 
@@ -415,6 +429,14 @@ func _drive() -> void:
 		if name == EventCommand.START_COMMAND and frame.doc_path != "":
 			_log_node_process(frame)
 
+		if name == EventCommand.START_COMMAND:
+			# Not the generic "no executor -> advance next" fallback below: a page's own
+			# start node may have no "next" port wired at all (its ports are the seven
+			# triggers instead - see EventCommand.flows_of), so which port to take has
+			# to be this frame's own entry_flow, not always "next".
+			_advance_cursor(frame, frame.entry_flow)
+			continue
+
 		if name == "call":
 			if not _begin_call(frame, n):
 				return  # _fail() already stopped the runner
@@ -471,26 +493,7 @@ func _log_node_process(frame: _Frame) -> void:
 	var page := "%s#%d" % [frame.doc_path, frame.page_index] if frame.doc_path != "" else "<inline>"
 	print("[%d] event=%s page=%s action=%s"
 		% [Time.get_ticks_msec(), str(ctx.self_actor.get_parent().name) if ctx != null else "", page,
-			_trigger_of(frame)])
-
-
-## The page's own [code]settings.trigger[/code] (decision 44's seven: [code]action[/code],
-## [code]player_touch[/code], [code]auto[/code], ...) - re-read from disk rather than
-## threaded through [method begin] as a parameter of its own, since this line prints once
-## per run and is not worth widening this class's public surface for. [code]""[/code]
-## for an inline frame with no document behind it (every headless test's own literal
-## node array) - nothing to look a trigger up in.
-func _trigger_of(frame: _Frame) -> String:
-	if frame.doc_path == "" or frame.page_index < 0:
-		return ""
-
-	var doc := EventDocument.parse(FileAccess.get_file_as_string(frame.doc_path))
-	var pages: Array = doc.get("pages", [])
-	if frame.page_index >= pages.size():
-		return ""
-
-	var settings: Dictionary = (pages[frame.page_index] as Dictionary).get("settings", {})
-	return str(settings.get("trigger", ""))
+			frame.entry_flow])
 
 
 ## Moves [param frame]'s cursor to whichever node [param port] targets, or pops the

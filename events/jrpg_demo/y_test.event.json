@@ -4,9 +4,7 @@
 	"pages": [
 		{
 			"conditions": [],
-			"settings": {
-				"trigger": "player_touch"
-			},
+			"settings": {},
 			"art": {},
 			"lock_facing": false,
 			"through": true,
@@ -22,10 +20,12 @@
 						"y": 0
 					},
 					"command": "start",
-					"args": {},
+					"args": {
+						"page_entry": true
+					},
 					"outputs": [
 						{
-							"flow": "next",
+							"flow": "player_touch",
 							"target": "n1"
 						}
 					]

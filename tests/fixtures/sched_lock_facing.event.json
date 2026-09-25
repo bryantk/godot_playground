@@ -4,15 +4,15 @@
 	"pages": [
 		{
 			"conditions": [],
-			"settings": {"trigger": "action"},
+			"settings": {},
 			"art": {},
 			"lock_facing": true,
 			"through": false,
 			"through_terrain": false,
 			"route": [],
 			"graph": [
-				{"id": "start", "command": "start", "args": {},
-					"outputs": [{"flow": "next", "target": "n1"}]},
+				{"id": "start", "command": "start", "args": {"page_entry": true},
+					"outputs": [{"flow": "action", "target": "n1"}]},
 				{"id": "n1", "command": "face_direction", "args": {"direction": "e"},
 					"outputs": [{"flow": "next", "target": "n2"}]},
 				{"id": "n2", "command": "set_flag", "args": {"flag": "fired_lock_facing"},

@@ -3,7 +3,10 @@ class_name GameEvent extends Node
 ## Places an authored event document in the world - event-pages.md §4.3. Owns the
 ## document, evaluates which page is active, applies that page's art on a switch,
 ## registers its cell with [MapContext], and starts a runner through [EventScheduler]
-## when one of the seven triggers (decision 44) fires.
+## when one of the seven triggers (decision 44, [constant EventCommand.TRIGGERS]) fires
+## and the active page's own start node has that trigger's port actually wired to
+## something ([method EventCommand.start_wired]) - an unwired trigger is simply not
+## something this page's graph does, the same as any other unwired flow port.
 ##
 ## [b]An event with an [Actor] child is an NPC, monster, chest or door; one without is
 ## a bodiless region trigger[/b] - the same node either way, which is what keeps "what
@@ -714,15 +717,13 @@ func _maybe_fire(trigger_name: StringName) -> void:
 	if is_busy() or _active_page < 0:
 		return
 
-	var settings := _settings()
-	if str(settings.get("trigger", "")) != str(trigger_name):
-		return
-	if bool(settings.get("once", false)) and _fired_once.get(_active_page, false):
-		return
-
 	var page: Dictionary = _pages()[_active_page]
 	var graph: Array[Dictionary] = page.get("graph", [])
-	if graph.is_empty():
+	if graph.is_empty() or not EventCommand.start_wired(graph, str(trigger_name)):
+		return
+
+	var settings := _settings()
+	if bool(settings.get("once", false)) and _fired_once.get(_active_page, false):
 		return
 
 	# The two runners never coexist on one actor - see the class doc. A route already
@@ -761,9 +762,9 @@ func _maybe_fire(trigger_name: StringName) -> void:
 	# _suspend_route_for_lease().
 	var parallel := trigger_name == &"auto" and bool(settings.get("parallel", false))
 	if parallel:
-		EventScheduler.run_background(runner, graph, document_path, _active_page)
+		EventScheduler.run_background(runner, graph, document_path, _active_page, str(trigger_name))
 	else:
-		if not EventScheduler.run_exclusive(runner, graph, document_path, _active_page):
+		if not EventScheduler.run_exclusive(runner, graph, document_path, _active_page, str(trigger_name)):
 			# Refused - the exclusive slot is already held. Give back the lease and
 			# the fields just armed rather than leaving the actor claimed by, and
 			# this event waiting on, a runner that never actually ran.

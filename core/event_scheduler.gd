@@ -62,15 +62,15 @@ func tick(delta: float) -> void:
 ## Refuses (returns false) without starting anything if the slot is already held -
 ## the caller's own lease, if it took one first, is untouched either way, so it can
 ## retry the same runner later without re-acquiring anything. [param doc_path]/
-## [param page_index] are forwarded straight to [method EventRunner.begin] - see its
-## own doc for what they are for.
+## [param page_index]/[param entry_flow] are forwarded straight to
+## [method EventRunner.begin] - see its own doc for what they are for.
 func run_exclusive(runner: EventRunner, nodes: Array[Dictionary],
-		doc_path: String = "", page_index: int = -1) -> bool:
+		doc_path: String = "", page_index: int = -1, entry_flow: String = "next") -> bool:
 	if _exclusive != null:
 		return false
 	_exclusive = runner
 	ModeStack.push(ModeStack.Mode.CUTSCENE)
-	runner.begin(nodes, doc_path, page_index)
+	runner.begin(nodes, doc_path, page_index, entry_flow)
 	if runner.finished:
 		_exclusive = null
 		_release_all(runner)
@@ -80,9 +80,9 @@ func run_exclusive(runner: EventRunner, nodes: Array[Dictionary],
 
 ## Starts [param runner] as a background runner - a patrol, an ambient graph.
 func run_background(runner: EventRunner, nodes: Array[Dictionary],
-		doc_path: String = "", page_index: int = -1) -> void:
+		doc_path: String = "", page_index: int = -1, entry_flow: String = "next") -> void:
 	_background.append(runner)
-	runner.begin(nodes, doc_path, page_index)
+	runner.begin(nodes, doc_path, page_index, entry_flow)
 	if runner.finished:
 		_background.erase(runner)
 		_release_all(runner)

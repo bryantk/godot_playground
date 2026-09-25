@@ -88,10 +88,13 @@ const SPACE_FREE := "free"
 const COMMANDS: Dictionary = {
 	# -- Flow ------------------------------------------------------------------
 	"start": {
-		# The one node a graph is entered through. Its single output names the node
-		# execution actually begins at - see [constant START_COMMAND] and
-		# [method validate_reachability]. It carries no state of its own, so it is a
-		# RESTART command like "label" and "goto".
+		# The one node a graph is entered through. Which output it takes depends on
+		# what kind of graph this is - see [method flows_of]: a page's own graph (its
+		# start node carries [code]args.page_entry == true[/code]) branches on
+		# [constant TRIGGERS] plus a trailing "next" for [code]call[/code]'s own manual
+		# entry; anything else (a route, a called sub-graph) keeps the single "next"
+		# port this always had. It carries no state of its own, so it is a RESTART
+		# command like "label" and "goto".
 		"args": {},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
@@ -493,9 +496,22 @@ const TURN_TOKENS: PackedStringArray = ["turn_cw", "turn_ccw", "turn_180", "rand
 const TERM_PREFIX := "@"
 
 ## The command that marks a graph's entry point - see [method validate_reachability].
-## Every page's graph is expected to have exactly one node with this command; its single
-## output names the node execution actually begins at.
+## Every page's graph is expected to have exactly one node with this command; which of
+## its outputs names where execution actually begins depends on [method flows_of].
 const START_COMMAND := "start"
+
+## The seven moments a page's own start node may branch on - decision 44's set,
+## formerly a page-level [code]settings.trigger[/code] string [method GameEvent._maybe_fire]
+## compared by hand, now wired as flow ports on the start node itself: an author connects
+## whichever of these a page should react to, and [method GameEvent._maybe_fire] runs the
+## graph from there only if that port is actually connected - see [method
+## EventCommand.start_wired]. A page's start node carries these (plus a trailing "next",
+## for [code]call[/code]'s own manual entry) only when its own [code]args.page_entry[/code]
+## is true; a route's or a called sub-graph's start node is untouched by this and keeps
+## the single "next" port it always had - see [method flows_of].
+const TRIGGERS: PackedStringArray = [
+	"player_touch", "event_touch", "action", "auto", "on_load", "leave_cell", "on_flag",
+]
 
 
 # -- Reading the registry ------------------------------------------------------
@@ -535,6 +551,14 @@ static func flows_of(node: Dictionary) -> PackedStringArray:
 	var def := definition(name)
 	if def.is_empty():
 		return PackedStringArray(["next"])
+
+	if name == START_COMMAND:
+		var args: Dictionary = node.get("args", {})
+		if bool(args.get("page_entry", false)):
+			var out := PackedStringArray(TRIGGERS)
+			out.append("next")
+			return out
+		return PackedStringArray(def["flows"])
 
 	if name == "ask":
 		var choices: Variant = (node.get("args", {}) as Dictionary).get("choices", [])
@@ -1017,6 +1041,22 @@ static func validate_graph(nodes: Variant) -> Array[String]:
 					% [str(entry.get("id", "")), key])
 
 	return problems
+
+
+## Whether [param nodes]' own start node has a live output wired to [param flow] - what
+## [method GameEvent._maybe_fire] checks before running a page's graph at all, now that a
+## trigger firing is answered by the graph's own wiring rather than a page-level
+## [code]settings.trigger[/code] string match. False for a missing start node, a start
+## node with no such port (a route's or a called sub-graph's, which only ever has
+## "next"), or one that has the port but left it unwired.
+static func start_wired(nodes: Array, flow: String) -> bool:
+	for node in nodes:
+		if node is Dictionary and str((node as Dictionary).get("command", "")) == START_COMMAND:
+			for output in (node as Dictionary).get("outputs", []) as Array:
+				if output is Dictionary and str((output as Dictionary).get("flow", "")) == flow:
+					return str((output as Dictionary).get("target", "")) != ""
+			return false
+	return false
 
 
 ## Problems reachability alone can find: no [constant START_COMMAND] node, more than

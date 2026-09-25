@@ -4,9 +4,7 @@
 	"pages": [
 		{
 			"conditions": [],
-			"settings": {
-				"trigger": "action"
-			},
+			"settings": {},
 			"art": {
 				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
 				"directions": 4.0,
@@ -22,15 +20,45 @@
 					"id": "start",
 					"title": "start",
 					"position": {
-						"x": -180,
-						"y": 0
+						"x": -240,
+						"y": -40
 					},
 					"command": "start",
-					"args": {},
+					"args": {
+						"page_entry": true
+					},
 					"outputs": [
 						{
-							"flow": "next",
+							"flow": "player_touch",
+							"target": ""
+						},
+						{
+							"flow": "event_touch",
+							"target": ""
+						},
+						{
+							"flow": "action",
 							"target": "n3"
+						},
+						{
+							"flow": "auto",
+							"target": ""
+						},
+						{
+							"flow": "on_load",
+							"target": ""
+						},
+						{
+							"flow": "leave_cell",
+							"target": ""
+						},
+						{
+							"flow": "on_flag",
+							"target": ""
+						},
+						{
+							"flow": "next",
+							"target": ""
 						}
 					]
 				},

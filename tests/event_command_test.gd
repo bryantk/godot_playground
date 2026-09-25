@@ -27,6 +27,7 @@ func _ready() -> void:
 	_test_terms()
 	_test_validation()
 	_test_reachability()
+	_test_start_triggers()
 	_test_examples()
 
 	print("")
@@ -371,6 +372,37 @@ func _test_reachability() -> void:
 		"  naming every one of them")
 	_ok(orphaned[0].contains("3 node"), "  the total unreached count")
 	_ok(orphaned[0].contains("2 orphaned chain"), "  and it counts TWO chains, not three nodes")
+
+
+# -- A page's start node: the seven triggers as flow ports, decision 44's redo ------
+
+func _test_start_triggers() -> void:
+	_section("flows_of/start_wired -- a page's start node branches on the seven triggers")
+
+	var plain := {"id": "start", "command": "start", "args": {}}
+	_eq(EventCommand.flows_of(plain), PackedStringArray(["next"]),
+		"a start node with no page_entry keeps the single 'next' port - a route's, or a "
+		+ "called sub-graph's")
+
+	var page_start := {"id": "start", "command": "start", "args": {"page_entry": true}}
+	var flows := EventCommand.flows_of(page_start)
+	_eq(flows.size(), EventCommand.TRIGGERS.size() + 1,
+		"a page's own start node gets one port per trigger, plus a trailing 'next'")
+	for trigger in EventCommand.TRIGGERS:
+		_ok(flows.has(trigger), "  including \"%s\"" % trigger)
+	_eq(flows[flows.size() - 1], "next", "  with 'next' last, for call's own manual entry")
+
+	var wired: Array = [
+		{"id": "start", "command": "start", "args": {"page_entry": true},
+			"outputs": [{"flow": "action", "target": "n1"}, {"flow": "auto", "target": ""}]},
+		{"id": "n1", "command": "say", "args": {"text": "hi"}, "outputs": []},
+	]
+	_ok(EventCommand.start_wired(wired, "action"), "a connected trigger port reads as wired")
+	_ok(not EventCommand.start_wired(wired, "auto"),
+		"a present but unconnected port does not")
+	_ok(not EventCommand.start_wired(wired, "player_touch"),
+		"a port the start node never listed at all does not")
+	_ok(not EventCommand.start_wired([], "action"), "no start node at all reads as unwired")
 
 
 # -- The worked examples -------------------------------------------------------

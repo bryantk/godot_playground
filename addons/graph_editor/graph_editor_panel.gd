@@ -106,9 +106,6 @@ var _file_dialog: EditorFileDialog
 ## The panel to the left of the graph - page data no node carries: art, speed, route
 ## and conditions. See [method _build_page_inspector] and [method _load_page_inspector].
 var _art_picker: EditorResourcePicker
-## The page's settings.trigger (decision 44's seven, plus a blank "(none)" for a page
-## only ever entered by `call`) - see [constant EventDocument.TRIGGERS].
-var _trigger_option: OptionButton
 ## The page's settings.speed, as a dropdown of [EventGraphNode]'s own named presets
 ## rather than a raw number - the same set a move command's own "speed" argument already
 ## offers (see [method EventGraphNode.speed_preset_names]), so the two read the same way
@@ -231,8 +228,6 @@ func _bind() -> bool:
 
 	_art_picker = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/ArtSheet") as EditorResourcePicker
-	_trigger_option = get_node_or_null(
-		^"Body/PageInspector/PageInspectorBox/Trigger") as OptionButton
 	_speed_option = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/Speed") as OptionButton
 	_lock_facing_check = get_node_or_null(
@@ -464,16 +459,6 @@ func _build_page_inspector() -> Control:
 	_art_picker.resource_changed.connect(_on_art_sheet_changed)
 	box.add_child(_art_picker)
 
-	box.add_child(_section_label("Trigger"))
-	_trigger_option = OptionButton.new()
-	_trigger_option.name = "Trigger"
-	_trigger_option.tooltip_text = "The page's settings.trigger - which of decision 44's seven moments runs this page's graph. (none) leaves the page reachable only by \"call\"."
-	_trigger_option.add_item("(none)")
-	for trigger in EventDoc.TRIGGERS:
-		_trigger_option.add_item(str(trigger))
-	_trigger_option.item_selected.connect(_on_trigger_selected)
-	box.add_child(_trigger_option)
-
 	box.add_child(_section_label("Speed"))
 	_speed_option = OptionButton.new()
 	_speed_option.name = "Speed"
@@ -562,11 +547,6 @@ func _load_page_inspector(index: int) -> void:
 	_art_picker.edited_resource = load(sheet) if sheet != "" and ResourceLoader.exists(sheet) else null
 
 	var settings: Dictionary = page.get("settings", {})
-	# Index 0 is "(none)"; a trigger absent or not one of the seven (an older file, a
-	# typo fixed by hand) also lands there rather than silently picking the first real
-	# entry, which would rewrite the file's trigger the moment anything else changed.
-	var trigger := str(settings.get("trigger", ""))
-	_trigger_option.select(EventDoc.TRIGGERS.find(trigger) + 1)
 	_refresh_speed_option(float(settings.get("speed", EventGraphNode.normal_speed())))
 
 	_lock_facing_check.set_pressed_no_signal(bool(page.get("lock_facing", false)))
@@ -575,19 +555,6 @@ func _load_page_inspector(index: int) -> void:
 	_lock_player_check.set_pressed_no_signal(bool(page.get("lock_player", true)))
 
 	_refresh_conditions()
-
-## [param index] is into the dropdown (0 is "(none)"), not into
-## [constant EventDocument.TRIGGERS] - offset by one to get the real list.
-func _on_trigger_selected(index: int) -> void:
-	if not _live():
-		return
-
-	var settings: Dictionary = _current_page_dict().get("settings", {})
-	if index <= 0:
-		settings.erase("trigger")
-	else:
-		settings["trigger"] = EventDoc.TRIGGERS[index - 1]
-	_mark_dirty()
 
 func _on_art_sheet_changed(resource: Resource) -> void:
 	if not _live():
@@ -601,8 +568,8 @@ func _on_art_sheet_changed(resource: Resource) -> void:
 	_mark_dirty()
 
 ## Rebuilds [member _speed_option]'s items around [param speed] rather than populating
-## them once - unlike [member _trigger_option]'s fixed, small set, an older page's
-## [code]settings.speed[/code] may already hold a hand-typed value matching none of
+## them once - an older page's [code]settings.speed[/code] may already hold a
+## hand-typed value matching none of
 ## [EventGraphNode]'s named presets, and needs a synthesized "Custom (N)" entry to show
 ## it instead of silently snapping to whichever preset sits nearest. The identical shape
 ## [method EventGraphNode._make_speed_control] already uses for a move command's own
@@ -1288,6 +1255,11 @@ func _ensure_start_node(force: bool = false) -> bool:
 	# follow-up), so it never needs one generated.
 	var node := Doc.default_node("", _START_POSITION)
 	node["command"] = EventCommand.START_COMMAND
+	# A page's own graph branches on the seven triggers (EventCommand.TRIGGERS) plus a
+	# manual "next" for `call`; a route is never triggered, so its start node keeps the
+	# single "next" port it always had - see EventCommand.flows_of.
+	if not _editing_route:
+		node["args"] = {"page_entry": true}
 
 	_graph.add_child(_make_graph_node(node))
 	return true
@@ -2187,6 +2159,7 @@ func _create_empty_event_file(path: String) -> bool:
 
 	var start_node := Doc.default_node("", _START_POSITION)
 	start_node["command"] = EventCommand.START_COMMAND
+	start_node["args"] = {"page_entry": true}
 	var doc := EventDoc.default_document()
 	(doc["pages"][0] as Dictionary)["graph"] = [start_node]
 	file.store_string(EventDoc.stringify(doc))

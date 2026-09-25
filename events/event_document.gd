@@ -41,17 +41,6 @@ const PAGE_KEYS: PackedStringArray = [
 	"lock_player", "route", "graph",
 ]
 
-## Decision 44's seven triggers, in the order the graph editor's dropdown lists them -
-## the one place that list is spelled out, so [code]graph_editor_panel.gd[/code]'s
-## Trigger field and [code]game_event.gd[/code]'s dispatch can never name an eighth one
-## the other does not recognise. [code]settings.trigger[/code] itself stays a plain
-## string rather than an enum - [method GameEvent._maybe_fire] just compares it - so a
-## page saved before a ninth trigger existed still reads fine.
-const TRIGGERS: PackedStringArray = [
-	"player_touch", "event_touch", "action", "auto", "on_load", "leave_cell", "on_flag",
-]
-
-
 # -- Defaults --------------------------------------------------------------------
 
 ## A page with no conditions, no art, no route and no graph - the empty default every

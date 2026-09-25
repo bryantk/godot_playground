@@ -4,15 +4,15 @@
 	"pages": [
 		{
 			"conditions": [],
-			"settings": {"trigger": "action"},
+			"settings": {},
 			"art": {},
 			"route": {
 				"mode": "steps", "loop": "none", "on_blocked": "wait",
 				"steps": ["n", {"wait": 1.0}, "n", {"wait": 1.0}]
 			},
 			"graph": [
-				{"id": "start", "command": "start", "args": {},
-					"outputs": [{"flow": "next", "target": "n1"}]},
+				{"id": "start", "command": "start", "args": {"page_entry": true},
+					"outputs": [{"flow": "action", "target": "n1"}]},
 				{"id": "n1", "command": "set_flag", "args": {"flag": "fired_interrupt"},
 					"outputs": []}
 			]

@@ -4,12 +4,12 @@
 	"pages": [
 		{
 			"conditions": [],
-			"settings": {"trigger": "on_load"},
+			"settings": {},
 			"art": {},
 			"route": [],
 			"graph": [
-				{"id": "start", "command": "start", "args": {},
-					"outputs": [{"flow": "next", "target": "n1"}]},
+				{"id": "start", "command": "start", "args": {"page_entry": true},
+					"outputs": [{"flow": "on_load", "target": "n1"}]},
 				{"id": "n1", "command": "wait", "args": {"seconds": 2.0},
 					"outputs": []}
 			]

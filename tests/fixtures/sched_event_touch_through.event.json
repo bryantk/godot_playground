@@ -4,13 +4,13 @@
 	"pages": [
 		{
 			"conditions": [],
-			"settings": {"trigger": "event_touch"},
+			"settings": {},
 			"art": {},
 			"through": true,
 			"route": [],
 			"graph": [
-				{"id": "start", "command": "start", "args": {},
-					"outputs": [{"flow": "next", "target": "n1"}]},
+				{"id": "start", "command": "start", "args": {"page_entry": true},
+					"outputs": [{"flow": "event_touch", "target": "n1"}]},
 				{"id": "n1", "command": "set_flag", "args": {"flag": "fired_event_touch"},
 					"outputs": []}
 			]

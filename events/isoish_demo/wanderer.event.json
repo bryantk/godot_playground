@@ -5,7 +5,6 @@
 		{
 			"conditions": [],
 			"settings": {
-				"trigger": "event_touch",
 				"speed": 2.0
 			},
 			"art": {
@@ -34,10 +33,12 @@
 						"y": 0
 					},
 					"command": "start",
-					"args": {},
+					"args": {
+						"page_entry": true
+					},
 					"outputs": [
 						{
-							"flow": "next",
+							"flow": "event_touch",
 							"target": "n1"
 						}
 					]

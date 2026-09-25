@@ -4,9 +4,7 @@
 	"pages": [
 		{
 			"conditions": [],
-			"settings": {
-				"trigger": "action"
-			},
+			"settings": {},
 			"art": {
 				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
 				"idle": "idle"
@@ -25,10 +23,12 @@
 						"y": 0
 					},
 					"command": "start",
-					"args": {},
+					"args": {
+						"page_entry": true
+					},
 					"outputs": [
 						{
-							"flow": "next",
+							"flow": "action",
 							"target": "n1"
 						}
 					]
