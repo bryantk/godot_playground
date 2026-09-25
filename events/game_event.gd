@@ -9,11 +9,23 @@ class_name GameEvent extends Node
 ## a bodiless region trigger[/b] - the same node either way, which is what keeps "what
 ## is at this cell?" one lookup regardless of which kind answers it.
 ##
-## [b]`player_touch`/`event_touch` fire two ways.[/b] [method _on_actor_stepped] is the
-## precise one, off [signal EventBus.actor_stepped] - but that signal only exists for a
-## [GridMotion] actor, so [method _check_continuous_touch] is the fallback a per-frame
-## cell-equality check gives free motion, on either side: a free player walking into
-## this event, or this event's own free actor walking into the player.
+## [b]`player_touch` and `event_touch` are which side moved, not just that they
+## overlapped.[/b] The player walking into this event fires `player_touch`; this
+## event's own actor walking into the player - a patrol crossing the player's path -
+## fires `event_touch`. [method _on_actor_stepped] knows which because [signal
+## EventBus.actor_stepped] names the actor that just stepped; [method
+## _check_continuous_touch], the per-frame fallback [FreeMotion] needs (that signal only
+## ever exists for a [GridMotion] actor), has no such signal to go by and fires both
+## rather than guessing wrong.
+##
+## [b]Three ways in total.[/b] The two above are for a passable overlap; a not-through
+## event's own cell can never actually overlap anything - [Passability] refuses the step
+## before it gets there - so [method _on_actor_blocked], off [signal
+## EventBus.actor_blocked], is the third: a denied step is treated as a touch in its own
+## right, attributed the same way - the player refused entry into this event's cell
+## fires `player_touch`, this event's own actor refused entry into the player's fires
+## `event_touch` - because bumping into a solid NPC or prop is exactly what an author
+## means by either, for one of those.
 ##
 ## [b]Page switches defer to graph completion[/b] (question 23): while this event's own
 ## runner is still running, neither a new trigger nor a flag change already known to
@@ -130,6 +142,16 @@ var _route_runner: EventRunner = null
 ## [method _on_actor_stepped]'s signal-driven version does.
 var _touching := false
 
+## The blocked-attempt analogue of [member _touching]: true while the player is being
+## refused entry into this event's cell, edge-triggered the same way, since a held
+## direction key re-attempts (and re-refuses) the step every single frame the actor is
+## idle - see [method _drive_grid]. [member _bump_seen_this_frame] is what [method
+## _process] uses to notice a frame with no refusal at all and drop the flag; without
+## it, a refusal that landed before this node's own [method Node._process] this frame
+## would look identical to one from a frame ago and never clear.
+var _bumping := false
+var _bump_seen_this_frame := false
+
 ## The facing captured just before an interaction starts, restored once it ends -
 ## unless a movement/facing executor touched this event's own actor during the run
 ## ([member EventContext.self_actor_touched]), in which case that is treated as
@@ -219,23 +241,70 @@ func _ready() -> void:
 	_load_document()
 
 	EventBus.actor_stepped.connect(_on_actor_stepped)
+	EventBus.actor_blocked.connect(_on_actor_blocked)
 	EventBus.player_interacted.connect(_on_player_interacted)
 	GameState.changed.connect(_on_state_changed)
 
 	_refresh_active_page()
 	_register()
+	# Seeded from the real overlap, not left false: a player already standing on this
+	# event's cell (or footprint) when it loads has not "just stepped onto" it, so this
+	# must not read as a fresh touch the first time _update_touch_state runs - but it
+	# must also not read as a fresh *leave* the moment something later steps off, which
+	# is what leaving _touching at its default false would do.
+	_touching = _footprints_overlap()
 	_maybe_fire(&"on_load")
-	_maybe_fire(&"auto")
+	_fire_auto_once_settled()
 	_start_route()
 
 
+## Fires the [code]auto[/code] trigger only once every [code]on_load[/code] page
+## across the whole scene has actually finished running - not merely been dispatched -
+## and one frame after that.
+##
+## [b]Why not fire inline, the way [code]on_load[/code] does[/b]: every placement's
+## own [method Node._ready] cascades synchronously, one after another, in the same
+## pass (every [method Node._enter_tree] in the scene before any [method Node._ready],
+## per Godot's own guarantee for a subtree added in one call) - firing [code]auto[/code]
+## inline here would race it against an [code]on_load[/code] page still in flight
+## elsewhere in that same pass, or even this exact event's own [code]on_load[/code]
+## run, and [EventScheduler]'s one exclusive slot does not queue a refused request; it
+## just refuses it, silently, with nothing left to retry it later. Waiting for
+## [method EventScheduler.is_exclusive_held] to clear - not just [method is_busy],
+## this event's own - is what actually waits for every [code]on_load[/code] page in
+## the scene, not only this placement's.
+func _fire_auto_once_settled() -> void:
+	while EventScheduler.is_exclusive_held():
+		await get_tree().process_frame
+	await get_tree().process_frame
+	if is_inside_tree():
+		_maybe_fire(&"auto")
+
+
+## Tears down whatever this event was doing, not just its own registration - a node
+## can leave the tree for reasons besides its page finishing cleanly (`erase_event`,
+## most directly, but this is the general case, not a special-case fixup for that one
+## command): an in-flight triggered run or route left alive here would keep ticking
+## inside [EventScheduler] against a [GameEvent] and [Actor] that no longer exist,
+## still holding their lease and, for a locked page, [ModeStack]'s own cutscene push.
 func _exit_tree() -> void:
+	if _runner != null and not _runner.finished:
+		if _actor != null:
+			EventScheduler.release_lease(_actor.actor_id, _runner)
+		_runner.stop()
+		_runner = null
+		_runner_ctx = null
+		_release_control_if_locked()
+	_stop_route()
 	_unregister()
 
 
 func _process(_delta: float) -> void:
 	poll()
 	_check_continuous_touch()
+	if not _bump_seen_this_frame:
+		_bumping = false
+	_bump_seen_this_frame = false
 
 
 ## Notices a finished runner and re-checks the deferred page switch. A real frame
@@ -287,8 +356,9 @@ func is_busy() -> bool:
 
 ## Whether this event's active page is currently driving its actor through a
 ## background route runner - what distinguishes an autonomously-patrolling actor from
-## one that is merely scenery or interaction-only, now that neither has a [Brain] of
-## its own to tell them apart by (see [method _start_route]'s class-doc note).
+## one that is merely scenery or interaction-only, now that neither has a
+## [PlayerController] of its own to tell them apart by (see [method _start_route]'s
+## class-doc note).
 func is_routed() -> bool:
 	return _route_runner != null
 
@@ -457,58 +527,136 @@ func _player() -> Actor:
 
 # -- The seven triggers --------------------------------------------------------------
 
-func _on_actor_stepped(stepped_id: StringName, from: Vector3i, to: Vector3i) -> void:
-	var my_cell := cell()
-
-	if _actor != null and stepped_id == _actor.actor_id and to == my_cell:
+func _on_actor_stepped(stepped_id: StringName, _from: Vector3i, to: Vector3i) -> void:
+	var is_self_actor := _actor != null and stepped_id == _actor.actor_id
+	if is_self_actor:
 		_reregister_at(to)
-		var watching := _player()
-		if watching != null and to == watching.cell():
-			_maybe_fire(&"event_touch")
-		return
 
 	var player := _player()
-	if player == null or stepped_id != player.actor_id:
+	if player == null:
+		return
+	if not is_self_actor and stepped_id != player.actor_id:
 		return
 
-	if to == my_cell:
-		_maybe_fire(&"player_touch")
-	if from == my_cell:
-		_maybe_fire(&"leave_cell")
+	_update_touch_state(stepped_id)
 
 
-## [method _on_actor_stepped] is signal-driven off [signal EventBus.actor_stepped],
-## which only a [GridMotion] actor ever publishes - a free actor has no discrete step
-## to hang a signal off, so a free-motion player walking into this event, or this
-## event's own actor (free motion) walking into the player, would never fire
-## [code]player_touch[/code]/[code]event_touch[/code] at all. This is the fallback: a
-## plain per-frame cell-equality check, edge-triggered on [member _touching] the same
-## way the signal path is edge-triggered on a step actually landing.
-##
-## Tries both trigger names rather than picking one - cell equality alone cannot say
-## which side did the moving, and [method _maybe_fire] already no-ops on whichever name
-## does not match this page's own [code]settings.trigger[/code], so trying the wrong one
-## first costs nothing. Harmless alongside [method _on_actor_stepped] for two grid
-## actors too: whichever fires first leaves the event busy, and the other's attempt
-## no-ops on that instead of on the name mismatch.
-func _check_continuous_touch() -> void:
-	if _actor == null or _active_page < 0:
+## The third way `player_touch`/`event_touch` fire - see the class doc. [signal
+## EventBus.actor_blocked] fires with exactly the cell a refused step was aimed at,
+## which is enough to tell whether it was the player bumping into this event or this
+## event's own actor bumping into the player - from any other refusal (a wall, some
+## other actor) - without needing to know why the step failed, only whether the refused
+## footprint overlaps the other side's current one. Edge-triggered on [member _bumping]
+## the same way [method _update_touch_state] is edge-triggered on [member _touching] -
+## see that field's own doc for why.
+func _on_actor_blocked(blocked_id: StringName, from: Vector3i, to: Vector3i) -> void:
+	if _active_page < 0:
 		return
+	var player := _player()
+	if player == null:
+		return
+
+	var trigger: StringName
+	if blocked_id == player.actor_id:
+		if not _shifted_overlap(player.footprint_cells(), from, to, _target_cells()):
+			return
+		trigger = &"player_touch"
+	elif _actor != null and blocked_id == _actor.actor_id:
+		if not _shifted_overlap(_actor.footprint_cells(), from, to, player.footprint_cells()):
+			return
+		trigger = &"event_touch"
+	else:
+		return
+
+	_bump_seen_this_frame = true
+	if _bumping:
+		return  # still leaning on the same refused step - not a fresh attempt
+	_bumping = true
+	_maybe_fire(trigger)
+
+
+## [param cells] (a footprint at rest) shifted by the refused step [param from] ->
+## [param to], checked against [param other] for overlap - the shared arithmetic
+## [method _on_actor_blocked] uses for either direction a refusal can be attributed to.
+func _shifted_overlap(cells: Array[Vector3i], from: Vector3i, to: Vector3i,
+		other: Array[Vector3i]) -> bool:
+	var delta := to - from
+	var attempted: Array[Vector3i] = []
+	for c in cells:
+		attempted.append(c + delta)
+	return _cells_overlap(attempted, other)
+
+
+## Whether any part of the player's own footprint overlaps any part of this event's -
+## [method _target_cells]/[method _cells_overlap], the same footprint-aware overlap
+## [method _on_player_interacted] already uses for `action`, rather than the old
+## anchor-cell-only equality that missed or, worse, mis-tracked a footprint bigger than
+## 1x1x1.
+func _footprints_overlap() -> bool:
 	var player := _player()
 	if player == null or player == _actor:
+		return false
+	return _cells_overlap(player.footprint_cells(), _target_cells())
+
+
+## The one place [code]player_touch[/code]/[code]event_touch[/code]/[code]leave_cell[/code]
+## actually fire, edge-triggered on [member _touching] - called from both [method
+## _on_actor_stepped] (the precise path, off [signal EventBus.actor_stepped], which only
+## a [GridMotion] actor ever publishes) and [method _check_continuous_touch] (the
+## per-frame fallback [FreeMotion] needs, on either side, since a free actor has no
+## discrete step to hang a signal off). Merging the two into one edge detector is what
+## keeps a grid actor's touch from firing twice - once from the signal landing, once more
+## from the very next frame's fallback still seeing the same overlap and, with no shared
+## flag between them, reading it as a second, fresh one.
+##
+## [param mover] is the actor id [method _on_actor_stepped] says just stepped - "" for
+## [method _check_continuous_touch]'s own per-frame poll, which has no such signal to go
+## by and fires both rather than guessing wrong (see [method _fire_touch_for]).
+func _update_touch_state(mover: StringName = &"") -> void:
+	if _active_page < 0:
 		return
 
-	var touching := _actor.cell() == player.cell()
+	var touching := _footprints_overlap()
 	if touching and not _touching:
+		_fire_touch_for(mover)
+	elif not touching and _touching:
+		_maybe_fire(&"leave_cell")
+	_touching = touching
+
+
+## Picks which of `player_touch`/`event_touch` a fresh overlap means, by [param mover] -
+## this event's own actor moving into the player fires `event_touch`; the player moving
+## into this event fires `player_touch`; an unknown mover (blank, [method
+## _check_continuous_touch]'s own case) fires both, the same forgiving default this
+## method's own caller used to apply unconditionally.
+func _fire_touch_for(mover: StringName) -> void:
+	var player := _player()
+	if _actor != null and mover == _actor.actor_id:
+		_maybe_fire(&"event_touch")
+	elif player != null and mover == player.actor_id:
+		_maybe_fire(&"player_touch")
+	else:
 		_maybe_fire(&"player_touch")
 		_maybe_fire(&"event_touch")
-	_touching = touching
+
+
+## The fallback [method _update_touch_state] needs for [FreeMotion] - see its own doc.
+func _check_continuous_touch() -> void:
+	_update_touch_state()
 
 
 ## Facing-and-adjacent by default - the interact button aimed at a wall-like thing. A
 ## through event has no adjacent side that means anything (there is nothing stopping
 ## the player from standing on or passing through it), so it switches to "standing on
 ## the same cell" instead - grass, an item, a floor switch.
+##
+## [b]Footprint-aware on both sides.[/b] [method Actor.facing_cells]/[method
+## Actor.footprint_cells] already widen to every cell a bigger-than-1x1 [member
+## Actor.footprint] covers - a 2-wide player reaches 2 cells ahead of it, not just the
+## one in front of its anchor corner - and [method _target_cells] does the same for
+## this event's own actor, so a wide prop is reachable from anywhere along its own
+## edge too. [method _cells_overlap] is "do either side's cells share one", which
+## degenerates to the old single-cell equality check for every 1x1x1 pair.
 ##
 ## [b]A free-motion player gets a distance check instead of either.[/b] A grid player's
 ## body is always exactly on a cell, so cell arithmetic is exact; a free player can stop
@@ -520,10 +668,24 @@ func _on_player_interacted() -> void:
 	if player == null or _map == null:
 		return
 	var in_range := _in_range_free(player) if player.motion() is FreeMotion \
-		else (player.cell() == cell() if _through_actors() \
-			else player.cell() + player.facing() == cell())
+		else (_cells_overlap(player.footprint_cells(), _target_cells()) if _through_actors() \
+			else _cells_overlap(player.facing_cells(), _target_cells()))
 	if in_range:
 		_maybe_fire(&"action")
+
+
+## This event's own reachable cells: its actor's whole footprint, or just [method cell]
+## for a bodiless event (no [Actor] beside it to have one).
+func _target_cells() -> Array[Vector3i]:
+	return _actor.footprint_cells() if _actor != null else [cell()]
+
+
+## Whether [param a] and [param b] share at least one cell.
+static func _cells_overlap(a: Array[Vector3i], b: Array[Vector3i]) -> bool:
+	for c in a:
+		if b.has(c):
+			return true
+	return false
 
 
 ## Interact range for a free-motion player: world distance to this event's own cell
@@ -536,8 +698,8 @@ func _on_player_interacted() -> void:
 ## crossed into the event's own cell.
 func _in_range_free(player: Actor) -> bool:
 	var reach := maxf(_map.cell_size.x, _map.cell_size.z) * 1.25
-	var offset := Space.flatten(_map.cell_centre(cell()) - player.world_position())
-	return offset.length() <= reach
+	var away := Space.flatten(_map.cell_centre(cell()) - player.world_position())
+	return away.length() <= reach
 
 
 func _on_state_changed(_key: StringName) -> void:
@@ -581,6 +743,7 @@ func _maybe_fire(trigger_name: StringName) -> void:
 	_fired_once[_active_page] = true
 	_runner = runner
 	_runner_ctx = ctx
+	EventBus.event_fired.emit(cell())
 	if _actor != null:
 		_pre_interaction_facing = _actor.facing()
 		_has_pre_facing = true
@@ -621,14 +784,25 @@ func _maybe_fire(trigger_name: StringName) -> void:
 
 # -- The active page's own route (event-pages.md §3, stage-c-plan.md segment 7) ----
 
-## [code]page.get("route", {})[/code] is not enough on its own: every worked example in
-## docs/events/ authors an empty route as [code][][/code] (an array), event-pages.md §2's
-## "a page with no route stands still" having predated this dictionary shape entirely -
-## so a page with no real route at all is read as stationary rather than raising a type
-## error against [EventRoute].
-func _route_of_page(page: Dictionary) -> Dictionary:
-	var raw: Variant = page.get("route", {})
-	return EventRoute.resolve(raw as Dictionary) if raw is Dictionary else {}
+## A page's [code]route[/code] compiled to the node array [EventRunner] walks, in
+## either shape it may legitimately hold (event_document.gd's own doc comment on
+## [method EventDocument._read_route]): the §3 object ([code]{"mode": ...}[/code]) this
+## file already knew about, compiled through [EventRoute]; or a node array - what the
+## graph editor's own "Edit Route" view reads and writes, the ordinary node editor
+## pointed at [code]route[/code] instead of [code]graph[/code] - which is already the
+## exact shape [EventRunner] wants and needs no compiling at all. Empty either way (no
+## route authored, or a §3 object naming [code]"fixed"[/code]) reads as stationary.
+func _route_nodes_of_page(page: Dictionary) -> Array[Dictionary]:
+	var raw: Variant = page.get("route", [])
+	if raw is Dictionary:
+		var route := EventRoute.resolve(raw as Dictionary)
+		return [] if EventRoute.is_stationary(route) else EventRoute.compile(route)
+	if raw is Array:
+		var nodes: Array[Dictionary] = []
+		for node: Variant in raw as Array:
+			nodes.append(node as Dictionary)
+		return nodes
+	return []
 
 
 ## Starts the active page's route as a background runner, resuming [member
@@ -640,10 +814,7 @@ func _start_route() -> void:
 	if _route_runner != null or _actor == null or _active_page < 0:
 		return
 
-	var route := _route_of_page(_pages()[_active_page])
-	if EventRoute.is_stationary(route):
-		return
-	var nodes := EventRoute.compile(route)
+	var nodes := _route_nodes_of_page(_pages()[_active_page])
 	if nodes.is_empty():
 		return
 
@@ -697,8 +868,8 @@ func _suspend_route_for_lease() -> void:
 	if _route_runner == null:
 		return
 
-	var route := _route_of_page(_pages()[_active_page]) if _active_page >= 0 else {}
-	var nodes := EventRoute.compile(route)
+	var nodes: Array[Dictionary] = \
+		_route_nodes_of_page(_pages()[_active_page]) if _active_page >= 0 else []
 	var saved := _route_runner.to_save()
 	_actor.suspended_route = {
 		"hash": EventCommand.doc_hash(nodes),

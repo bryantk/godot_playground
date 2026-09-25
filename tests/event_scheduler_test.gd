@@ -25,10 +25,12 @@ func _ready() -> void:
 	_test_trigger_player_touch()
 	await _test_trigger_player_touch_through_lets_the_player_step_onto_it()
 	_test_trigger_event_touch()
+	await _test_trigger_event_touch_through_footprint_overlap()
+	await _test_trigger_event_touch_blocked_by_player()
 	_test_trigger_leave_cell()
 	_test_trigger_action()
 	_test_trigger_on_flag()
-	_test_trigger_auto_parallel()
+	await _test_trigger_auto_parallel()
 
 	_test_page_defers_until_graph_completes_and_art_changes()
 
@@ -236,6 +238,67 @@ func _test_trigger_event_touch() -> void:
 	EventScheduler.reset()
 
 
+## Footprint 2 rather than 1 - proving [method GameEvent._footprints_overlap]'s own
+## footprint-aware overlap check on the event's own side, not just anchor-cell equality:
+## the step below lands the event's *anchor* one cell short of the player, and only its
+## second footprint cell actually reaches the player's own.
+func _test_trigger_event_touch_through_footprint_overlap() -> void:
+	_section("GameEvent -- event_touch fires on overlap, from a through event's own wider footprint")
+	EventScheduler.reset()
+	GameState.clear()
+
+	var world := _build_world()
+	var player := _build_actor(world, &"player", Vector3i(3, 0, 0))
+	var ev := _build_event(
+		world, &"ev", Vector3i(1, 0, 0), FIXTURES + "sched_event_touch_through.event.json")
+	var actor: Actor = ev["actor"]
+	actor.footprint = Vector3i(2, 1, 1)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	_ok(not GameState.flag(&"fired_event_touch"), "not yet - no footprint cell reaches the player")
+	var stepped: bool = actor.motion().step(Vector3i(1, 0, 0))
+	_ok(stepped, "through: true phases the step despite the player standing in the footprint")
+	_eq(actor.cell(), Vector3i(2, 0, 0), "the anchor itself never reaches the player's own cell")
+	_eq(player.cell(), Vector3i(3, 0, 0), "the player never moved")
+	_ok(GameState.flag(&"fired_event_touch"),
+		"event_touch fires anyway - the footprint's second cell overlaps the player")
+	world["root"].free()
+	EventScheduler.reset()
+	GameState.clear()
+
+
+## The not-through counterpart: EventBus.actor_blocked (GameEvent._on_actor_blocked),
+## not a completed overlap, is what fires event_touch here - the event's own actor never
+## actually reaches the player's cell at all.
+func _test_trigger_event_touch_blocked_by_player() -> void:
+	_section("GameEvent -- event_touch fires when the event's own move into the player is refused")
+	EventScheduler.reset()
+	GameState.clear()
+
+	var world := _build_world()
+	var player := _build_actor(world, &"player", Vector3i(2, 0, 0))
+	var ev := _build_event(world, &"ev", Vector3i(1, 0, 0), FIXTURES + "sched_event_touch.event.json")
+	var actor: Actor = ev["actor"]
+	# Waited out, like _test_trigger_player_touch_through_lets_the_player_step_onto_it -
+	# Actor._claim_spawn_cell's own deferred Occupancy claim has to have actually landed
+	# for the player's cell to read as occupied at all, or the step below would succeed
+	# by accident rather than being genuinely refused.
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	_ok(not GameState.flag(&"fired_event_touch"), "not yet - the event hasn't tried to move")
+	var stepped: bool = actor.motion().step(Vector3i(1, 0, 0))
+	_ok(not stepped, "not through - the player's cell refuses the step")
+	_eq(actor.cell(), Vector3i(1, 0, 0), "the event never actually reached the player's cell")
+	_eq(player.cell(), Vector3i(2, 0, 0), "and the player never moved")
+	_ok(GameState.flag(&"fired_event_touch"),
+		"event_touch fires anyway - the refused step was aimed at the player")
+	world["root"].free()
+	EventScheduler.reset()
+	GameState.clear()
+
+
 func _test_trigger_leave_cell() -> void:
 	_section("GameEvent -- leave_cell fires when something steps off the event's cell")
 	EventScheduler.reset()
@@ -283,6 +346,12 @@ func _test_trigger_on_flag() -> void:
 	EventScheduler.reset()
 
 
+## Awaits a couple of frames before asserting, not zero: [method
+## GameEvent._fire_auto_once_settled] deliberately waits for [member
+## EventScheduler.is_exclusive_held] to clear and one frame past that before firing
+## [code]auto[/code] at all (so it never races an [code]on_load[/code] page still
+## running elsewhere in the same scene) - it no longer fires inline from [method
+## Node._ready] the way [code]on_load[/code] itself still does.
 func _test_trigger_auto_parallel() -> void:
 	_section("GameEvent -- auto (parallel) starts as a background runner, not exclusive")
 	EventScheduler.reset()
@@ -290,6 +359,9 @@ func _test_trigger_auto_parallel() -> void:
 
 	var world := _build_world()
 	_build_event(world, &"ev", Vector3i(0, 0, 0), FIXTURES + "sched_auto_parallel.event.json")
+
+	for i in 3:
+		await get_tree().process_frame
 
 	_ok(not EventScheduler.is_exclusive_held(), "auto+parallel does not take the exclusive slot")
 	_ok(EventScheduler.background_runners().size() == 1, "and runs as one background runner")

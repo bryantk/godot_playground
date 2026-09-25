@@ -61,6 +61,12 @@ func play(anim: StringName) -> String:
 ## one of them, in the current demos) used to get no art applied at all, because the
 ## old code only ever looked for [code]_sprite[/code] and gave up the moment it found
 ## none.
+## [b]No `sheet`/`frames` at all means no sprite[/b] - a page authored with an empty
+## [code]art[/code] (a bodiless region trigger, or a placement not revealed yet) is shown
+## or hidden by this alone rather than needing its own `visible: false` worked around by
+## hand (event-pages.md's `y_test` did exactly that before this existed). Re-applied
+## every page switch, same as everything else here, so a chest whose later page finally
+## carries art is revealed by activating that page and needs no separate `set_visible`.
 func apply_art(art: Dictionary) -> void:
 	if art.has("directions"):
 		facing_count = int(art["directions"])
@@ -77,6 +83,7 @@ func apply_art(art: Dictionary) -> void:
 		if frames != null:
 			_sprite.sprite_frames = frames
 
+	set_visible(art.has("sheet") or art.has("frames"))
 	_refresh()
 
 

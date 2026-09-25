@@ -19,16 +19,17 @@ func _ok(c: bool, w: String) -> void:
 		_fail += 1
 
 
-## One prefab, three roles. The player, a routed NPC and an NPC with no brain at all
-## are the same scene file on disk; what separates them is the child hanging off the
-## actor. This is the assertion that catches the tempting regression - giving NPCs their
-## own scene again the next time one needs something the player does not have.
+## One prefab, three roles. The player, a routed NPC and an NPC with no controller at
+## all are the same scene file on disk; what separates them is the child hanging off
+## the actor. This is the assertion that catches the tempting regression - giving NPCs
+## their own scene again the next time one needs something the player does not have.
 ##
-## [b]"Routed" no longer means "has a Brain".[/b] Since stage-c-plan.md segment 7, an
-## autonomous patrol is a page's own [code]route[/code] field, compiled and run by a
-## sibling [GameEvent] - the actor it drives has no [Brain] of its own at all, same as
-## the idle one. [method _is_routed] tells them apart by asking that sibling instead.
-func _check_brains(ctx: MapContext, player: Actor) -> void:
+## [b]"Routed" no longer means "has a controller".[/b] Since stage-c-plan.md segment 7,
+## an autonomous patrol is a page's own [code]route[/code] field, compiled and run by a
+## sibling [GameEvent] - the actor it drives has no [PlayerController] of its own at
+## all, same as the idle one. [method _is_routed] tells them apart by asking that
+## sibling instead.
+func _check_controllers(ctx: MapContext, player: Actor) -> void:
 	var routed: Actor = null
 	var idle: Actor = null
 	for who: Actor in ctx.actors():
@@ -36,12 +37,12 @@ func _check_brains(ctx: MapContext, player: Actor) -> void:
 			continue
 		if _is_routed(who):
 			routed = who
-		elif who.brain() == null:
+		elif who.player_controller() == null:
 			idle = who
 
-	_ok(player.brain() is PlayerBrain, "the player's brain is a PlayerBrain")
+	_ok(player.player_controller() != null, "the player has a PlayerController")
 	_ok(routed != null, "an NPC is driven by a page route")
-	_ok(idle != null, "an NPC has no brain and is only scenery")
+	_ok(idle != null, "an NPC has no controller and is only scenery")
 	if routed == null or idle == null:
 		return
 
@@ -50,8 +51,8 @@ func _check_brains(ctx: MapContext, player: Actor) -> void:
 		and prefab == (idle.get_parent() as Node).scene_file_path,
 		"all three are '%s'" % prefab.get_file())
 
-	# The route walks itself with nobody touching the keyboard; the brainless one does
-	# not drift.
+	# The route walks itself with nobody touching the keyboard; the uncontrolled one
+	# does not drift.
 	#
 	# Watched until it moves rather than sampled once after a fixed wait. A route is a
 	# loop of walks and waits, and the iso demo's longest wait is 1.5s - so a single
@@ -68,12 +69,13 @@ func _check_brains(ctx: MapContext, player: Actor) -> void:
 
 	_ok(moved, "the routed NPC walked its route (%s -> %s after %0.1fs)" % [
 		was_routed, routed.cell(), waited])
-	_ok(idle.cell() == was_idle, "the brainless NPC stayed put")
+	_ok(idle.cell() == was_idle, "the uncontrolled NPC stayed put")
 
 
 ## True when [param who] is a child of a node that also has a sibling [GameEvent]
 ## currently driving a route (event-pages.md §3, stage-c-plan.md segment 7) - the
-## structural test for "this is the patrol", now that patrolling carries no [Brain].
+## structural test for "this is the patrol", now that patrolling carries no
+## [PlayerController].
 func _is_routed(who: Actor) -> bool:
 	var parent := who.get_parent()
 	if parent == null:
@@ -196,8 +198,9 @@ func _top_speed(player: Actor, walk: String, modifier: String, from: Vector3) ->
 ## Read from [method GridMotion.step_duration] rather than timed with a stopwatch, and
 ## deliberately: a step is 167 ms at the default speed, so a timed crossing measures the
 ## process frame it happened to settle on about as much as it measures the cadence. The
-## key is pressed for real and a frame is allowed to pass, so the brain has actually run
-## and the number reflects the whole chain rather than a field set by the test.
+## key is pressed for real and a frame is allowed to pass, so the controller has
+## actually run and the number reflects the whole chain rather than a field set by
+## the test.
 func _step_cadence(player: Actor, dir: Vector3i, modifier: String) -> float:
 	if modifier != "":
 		Input.action_press(modifier)
@@ -260,7 +263,7 @@ func _check(path: String, label: String, walk: String, grid: bool) -> void:
 					restricted += 1
 			_ok(painted == 0 or restricted > 0,
 				"%d painted cells refuse at least one side" % restricted)
-		await _check_brains(ctx, player)
+		await _check_controllers(ctx, player)
 		await _check_turn(player, walk)
 
 	# Walking: does it move, animate, and stop cleanly?
@@ -287,15 +290,15 @@ func _check(path: String, label: String, walk: String, grid: bool) -> void:
 	#
 	# This measures ground covered per frame rather than reading `run_speed_scale` back,
 	# because the bug it exists to catch was the field being read and then thrown away:
-	# the brain multiplied the direction vector by it and FreeMotion.set_intent quantised
-	# that vector on the next line, normalising the magnitude off. Every unit test of the
-	# field's value would have passed while the player walked.
+	# the controller multiplied the direction vector by it and FreeMotion.set_intent
+	# quantised that vector on the next line, normalising the magnitude off. Every unit
+	# test of the field's value would have passed while the player walked.
 	if grid:
 		# A grid run shortens the step rather than lengthening it, so the thing to check
 		# is the cadence. Asked through the real input path - press the key, let the
-		# brain's _process see it - so this covers the binding, PlayerBrain, Brain and
-		# GridMotion, everything the free-motion check covers except the frame-by-frame
-		# advance, which reads the same _step_rate_scale() the duration does.
+		# controller's own _process see it - so this covers the binding, PlayerController
+		# and GridMotion, everything the free-motion check covers except the
+		# frame-by-frame advance, which reads the same _step_rate_scale() the duration does.
 		var dir := player.facing()
 		var walk_step := await _step_cadence(player, dir, "")
 		var run_step := await _step_cadence(player, dir, "run")
@@ -309,7 +312,7 @@ func _check(path: String, label: String, walk: String, grid: bool) -> void:
 		var run_speed := await _top_speed(player, walk, "run", from)
 		# The ratio is reported because it is the readable number: both samples are taken
 		# through the same mud and the same acceleration ramp, so the factor between them
-		# is the brain's run_speed_scale and nothing else. The absolute figures are well
+		# is the controller's own run_speed_scale and nothing else. The absolute figures are well
 		# under FreeMotion.speed for that reason, and that is not a fault.
 		var ratio := run_speed / maxf(walk_speed, 0.0001)
 		_ok(run_speed > walk_speed * 1.25,

@@ -444,7 +444,7 @@ func _test_the_seam() -> void:
 	_eq(_settles.size(), 1, "and actor_settled still fires once it lands")
 	ModeStack.pop()
 
-	# Every grid actor, not only the player - the walker has no PlayerBrain and no
+	# Every grid actor, not only the player - the walker has no PlayerController and no
 	# special id, and still gets both signals. This is what retired the old
 	# publishes_pulse flag: there is no longer an actor whose steps are invisible to
 	# EventBus.
@@ -582,8 +582,8 @@ func _build_map(with_height: bool) -> Dictionary:
 
 
 ## Being the player is [method Actor.is_player] alone, decided by [param id] here (the
-## fallback path, with no [PlayerBrain] in this headless rig) - there is no longer a
-## per-motion flag to also set.
+## fallback path, with no [PlayerController] in this headless rig) - there is no longer
+## a per-motion flag to also set.
 func _build_actor(root: Node, id: StringName, with_height: bool, cell: Vector3i,
 		ctx: MapContext) -> Actor:
 	var body: Node = Node3D.new() if with_height else Node2D.new()

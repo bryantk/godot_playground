@@ -70,7 +70,7 @@ func _isoish() -> GameProfile:
 
 
 ## Written as its own file rather than embedded in the profile, so a map scene can point
-## a [PlayerBrain] at the same resource the profile uses. A sub-resource inside a .tres
+## a [PlayerController] at the same resource the profile uses. A sub-resource inside a .tres
 ## has no path and cannot be referenced from anywhere else, which would have meant the
 ## scenes carrying a second copy of the same numbers.
 func _make_input(directions: int, view_relative: bool, path: String) -> InputProfile:

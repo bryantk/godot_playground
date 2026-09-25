@@ -8,9 +8,10 @@ class_name InputProfile extends Resource
 ## broken in a way that is hard to diagnose later.
 ##
 ## What is [i]not[/i] here: whether steps are discrete. That follows from the actor's
-## [MotionController] - [Brain] hands a [GridMotion] a committed step and a [FreeMotion]
-## continuous steering - so a profile that also declared it would be a second source of
-## truth for the one thing [MapContext.default_motion] is allowed to override.
+## [MotionController] - [PlayerController] hands a [GridMotion] a committed step and a
+## [FreeMotion] continuous steering - so a profile that also declared it would be a
+## second source of truth for the one thing [MapContext.default_motion] is allowed to
+## override.
 
 ## Directions a movement intent snaps to. 4 for game 1's grid, 8 for game 2. 0 means
 ## a fully analog stick, which no shipping profile uses.

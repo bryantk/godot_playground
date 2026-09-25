@@ -17,7 +17,7 @@ class_name AreaComponent extends Node
 ## and not on [AreaZone].
 enum Affects {
 	ALL,     ## Every actor that crosses.
-	PLAYER,  ## The player only - a [PlayerBrain], or failing that the id "player".
+	PLAYER,  ## The player only - a [PlayerController], or failing that the id "player".
 	TARGET,  ## The one actor or event named by [member target_id].
 }
 

@@ -34,7 +34,7 @@ class AddVar extends EventCommandExec:
 
 
 ## Disables player input by pushing [constant ModeStack.Mode.CUTSCENE] - the same mode
-## the exclusive slot itself pushes, so [method PlayerBrain._think]'s
+## the exclusive slot itself pushes, so [method PlayerController._think]'s
 ## [code]not ModeStack.is_field()[/code] check needs no second case. A bare push: see
 ## [method EventCommand] segment "Input" for the pairing this is meant to hold up its
 ## end of.

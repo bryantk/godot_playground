@@ -87,7 +87,53 @@ static func can_enter(ctx: MapContext, cell: Vector3i, actor: Actor) -> bool:
 	return not _physics_blocks(ctx, cell, actor)
 
 
-## The sides of [param cell] that may be crossed, as [constant NORTH] etc. combined.
+## [method can_enter], for a whole footprint moving at once. [param from_cells] and
+## [param to_cells] are parallel - [code]to_cells[i] == from_cells[i] + d[/code] for
+## the step's own direction [code]d[/code] - so each pair is exactly the one-cell edge
+## [method allows_step] already knows how to check; checking every pair rather than
+## only the leading edge is redundant for a footprint's interior cells but correct by
+## construction, and a footprint is small enough (2-4 cells) that the redundancy costs
+## nothing worth avoiding.
+##
+## The physics escape hatch (step 3) is checked once, from [param to_cells][0] (the
+## footprint's own anchor) rather than once per cell - a multi-shape physics query is a
+## 3D-geometry concern the footprint pass does not attempt yet (see [Actor]'s own
+## [member Actor.footprint] doc).
+static func can_enter_footprint(ctx: MapContext, from_cells: Array[Vector3i],
+		to_cells: Array[Vector3i], actor: Actor) -> bool:
+	if ctx == null:
+		return true
+
+	for cell: Vector3i in to_cells:
+		if cell.y != 0 and not ctx.supports_height:
+			push_warning("Passability: cell %s has a non-zero Y on flat map '%s'." % [cell, ctx.map_id])
+			return false
+
+	if actor == null or not actor.through_terrain:
+		for i in from_cells.size():
+			if not _terrain_allows(ctx, from_cells[i], to_cells[i]):
+				return false
+
+	if actor != null and not ctx.occupancy.is_free_for_cells(to_cells, actor.actor_id):
+		return false
+
+	if actor != null and actor.through_terrain:
+		return true
+
+	if Terrain.governs(ctx):
+		return true
+
+	return not _physics_blocks(ctx, to_cells[0], actor)
+
+
+## The sides of [param cell]'s own map/tile cell ([method MapContext.map_cell_of]) that
+## may be crossed, as [constant NORTH] etc. combined.
+##
+## [param cell] is an actor-grid cell, not necessarily the map/tile cell painted -
+## [method MapContext.map_cell_of] translates it first, which is the identity function
+## (and this reads exactly the cell it is given) on every map that has never set
+## [member MapContext.map_cell_size] to anything other than its own [member
+## MapContext.cell_size].
 ##
 ## An unpainted cell is [constant OPEN]: no pathing layer, no tile in it, or a tile that
 ## carries no pathing data all read as open ground. Painting is therefore purely
@@ -100,7 +146,8 @@ static func directions(ctx: MapContext, cell: Vector3i) -> int:
 	if layer == null:
 		return OPEN
 
-	var tile_data: TileData = layer.get_cell_tile_data(Space.as_v2i(cell))
+	var map_cell: Vector3i = ctx.map_cell_of(cell)
+	var tile_data: TileData = layer.get_cell_tile_data(Space.as_v2i(map_cell))
 	if tile_data == null:
 		return OPEN
 	var mask: Variant = tile_data.get_custom_data(DATA_PATHING)
@@ -128,8 +175,22 @@ static func directions(ctx: MapContext, cell: Vector3i) -> int:
 ## A step that is not one cardinal cell - a diagonal, a teleport, a query about some
 ## distant cell - has no side to cross, so it only asks whether the destination is
 ## enterable at all. A cell painted with no flags is a wall.
+##
+## [b]Compares map cells, not the actor cells passed in.[/b] [param from]/[param to]
+## are actor-grid cells; when [method MapContext.map_cell_of] puts both inside the
+## same map cell, the step is entirely internal to one painted tile and the mask has
+## nothing to say about it - allowed unconditionally. Only a step that actually
+## crosses a map cell boundary reaches the flag check below, against that boundary's
+## own two map cells. On a map with no [member MapContext.map_cell_size] of its own
+## this is the identity translation, so [param from]/[param to] and their map cells
+## are the same cells, exactly as before this existed.
 static func allows_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> bool:
-	var delta := to - from
+	var map_from: Vector3i = ctx.map_cell_of(from)
+	var map_to: Vector3i = ctx.map_cell_of(to)
+	if map_from == map_to:
+		return true
+
+	var delta: Vector3i = map_to - map_from
 	var dir := STEPS.find(delta)
 	if dir < 0:
 		return directions(ctx, to) != 0

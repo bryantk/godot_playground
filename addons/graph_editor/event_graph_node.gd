@@ -72,6 +72,22 @@ const _SPEED_PRESETS: Dictionary = {
 static func normal_speed() -> float:
 	return _SPEED_PRESETS["Normal"]
 
+## [constant _SPEED_PRESETS]' own names, in order - what [code]graph_editor_panel.gd[/code]
+## builds the page inspector's own speed dropdown from, so a page's `settings.speed`
+## offers the identical named set a "speed" command argument's dropdown already does
+## rather than a second list that could drift from this one.
+static func speed_preset_names() -> Array:
+	return _SPEED_PRESETS.keys()
+
+static func has_speed_preset(preset_name: String) -> bool:
+	return _SPEED_PRESETS.has(preset_name)
+
+## [param preset_name]'s numeric value, or [method normal_speed] for a name this file
+## does not recognise - the same "repair, never reject" fallback [method
+## _make_speed_control]'s own required-and-never-authored case already uses.
+static func speed_preset_value(preset_name: String) -> float:
+	return _SPEED_PRESETS.get(preset_name, normal_speed())
+
 ## What a "location" argument's dropdown offers - [enum Dialogue.Location]'s own
 ## names, in its own order, so the index a choice writes into [code]args.location[/code]
 ## is the same int [method Dialogue.set_window_location] already expects.
@@ -104,7 +120,7 @@ const _CATEGORY_COLORS: Dictionary = {
 ## whole membership reads in one place, the way the section comments already group them.
 const _COMMAND_CATEGORIES: Dictionary = {
 	"flow": ["start", "wait", "goto", "label", "if", "ask", "call", "wait_for", "end",
-		"re_validate"],
+		"re_validate", "define_route"],
 
 	"movement": ["move_to", "move_by", "step", "face_direction", "face_to", "jump",
 		"follow", "set_speed", "teleport", "wait_settle"],

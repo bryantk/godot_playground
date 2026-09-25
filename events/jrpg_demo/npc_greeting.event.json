@@ -30,7 +30,7 @@
 					"outputs": [
 						{
 							"flow": "next",
-							"target": "n2"
+							"target": "n3"
 						}
 					]
 				},
@@ -67,6 +67,24 @@
 						{
 							"flow": "next",
 							"target": "n1"
+						}
+					]
+				},
+				{
+					"id": "n3",
+					"title": "print_debug",
+					"position": {
+						"x": 0,
+						"y": 20
+					},
+					"command": "print_debug",
+					"args": {
+						"text": "ACTOR"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n2"
 						}
 					]
 				}

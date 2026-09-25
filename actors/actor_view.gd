@@ -38,6 +38,21 @@ class_name ActorView extends Node
 		visible = value
 		_write_visible()
 
+## A resting pixel nudge for the visual, independent of [member set_step_offset]'s own
+## [member _offset] - that one is a lie told during a step and gets overwritten every
+## frame it is in flight; this one is permanent, the same idea as [Sprite2D]'s own
+## built-in [code]offset[/code] (which is exactly where [method _write_visual_offset]
+## writes it for a 2D visual). [Actor] pushes [member MapContext.actor_visual_offset]
+## here summed with its own footprint's centring correction ([method
+## Actor.footprint_visual_offset]) the moment it resolves a view - every actor, not
+## only one with a [GameEvent] beside it (the player has none) - so a multi-cell
+## actor's sprite reads as centred on its whole footprint rather than on just its
+## anchor cell.
+@export var visual_offset: Vector2 = Vector2.ZERO:
+	set(value):
+		visual_offset = value
+		_write_visual_offset()
+
 var _visual: Node = null
 var _offset: Vector3 = Vector3.ZERO
 var _bound := false
@@ -79,6 +94,7 @@ func _after_bind() -> void:
 	_warn_if_detached()
 	_write_y_level()
 	_write_visible()
+	_write_visual_offset()
 
 
 func _first_child() -> Node:
@@ -134,6 +150,27 @@ func _write_visible() -> void:
 		(_visual as CanvasItem).visible = visible
 	elif _visual is Node3D:
 		(_visual as Node3D).visible = visible
+
+
+## Set [member visual_offset] and apply it immediately.
+func set_visual_offset(v: Vector2) -> void:
+	visual_offset = v
+
+
+## Writes into whichever of the three visual kinds this project's prefabs actually
+## use - [Sprite2D] (and [SpriteSheet], which extends it), [AnimatedSprite2D], and
+## [Sprite3D] - all three of which carry their own native [code]offset[/code] pixel
+## nudge already, the same mechanism [code]actor_jrpg.tscn[/code]'s hand-tuned
+## [code]Vector2(0, -4)[/code] already uses. Lives in the base rather than a
+## subclass override: unlike [member y_level]/[member visible], which mean something
+## different (or nothing) per space, an offset in pixels is the same idea in 2D and 3D.
+func _write_visual_offset() -> void:
+	if _visual is Sprite2D:
+		(_visual as Sprite2D).offset = visual_offset
+	elif _visual is AnimatedSprite2D:
+		(_visual as AnimatedSprite2D).offset = visual_offset
+	elif _visual is Sprite3D:
+		(_visual as Sprite3D).offset = visual_offset
 
 
 ## Set [member y_level] and apply it immediately. What the `set_y_level` event command

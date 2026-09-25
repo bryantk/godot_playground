@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://dvgv7b755fsko" path="res://games/isoish/actor_isoish.tscn" id="4_xyfnl"]
 [ext_resource type="Script" uid="uid://cfvh6ga4k8rgs" path="res://games/jrpg/debug_only.gd" id="6_occ0q"]
 [ext_resource type="Script" uid="uid://bywa73wc0217k" path="res://core/camera/ortho_pixel_rig.gd" id="12_2n526"]
-[ext_resource type="Script" uid="uid://bw0on2cdcl40l" path="res://actors/brain/player_brain.gd" id="13_4c63s"]
+[ext_resource type="Script" path="res://actors/player_controller.gd" id="13_4c63s"]
 [ext_resource type="Resource" path="res://games/isoish/isoish_input.tres" id="14_tvm3s"]
 [ext_resource type="Script" uid="uid://dfyo0bfp6lnmf" path="res://core/areas/area_zone.gd" id="15_zone"]
 [ext_resource type="Script" uid="uid://djxeq3x4vd420" path="res://core/areas/speed_modifier.gd" id="16_speed"]
@@ -130,9 +130,12 @@ actor_id = &"player"
 [node name="Motion" parent="Upscale/World/Map/Actors/Player/Actor" index="1" unique_id=321912954]
 jump_strength = 8.0
 
-[node name="Brain" type="Node" parent="Upscale/World/Map/Actors/Player/Actor" index="3" unique_id=506339890]
+[node name="PlayerController" type="Node" parent="Upscale/World/Map/Actors/Player/Actor" index="3" unique_id=506339890]
 script = ExtResource("13_4c63s")
 profile = ExtResource("14_tvm3s")
+
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Player/Actor"]
+script = ExtResource("21_debug_area")
 
 [node name="Sprite" parent="Upscale/World/Map/Actors/Player" index="2" unique_id=986768101]
 cast_shadow = 0

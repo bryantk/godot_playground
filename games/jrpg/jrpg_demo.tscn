@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" path="res://games/jrpg/actor_jrpg.tscn" id="4_0l83r"]
 [ext_resource type="Script" uid="uid://cfvh6ga4k8rgs" path="res://games/jrpg/debug_only.gd" id="5_4o3kj"]
 [ext_resource type="Script" uid="uid://djxeq3x4vd420" path="res://core/areas/speed_modifier.gd" id="5_ika12"]
-[ext_resource type="Script" uid="uid://bw0on2cdcl40l" path="res://actors/brain/player_brain.gd" id="5_irolo"]
+[ext_resource type="Script" uid="uid://pa3vwqvjw77f" path="res://actors/player_controller.gd" id="5_irolo"]
 [ext_resource type="Script" uid="uid://dfyo0bfp6lnmf" path="res://core/areas/area_zone.gd" id="6_e1s23"]
 [ext_resource type="Script" uid="uid://dbqof4tvekdto" path="res://core/camera/room_camera_2d.gd" id="12_gxjgp"]
 [ext_resource type="Resource" path="res://games/jrpg/jrpg_input.tres" id="14_eih3y"]
@@ -24,7 +24,9 @@ script = ExtResource("1_b3m1s")
 [node name="MapContext" type="Node" parent="." unique_id=304033263]
 script = ExtResource("2_shd0p")
 map_id = &"jrpg_demo"
-cell_size = Vector3(16, 0, 16)
+cell_size = Vector3(8, 0, 8)
+map_cell_size = Vector3(16, 0, 16)
+actor_visual_offset = Vector2(0, -6)
 collision_node = NodePath("../Pathing")
 
 [node name="Background" type="ColorRect" parent="." unique_id=1003183580]
@@ -81,69 +83,87 @@ metadata/_custom_type_script = "uid://djxeq3x4vd420"
 y_sort_enabled = true
 
 [node name="Player" parent="Actors" unique_id=285322822 instance=ExtResource("4_0l83r")]
-position = Vector2(232, 152)
+position = Vector2(220, 140)
 
 [node name="Actor" parent="Actors/Player" index="0"]
 actor_id = &"player"
+footprint = Vector3i(2, 1, 2)
 
-[node name="Brain" type="Node" parent="Actors/Player/Actor" index="3" unique_id=1224347219]
+[node name="Motion" parent="Actors/Player/Actor" index="1"]
+direction_count = 8
+
+[node name="PlayerController" type="Node" parent="Actors/Player/Actor" index="3" unique_id=1224347219]
 script = ExtResource("5_irolo")
 profile = ExtResource("14_eih3y")
+
+[node name="DebugArea" type="Node2D" parent="Actors/Player/Actor" index="4" unique_id=1024040940]
+position = Vector2(220, 140)
+script = ExtResource("18_debug_area")
 
 [node name="Sprite" parent="Actors/Player" index="1"]
 frame = 1
 
-[node name="Npc_17_9" parent="Actors" unique_id=632867843 instance=ExtResource("4_0l83r")]
-position = Vector2(296, 168)
+[node name="Npc_17_9__npc_greeting" parent="Actors" unique_id=632867843 instance=ExtResource("4_0l83r")]
+position = Vector2(292, 164)
 
-[node name="Sprite" parent="Actors/Npc_17_9" index="1"]
+[node name="Actor" parent="Actors/Npc_17_9__npc_greeting" index="0"]
+actor_id = &"npc_greeting"
+footprint = Vector3i(2, 1, 2)
+
+[node name="Sprite" parent="Actors/Npc_17_9__npc_greeting" index="1"]
 modulate = Color(0.65, 0.8, 1, 1)
 frame = 1
 
-[node name="GameEvent" type="Node" parent="Actors/Npc_17_9" unique_id=632867844]
+[node name="GameEvent" type="Node" parent="Actors/Npc_17_9__npc_greeting" unique_id=632867844]
 script = ExtResource("17_game_event")
 document_path = "res://events/jrpg_demo/npc_greeting.event.json"
 actor_id = &"npc_17_9"
 
-[node name="DebugArea" type="Node2D" parent="Actors/Npc_17_9/GameEvent" unique_id=686686382]
-position = Vector2(296, 168)
+[node name="DebugArea" type="Node2D" parent="Actors/Npc_17_9__npc_greeting/GameEvent" unique_id=686686382]
+position = Vector2(292, 164)
 script = ExtResource("18_debug_area")
 
-[node name="Npc_8_12" parent="Actors" unique_id=1777864491 instance=ExtResource("4_0l83r")]
-position = Vector2(136, 200)
+[node name="Npc_8_12__nada" parent="Actors" unique_id=1777864491 instance=ExtResource("4_0l83r")]
+position = Vector2(212, 196)
 
-[node name="Sprite" parent="Actors/Npc_8_12" index="1"]
+[node name="Actor" parent="Actors/Npc_8_12__nada" index="0"]
+actor_id = &"nada"
+footprint = Vector3i(2, 1, 2)
+
+[node name="Sprite" parent="Actors/Npc_8_12__nada" index="1"]
 modulate = Color(0.65, 0.8, 1, 1)
+position = Vector2(4, 4)
 frame = 1
 
-[node name="GameEvent" type="Node" parent="Actors/Npc_8_12" unique_id=1018433058]
+[node name="GameEvent" type="Node" parent="Actors/Npc_8_12__nada" unique_id=1018433058]
 script = ExtResource("17_game_event")
-document_path = "res://events/jrpg_demo/npc_patrol.event.json"
+document_path = "res://events/jrpg_demo/nada.event.json"
 actor_id = &"npc_8_12"
 
-[node name="DebugArea" type="Node2D" parent="Actors/Npc_8_12/GameEvent" unique_id=507263382]
-position = Vector2(136, 200)
+[node name="DebugArea" type="Node2D" parent="Actors/Npc_8_12__nada/GameEvent" unique_id=507263382]
+position = Vector2(212, 196)
 script = ExtResource("18_debug_area")
 
-[node name="y_test" parent="Actors" unique_id=87675178 instance=ExtResource("4_0l83r")]
-position = Vector2(280, 184)
+[node name="Npc_8_13__y_level" parent="Actors" unique_id=87675178 instance=ExtResource("4_0l83r")]
+position = Vector2(284, 188)
 
-[node name="Actor" parent="Actors/y_test" index="0"]
-actor_id = &""
+[node name="Actor" parent="Actors/Npc_8_13__y_level" index="0"]
+actor_id = &"y_level"
 through_actors = true
+footprint = Vector3i(2, 1, 2)
 
-[node name="Sprite" parent="Actors/y_test" index="1"]
+[node name="Sprite" parent="Actors/Npc_8_13__y_level" index="1"]
 modulate = Color(0.65, 0.8, 1, 1)
 frame = 1
 
-[node name="GameEvent" type="Node" parent="Actors/y_test" unique_id=125131200]
+[node name="GameEvent" type="Node" parent="Actors/Npc_8_13__y_level" unique_id=125131200]
 script = ExtResource("17_game_event")
 document_path = "res://events/jrpg_demo/y_test.event.json"
 actor_id = &"y_test"
 visible = false
 
-[node name="DebugArea" type="Node2D" parent="Actors/y_test/GameEvent" unique_id=98652832]
-position = Vector2(280, 184)
+[node name="DebugArea" type="Node2D" parent="Actors/Npc_8_13__y_level/GameEvent" unique_id=98652832]
+position = Vector2(284, 188)
 script = ExtResource("18_debug_area")
 
 [node name="Above" type="TileMapLayer" parent="." unique_id=1184425040]
@@ -162,6 +182,6 @@ bounds = Rect2(0, 0, 320, 224)
 follow_target = &"player"
 
 [editable path="Actors/Player"]
-[editable path="Actors/Npc_17_9"]
-[editable path="Actors/Npc_8_12"]
-[editable path="Actors/y_test"]
+[editable path="Actors/Npc_17_9__npc_greeting"]
+[editable path="Actors/Npc_8_12__nada"]
+[editable path="Actors/Npc_8_13__y_level"]

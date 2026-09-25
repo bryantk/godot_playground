@@ -1,0 +1,140 @@
+{
+	"format": 1,
+	"id": "",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {
+				"trigger": "event_touch",
+				"speed": 6.0
+			},
+			"art": {
+				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png"
+			},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
+			"lock_player": false,
+			"route": [
+				{
+					"id": "",
+					"title": "start",
+					"position": {
+						"x": -160,
+						"y": 80
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n3"
+						}
+					]
+				},
+				{
+					"id": "n3",
+					"title": "define_route",
+					"position": {
+						"x": 80,
+						"y": -260
+					},
+					"command": "define_route",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n1"
+						},
+						{
+							"flow": "blocked",
+							"target": ""
+						}
+					]
+				},
+				{
+					"id": "n2",
+					"title": "move_by",
+					"position": {
+						"x": 680,
+						"y": -260
+					},
+					"command": "move_by",
+					"args": {
+						"cells": [
+							0.0,
+							0.0,
+							2.0
+						],
+						"speed": 6.0
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n1"
+						}
+					]
+				},
+				{
+					"id": "n1",
+					"title": "move_by",
+					"position": {
+						"x": 340,
+						"y": -260
+					},
+					"command": "move_by",
+					"args": {
+						"cells": [
+							0.0,
+							0.0,
+							-2.0
+						],
+						"speed": 6.0
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n2"
+						}
+					]
+				}
+			],
+			"graph": [
+				{
+					"id": "",
+					"title": "start",
+					"position": {
+						"x": -160,
+						"y": 80
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n1"
+						}
+					]
+				},
+				{
+					"id": "n1",
+					"title": "print_debug",
+					"position": {
+						"x": 0,
+						"y": 60
+					},
+					"command": "print_debug",
+					"args": {
+						"text": "test 2"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				}
+			]
+		}
+	]
+}

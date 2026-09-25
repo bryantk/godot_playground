@@ -167,6 +167,24 @@ const COMMANDS: Dictionary = {
 		"resume": RESUME_RESTART,
 		"blurb": "Re-check which page should be active, right now.",
 	},
+	"define_route": {
+		# Handled directly by EventRunner, the same as "call"/"exit_call" - it sets a
+		# policy other nodes' own blocked moves are read against, which only the
+		# runner's frame has anywhere to keep. In effect from here until the next
+		# "define_route" the graph reaches (looping back to this same node, most often),
+		# not scoped by any pairing this file or the graph editor need police.
+		#
+		# No args: "blocked" is not an ordinary flow EventRunner ever takes while
+		# walking this node itself, only reads off the node's own wiring as the policy
+		# - left unwired, a blocked move retries (pauses a tick, tries the same move
+		# again, forever); wired, a blocked move jumps there instead of retrying. See
+		# EventCommandExec.was_blocked and event_runner.gd's own class doc.
+		"args": {},
+		"flows": ["next", "blocked"], "blocking": false, "space": SPACE_GRID,
+		"resume": RESUME_RESTART,
+		"blurb": "Sets this route's on-blocked policy: leave \"blocked\" unwired to "
+			+ "retry, or wire it to jump there instead of retrying.",
+	},
 
 	# -- Actor -----------------------------------------------------------------
 	"move_to": {
@@ -231,6 +249,15 @@ const COMMANDS: Dictionary = {
 		"flows": ["next"], "blocking": true, "space": SPACE_GRID,
 		"resume": RESUME_RESTART,
 		"blurb": "Pause until an actor is centred on its cell.",
+	},
+	"erase_event": {
+		# No "next": once an actor's whole placement is gone there is nothing left to
+		# resume into, the same reasoning "end" and "exit_call" already carry - see
+		# events/commands/actor_execs.gd's EraseEvent for what actually happens.
+		"args": {"actor": T_ACTOR + "?"},
+		"flows": [], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"blurb": "Remove an actor's placement - itself, its event, everything - from the map.",
 	},
 
 	# -- Route (segment 7) -------------------------------------------------------

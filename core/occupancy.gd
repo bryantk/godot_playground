@@ -86,6 +86,18 @@ func is_free_for(cell: Vector3i, actor_id: StringName) -> bool:
 	return true
 
 
+## [method is_free_for], over a whole footprint at once - every cell in [param cells]
+## has to be free for the same reason [method is_free_for] checks one.
+func is_free_for_cells(cells: Array[Vector3i], actor_id: StringName) -> bool:
+	if phases(actor_id):
+		return true
+	for cell: Vector3i in cells:
+		for id: StringName in blockers_at(cell):
+			if id != actor_id:
+				return false
+	return true
+
+
 ## Every cell [param actor_id] holds. Usually one; a multi-cell actor holds several.
 func cells_of(actor_id: StringName) -> Array[Vector3i]:
 	var out: Array[Vector3i] = []
@@ -148,6 +160,18 @@ func commit_step(actor_id: StringName, from: Vector3i, to: Vector3i) -> bool:
 		return is_free_for(to, actor_id)
 	var changes: Dictionary[Vector3i, StringName] = {}
 	changes[to] = actor_id
+	return commit(changes)
+
+
+## [method commit_step], for one actor whose whole footprint moves at once - every
+## cell in [param to_cells] mapped to [param actor_id] and committed together.
+## [method commit]'s own refusal loop already keys refusal off the claimant's id, not
+## "one claim per cell", so this needs nothing new there: it only has to build the
+## dictionary [method commit_step] builds one entry of.
+func commit_step_footprint(actor_id: StringName, to_cells: Array[Vector3i]) -> bool:
+	var changes: Dictionary[Vector3i, StringName] = {}
+	for cell: Vector3i in to_cells:
+		changes[cell] = actor_id
 	return commit(changes)
 
 

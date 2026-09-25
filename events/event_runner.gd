@@ -27,6 +27,23 @@ class_name EventRunner extends RefCounted
 ## [code]end[/code] (any node with zero flow ports) pops back to the call site's own
 ## [code]next[/code]; [code]exit_call[/code] pops the most-nested frame early. Neither
 ## touches [EventContext] - identity stays whoever originally triggered this runner.
+##
+## [b][code]define_route[/code][/b] is handled here too, for the same reason: it sets a
+## frame's own state ([member _Frame.route_scope]), which nothing outside this file has
+## a reference to. It is not scoped by any explicit close - the policy it sets ([member
+## _Frame.route_scope]'s own "blocked" target, read off the node's own wiring rather
+## than an ordinary flow) stays in effect for every node the graph walks afterward until
+## the next [code]define_route[/code] it reaches replaces it (looping back to the same
+## node, most often). [method _resolve_finished_node] is where it actually does
+## anything: a blocking command that reports [method EventCommandExec.was_blocked] true
+## while a policy is set either retries (one scheduler tick of nothing via [class
+## _RouteRetryPause], then the very same node fresh) when "blocked" is left unwired, or
+## jumps straight to whatever "blocked" does name, skipping whatever "next" it would
+## otherwise have taken - instead of silently walking "next" as if the move had
+## succeeded, which is what a hand-wired patrol loop of ordinary [code]move_by[/code]
+## nodes did before this existed (a permanently blocked back-and-forth trips [constant
+## NODE_BUDGET] in a single tick, since a refused move finishes with no time elapsed at
+## all).
 
 ## A goto/label cycle guard: at most this many node entries per outer [method _drive]
 ## call. A legitimate chain of non-blocking nodes between two blocking commands never
@@ -65,6 +82,27 @@ class _Frame:
 	var pending_restore: bool = false
 	var pending_exec_state: Dictionary = {}
 
+	## The [code]define_route[/code] policy currently active in this frame - empty
+	## before the first one the graph reaches, replaced (not stacked) by every
+	## [code]define_route[/code] after that, including one that loops back to itself.
+	## [code]{"blocked_target": String}[/code] - "" when "blocked" was left unwired
+	## (retry), a node id otherwise. See the class doc and [method
+	## EventRunner._resolve_finished_node].
+	var route_scope: Dictionary = {}
+
+
+## One scheduler tick of nothing - what a blocked move retries after, when the active
+## [code]define_route[/code] policy leaves "blocked" unwired. Never reached through
+## [method EventCommandExec.create] (it names no command of its own),
+## and never advances a frame's cursor the way an ordinary finished executor does -
+## [method tick]'s own check for it is what keeps [method _resolve_finished_node]'s
+## [code]frame.exec = _RouteRetryPause.new()[/code] from being immediately overwritten
+## by the very next scheduler tick reading it as an ordinary completed command and
+## walking its (nonexistent) "next" port.
+class _RouteRetryPause extends EventCommandExec:
+	func tick(_delta: float) -> int:
+		return Status.DONE
+
 
 var ctx: EventContext
 var latch: KeyLatch
@@ -79,13 +117,13 @@ var keeps_running := false
 var _stack: Array[_Frame] = []
 var _budget := 0
 
-## The brain this runner suspended on [method begin]/[method restore], if any - see
-## [method _take_actor_over]. Tracked here, not by [GameEvent], because a lease only
-## ever says who *may* drive an actor; the runner is the thing that actually took over,
-## so it is the thing responsible for giving control back, on every path that ends it
-## ([method stop], [method _drive]'s own natural finish), not only the happy one a
-## caller remembers to unwind.
-var _suspended_brain: Brain = null
+## The [PlayerController] this runner suspended on [method begin]/[method restore], if
+## any - see [method _take_actor_over]. Tracked here, not by [GameEvent], because a
+## lease only ever says who *may* drive an actor; the runner is the thing that actually
+## took over, so it is the thing responsible for giving control back, on every path
+## that ends it ([method stop], [method _drive]'s own natural finish), not only the
+## happy one a caller remembers to unwind.
+var _suspended_controller: PlayerController = null
 
 
 func _init(a_ctx: EventContext) -> void:
@@ -100,7 +138,7 @@ func _init(a_ctx: EventContext) -> void:
 func begin(nodes: Array[Dictionary], doc_path: String = "", page_index: int = -1) -> void:
 	if finished:
 		return
-	_suspend_actor_brain()
+	_suspend_actor_controller()
 	_cancel_actor_prior_motion()
 	var frame := _Frame.new()
 	frame.nodes = nodes
@@ -128,18 +166,18 @@ func stop() -> void:
 	_give_actor_back()
 
 
-## Suspends [member EventContext.self_actor]'s own [Brain] (a patrolling [RouteBrain],
-## most obviously) - a lease alone never stopped it, which is why an actor used to keep
-## walking straight through its own event. Called from both [method begin] and [method
-## restore]: either way this runner is taking the actor over.
-func _suspend_actor_brain() -> void:
+## Suspends [member EventContext.self_actor]'s own [PlayerController], if it has one -
+## a lease alone never stopped it, which is why an actor used to keep walking straight
+## through its own event. Called from both [method begin] and [method restore]:
+## either way this runner is taking the actor over.
+func _suspend_actor_controller() -> void:
 	var actor := ctx.self_actor if ctx != null else null
 	if actor == null:
 		return
-	var brain := actor.brain()
-	if brain != null:
-		brain.suspend(true)
-		_suspended_brain = brain
+	var controller := actor.player_controller()
+	if controller != null:
+		controller.suspend(true)
+		_suspended_controller = controller
 
 
 ## Drops whatever motion the actor was already mid-flight on *before* this runner took
@@ -162,12 +200,12 @@ func _cancel_actor_prior_motion() -> void:
 		motion.call_deferred(&"cancel")
 
 
-## The other half of [method _suspend_actor_brain] - always safe to call, including when
+## The other half of [method _suspend_actor_controller] - always safe to call, including when
 ## nothing was ever suspended.
 func _give_actor_back() -> void:
-	if _suspended_brain != null:
-		_suspended_brain.suspend(false)
-	_suspended_brain = null
+	if _suspended_controller != null:
+		_suspended_controller.suspend(false)
+	_suspended_controller = null
 
 
 ## Called by [EventScheduler] once per its own clock tick.
@@ -180,12 +218,21 @@ func tick(delta: float) -> void:
 	if frame.exec == null:
 		return
 
+	if frame.exec is _RouteRetryPause:
+		# The one frame a blocked, retrying move paused for - frame.cursor was never
+		# moved off it, so _drive() below finds the very same node and starts it fresh.
+		frame.exec = null
+		_budget = NODE_BUDGET
+		_drive()
+		return
+
 	if frame.exec.tick(delta) != EventCommandExec.Status.DONE:
 		return
 
 	var ex := frame.exec
 	frame.exec = null
-	_advance_cursor(frame, ex.flow_port())
+	if not _resolve_finished_node(frame, ex):
+		return  # _resolve_finished_node queued another retry pause - nothing more this tick
 
 	_budget = NODE_BUDGET
 	_drive()
@@ -227,6 +274,7 @@ func to_save() -> Dictionary:
 			# Embedded only when there is no file to reload from - see _Frame's own doc.
 			"nodes": frame.nodes.duplicate(true) if frame.doc_path == "" else [],
 			"cursor": frame.cursor,
+			"route_scope": frame.route_scope.duplicate(true),
 		}
 		# Only the top frame can ever have a live executor - every frame beneath it is
 		# a suspended caller sitting on its own already-resolved "call" node, waiting
@@ -303,9 +351,15 @@ func restore(frames: Array) -> void:
 			frame.pending_restore = true
 			frame.pending_exec_state = saved["exec_state"]
 
+		# Same reasoning, one level up: a policy named by a graph that has since changed
+		# shape (the hash mismatch above) is not trustworthy either - its own
+		# blocked_target id might not even exist in the reloaded graph any more.
+		if cursor != "" and saved.get("route_scope", {}) is Dictionary:
+			frame.route_scope = (saved["route_scope"] as Dictionary).duplicate(true)
+
 		_stack.append(frame)
 
-	_suspend_actor_brain()
+	_suspend_actor_controller()
 	_budget = NODE_BUDGET
 	_drive()
 
@@ -330,8 +384,8 @@ func _drive() -> void:
 			return
 
 		if frame.cursor == "":
-			var start_id := _find_start(frame)
-			if start_id == "":
+			var start_id: Variant = _find_start(frame)
+			if start_id == null:
 				# An empty or malformed graph (event-pages.md §2's route-only page
 				# has nothing to reach). Nothing to run.
 				_stack.pop_back()
@@ -346,6 +400,14 @@ func _drive() -> void:
 
 		var n: Dictionary = frame.by_id.get(frame.cursor, {})
 		var name := str(n.get("command", ""))
+		# doc_path == "" is a route (GameEvent._start_route() always calls
+		# run_background with no document behind it, since a route is compiled
+		# separately from a page's own triggered graph) - autonomous patrolling that
+		# starts and keeps going for as long as the page is active, not an event worth
+		# a console line of its own. A doc-backed frame is a triggered run instead
+		# (player_touch, action, ...), which still gets logged.
+		if name == EventCommand.START_COMMAND and frame.doc_path != "":
+			_log_node_process(frame)
 
 		if name == "call":
 			if not _begin_call(frame, n):
@@ -354,6 +416,10 @@ func _drive() -> void:
 
 		if name == "exit_call":
 			_pop_frame()
+			continue
+
+		if name == "define_route":
+			_set_route_policy(frame, n)
 			continue
 
 		var ex := EventCommandExec.create(name)
@@ -385,11 +451,40 @@ func _drive() -> void:
 			continue
 
 		if ex.tick(0.0) == EventCommandExec.Status.DONE:
-			_advance_cursor(frame, ex.flow_port())
+			if not _resolve_finished_node(frame, ex):
+				return  # queued a retry pause - _drive() picks back up next real tick
 			continue
 
 		frame.exec = ex
 		return
+
+
+## One line per run, at its start node only: time, the parent node (this runner's own
+## event) name, which page is running, and the trigger that started it.
+func _log_node_process(frame: _Frame) -> void:
+	var page := "%s#%d" % [frame.doc_path, frame.page_index] if frame.doc_path != "" else "<inline>"
+	print("[%d] event=%s page=%s action=%s"
+		% [Time.get_ticks_msec(), str(ctx.self_actor.get_parent().name) if ctx != null else "", page,
+			_trigger_of(frame)])
+
+
+## The page's own [code]settings.trigger[/code] (decision 44's seven: [code]action[/code],
+## [code]player_touch[/code], [code]auto[/code], ...) - re-read from disk rather than
+## threaded through [method begin] as a parameter of its own, since this line prints once
+## per run and is not worth widening this class's public surface for. [code]""[/code]
+## for an inline frame with no document behind it (every headless test's own literal
+## node array) - nothing to look a trigger up in.
+func _trigger_of(frame: _Frame) -> String:
+	if frame.doc_path == "" or frame.page_index < 0:
+		return ""
+
+	var doc := EventDocument.parse(FileAccess.get_file_as_string(frame.doc_path))
+	var pages: Array = doc.get("pages", [])
+	if frame.page_index >= pages.size():
+		return ""
+
+	var settings: Dictionary = (pages[frame.page_index] as Dictionary).get("settings", {})
+	return str(settings.get("trigger", ""))
 
 
 ## Moves [param frame]'s cursor to whichever node [param port] targets, or pops the
@@ -409,6 +504,53 @@ func _advance_cursor(frame: _Frame, port: String) -> void:
 	frame.cursor = target
 
 
+## [code]define_route[/code]'s own execution: sets [member _Frame.route_scope] to
+## whatever [param node]'s own "blocked" flow names - "" if left unwired - replacing
+## whichever policy was active before, then moves on via "next" like any other linear
+## node. The "blocked" target is read straight off [param node]'s own wiring rather than
+## taken as an ordinary flow port: it is not where this node's execution goes next, only
+## the address [method _resolve_finished_node] jumps to later, should a move under this
+## policy need it.
+func _set_route_policy(frame: _Frame, node: Dictionary) -> void:
+	frame.route_scope = {"blocked_target": _target_for(node, "blocked")}
+	_advance_cursor(frame, "next")
+
+
+## Where a just-finished blocking command's outcome becomes the frame's next cursor -
+## called from both [method _drive]'s own synchronous-finish branch (a viewless actor's
+## move, refused or not, settles inside the very same call) and [method tick] (a real
+## step still in flight when this was last called). Ordinarily just [method
+## _advance_cursor] against [param ex]'s own [method EventCommandExec.flow_port];
+## intercepted only when [method EventCommandExec.was_blocked] is true and a
+## [code]define_route[/code] policy is currently active ([member _Frame.route_scope]
+## not empty - see its own doc), per that policy's own "blocked" target:
+##
+## - Left unwired ("") pauses one scheduler tick ([class _RouteRetryPause]) rather than
+##   advancing the cursor at all, so the very same node runs again fresh next tick - not
+##   in the same call, which is what let a permanently blocked back-and-forth trip
+##   [constant NODE_BUDGET] before this existed.
+## - Wired jumps the cursor straight there, skipping whatever "next" this node would
+##   otherwise have taken.
+##
+## Returns whether [method _drive]'s own loop (or [method tick]) may keep going
+## synchronously - false only for the one-tick pause, which must wait for a real
+## [method tick] call to clear it.
+func _resolve_finished_node(frame: _Frame, ex: EventCommandExec) -> bool:
+	if ex.was_blocked() and not frame.route_scope.is_empty():
+		var target := str(frame.route_scope.get("blocked_target", ""))
+		if target == "":
+			frame.exec = _RouteRetryPause.new()
+			return false
+
+		frame.cursor = target
+		if not frame.by_id.has(frame.cursor):
+			_pop_frame()
+		return true
+
+	_advance_cursor(frame, ex.flow_port())
+	return true
+
+
 ## Drops the top frame and, if it was a called sub-frame, resumes whatever is beneath
 ## it at its own [code]call[/code] node's [code]"next"[/code] port - the frame that
 ## pushed it just finished, from the caller's point of view. Without this, a call
@@ -422,11 +564,21 @@ func _pop_frame() -> void:
 	_advance_cursor(_stack.back() as _Frame, "next")
 
 
-func _find_start(frame: _Frame) -> String:
+## Where this frame's start node sits, or [code]null[/code] if it has none (an empty
+## or malformed graph - event-pages.md §2's route-only page has nothing to reach).
+##
+## [b]Never [code]""[/code] for "not found"[/b]: a node's own [code]id[/code] can
+## legitimately be [code]""[/code] - the start node is the one node allowed a blank
+## one (question 47 follow-up), and it is what every start node the graph editor
+## itself adds is actually given (see [method GraphEditorPanel._ensure_start_node]) -
+## so a graph whose start node has the blank id it is normally given used to read as
+## having no start node at all, and [method _drive] would pop the frame without ever
+## running it.
+func _find_start(frame: _Frame) -> Variant:
 	for id: Variant in frame.by_id:
 		if str((frame.by_id[id] as Dictionary).get("command", "")) == EventCommand.START_COMMAND:
 			return str(id)
-	return ""
+	return null
 
 
 func _target_for(node: Dictionary, port: String) -> String:
@@ -436,9 +588,17 @@ func _target_for(node: Dictionary, port: String) -> String:
 	return ""
 
 
+## [param message] is what [member error] is set to and what a caller reading it back
+## sees - kept free of the document path, which is only ever known here, so a saved
+## error string does not depend on where a doc happened to sit on disk when it failed.
+## The console line does carry it - [method push_error] is a diagnostic, not saved
+## state - taken from whichever frame is on top of [member _stack] right now, which
+## every call site fails from before popping its own frame.
 func _fail(message: String) -> void:
 	error = message
-	push_error("EventRunner: %s" % message)
+	var doc_path := (_stack.back() as _Frame).doc_path if not _stack.is_empty() else ""
+	var suffix := "  (%s)" % doc_path if doc_path != "" else ""
+	push_error("EventRunner: %s%s" % [message, suffix])
 	stop()
 
 

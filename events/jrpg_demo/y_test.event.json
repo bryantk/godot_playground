@@ -40,7 +40,25 @@
 					"command": "set_y_level",
 					"args": {
 						"actor": "@player",
-						"y_level": 1
+						"y_level": 1.0
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n2"
+						}
+					]
+				},
+				{
+					"id": "n2",
+					"title": "print_debug",
+					"position": {
+						"x": 506,
+						"y": 128
+					},
+					"command": "print_debug",
+					"args": {
+						"text": "test"
 					},
 					"outputs": [
 						{

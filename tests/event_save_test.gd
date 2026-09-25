@@ -178,26 +178,26 @@ func _test_scheduler_round_trip() -> void:
 		"the exclusive slot is taken")
 	_eq(ModeStack.current(), ModeStack.Mode.CUTSCENE, "and the cutscene mode is pushed")
 
-	var brain: Brain = rig["brain"]
-	_ok(brain.is_suspended(), "the actor's own brain is suspended for the run")
+	var brain: PlayerController = rig["brain"]
+	_ok(brain.is_suspended(), "the actor's own controller is suspended for the run")
 
 	var saved := EventScheduler.to_save()
 	EventScheduler.reset()
 	ModeStack.reset()
-	_ok(not brain.is_suspended(), "reset()'s stop() gave the brain back")
+	_ok(not brain.is_suspended(), "reset()'s stop() gave the controller back")
 
 	EventScheduler.from_save(saved, rig["ctx"])
 	_ok(EventScheduler.is_exclusive_held(), "the exclusive slot is held again after restore")
 	_eq(ModeStack.current(), ModeStack.Mode.CUTSCENE, "cutscene mode is pushed again")
 	_eq(EventScheduler.lease_holder(actor.actor_id), EventScheduler.exclusive_runner(),
 		"the lease points at the restored runner, not the one before the round trip")
-	_ok(brain.is_suspended(), "the brain is suspended again, by the restored runner")
+	_ok(brain.is_suspended(), "the controller is suspended again, by the restored runner")
 
 	for i in 15:
 		EventScheduler.tick(1.0)
 	_ok(not EventScheduler.is_exclusive_held(), "the slot frees once the restored run finishes")
 	_ok(ModeStack.is_field(), "and cutscene mode pops back to field")
-	_ok(not brain.is_suspended(), "and the brain is handed back")
+	_ok(not brain.is_suspended(), "and the controller is handed back")
 
 	EventScheduler.reset()
 	ModeStack.reset()
@@ -334,10 +334,10 @@ func _build_rig(with_view: bool = false) -> Dictionary:
 	motion.speed = 4.0
 	actor.add_child(motion)
 
-	# A bare Brain, not a RouteBrain: only suspend()/is_suspended() are under test here,
-	# and the base class's own do-nothing _think is all that needs exercising.
-	var brain := Brain.new()
-	brain.name = "Brain"
+	# Only suspend()/is_suspended() are under test here - PlayerController's own
+	# _think never runs (nothing calls _process in this synchronous rig).
+	var brain := PlayerController.new()
+	brain.name = "PlayerController"
 	actor.add_child(brain)
 
 	if with_view:

@@ -18,6 +18,16 @@ class_name DebugArea2D extends Node2D
 ## [member Node2D.global_position] every frame, so the rectangle tracks a moving actor
 ## the same as if the transform chain had done it for free.
 ##
+## [b]Sized from the sibling [Actor]'s own footprint, when there is one.[/b]
+## [member area_size] is overwritten to [code]footprint.x/z * cell_size[/code] the
+## moment an [Actor] is found beside this node - "show the footprint" - and the box is
+## positioned to actually wrap it, not centred through it: [method Actor.cell] is the
+## footprint's anchor *corner*, not its centre ([method GameEvent._footprint_visual_offset]
+## is the same correction applied to the sprite instead), so the rect starts half a
+## cell up/left of the anchor and extends the whole footprint's width/depth from
+## there. A bodiless event (no [Actor] beside it) keeps [member area_size] exactly as
+## authored, centred on [member offset] as it always was.
+##
 ## [b]Always visible while editing.[/b] [b]At runtime, only while [method
 ## DebugFlags.show_debug_view] is on[/b] - the same flag [DebugPassabilityView] reads,
 ## so every debug overlay in the game turns on and off together.
@@ -29,9 +39,23 @@ class_name DebugArea2D extends Node2D
 
 var _anchor: Node2D = null
 
+## Top-left corner of the drawn rect, relative to [member offset] - [code]-area_size *
+## 0.5[/code] (centred) for a bodiless event, or the footprint's own anchor corner
+## once [method _sync_footprint] finds an [Actor].
+var _rect_pos: Vector2 = Vector2.ZERO
+
 
 func _ready() -> void:
 	_anchor = _find_anchor()
+	refresh()
+
+
+## Re-derives everything from the sibling [Actor]'s current footprint and the map's
+## current [member MapContext.cell_size], then redraws - [method _ready]'s own body,
+## pulled out so [method MapContext.refresh_debug_areas] can re-run it on demand for a
+## box already sized at whatever it was when the scene loaded.
+func refresh() -> void:
+	_sync_footprint()
 	_sync_visibility()
 	_sync_position()
 	queue_redraw()
@@ -57,6 +81,33 @@ func _find_anchor() -> Node2D:
 	return null
 
 
+## The [Actor] beside this node, if any - a direct child of [member _anchor] (the
+## placement root), the same sibling shape [GameEvent] and [Sprite2D] already share
+## with it.
+func _find_actor() -> Actor:
+	if _anchor == null:
+		return null
+	for child in _anchor.get_children():
+		if child is Actor:
+			return child as Actor
+	return null
+
+
+## Derives [member area_size] and [member _rect_pos] from the sibling [Actor]'s own
+## footprint and the map's [member MapContext.cell_size], or falls back to
+## [member area_size] centred on [member offset] with no [Actor] to read.
+func _sync_footprint() -> void:
+	var actor := _find_actor()
+	var ctx := MapContext.of(self) if actor != null else null
+	if actor == null or ctx == null:
+		_rect_pos = -area_size * 0.5
+		return
+
+	var cell := Vector2(ctx.cell_size.x, ctx.cell_size.z)
+	area_size = Vector2(actor.footprint.x, actor.footprint.z) * cell
+	_rect_pos = -cell * 0.5
+
+
 func _sync_position() -> void:
 	if _anchor != null and is_instance_valid(_anchor):
 		global_position = _anchor.global_position
@@ -67,4 +118,4 @@ func _sync_visibility() -> void:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(offset - area_size * 0.5, area_size), color, false, line_width)
+	draw_rect(Rect2(offset + _rect_pos, area_size), color, false, line_width)

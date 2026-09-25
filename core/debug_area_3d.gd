@@ -40,9 +40,23 @@ var _box: MeshInstance3D = null
 var _material: StandardMaterial3D = null
 var _anchor: Node3D = null
 
+## X/Z correction for a multi-cell footprint - see [method _sync_footprint]. Zero for
+## a bodiless event (no [Actor] beside this node) or a plain 1x1x1 one, which is every
+## placement before footprints existed.
+var _footprint_offset := Vector2.ZERO
+
 
 func _ready() -> void:
 	_anchor = _find_anchor()
+	refresh()
+
+
+## Re-derives everything from the sibling [Actor]'s current footprint and the map's
+## current [member MapContext.cell_size], then rebuilds the mesh - [method _ready]'s
+## own body, pulled out so [method MapContext.refresh_debug_areas] can re-run it on
+## demand for a box already sized at whatever it was when the scene loaded.
+func refresh() -> void:
+	_sync_footprint()
 	_rebuild()
 	_sync_visibility()
 	_sync_position()
@@ -63,6 +77,34 @@ func _find_anchor() -> Node3D:
 			return n as Node3D
 		n = n.get_parent()
 	return null
+
+
+## The [Actor] beside this node, if any - see [method DebugArea2D._find_actor], the
+## identical reasoning one dimension over.
+func _find_actor() -> Actor:
+	if _anchor == null:
+		return null
+	for child in _anchor.get_children():
+		if child is Actor:
+			return child as Actor
+	return null
+
+
+## Derives [member area_size]'s X/Z (never its Y - [member Actor.footprint]'s own
+## height is reserved, unused occupancy today) and [member _footprint_offset] from the
+## sibling [Actor]'s footprint and the map's [member MapContext.cell_size]. A bodiless
+## event (no [Actor] beside it) leaves both exactly as authored.
+func _sync_footprint() -> void:
+	var actor := _find_actor()
+	var ctx := MapContext.of(self) if actor != null else null
+	if actor == null or ctx == null:
+		_footprint_offset = Vector2.ZERO
+		return
+
+	var cell := Vector2(ctx.cell_size.x, ctx.cell_size.z)
+	var footprint_xz := Vector2(actor.footprint.x, actor.footprint.z)
+	area_size = Vector3(footprint_xz.x * cell.x, area_size.y, footprint_xz.y * cell.y)
+	_footprint_offset = (footprint_xz - Vector2.ONE) * cell * 0.5
 
 
 func _sync_position() -> void:
@@ -96,8 +138,12 @@ func _rebuild() -> void:
 ## [code]Vector3(0.0, 0.5, 0.0)[/code]. Deriving it from [member area_size] instead of
 ## a fixed 0.5 is what keeps the box resting on the ground rather than sinking half
 ## into it when [member area_size]'s own height is not 1.
+##
+## [member _footprint_offset] rides along on X/Z for the same reason
+## [method GameEvent._footprint_visual_offset] exists for the sprite: the anchor is
+## the footprint's own corner, not its centre, once it is bigger than 1x1x1.
 func _box_position() -> Vector3:
-	return offset + Vector3(0.0, area_size.y * 0.5, 0.0)
+	return offset + Vector3(_footprint_offset.x, area_size.y * 0.5, _footprint_offset.y)
 
 
 ## The 12 edges of a [param size] box, centred on the origin, as line-primitive

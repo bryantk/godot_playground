@@ -122,7 +122,8 @@ signal actor_turned(actor_id: StringName, from_dir: Vector3i, to_dir: Vector3i)
 signal actor_falling(actor_id: StringName, from: Vector3i, to: Vector3i)
 
 ## The interact button, pressed for this actor - [member InputIntent.interact], read
-## and cleared by [Brain] the same frame it fires. What [GameEvent]'s `action` trigger
+## and cleared by [PlayerController] the same frame it fires. What [GameEvent]'s
+## `action` trigger
 ## (decision 44) listens for: facing it or standing on a through event is the rest of
 ## that check, done by the listener, not here.
 @warning_ignore("unused_signal")
@@ -177,6 +178,23 @@ signal event_finished(runner_id: String)
 signal map_changing(from_id: StringName, to_id: StringName)
 @warning_ignore("unused_signal")
 signal input_lock_changed(locked: bool)
+
+## [method GameEvent._maybe_fire] just cleared every guard and took the lease - not
+## merely "a trigger was checked", a trigger that is actually about to run. Fired
+## synchronously from inside whichever [signal player_interacted]/[signal
+## actor_interacted] emit reached it, which is what lets a listener connected just
+## before that emit and disconnected just after (see [method
+## PlayerController._report_action_attempt]) tell "the button did something" from
+## "nothing was there", with none of [GameEvent]'s own trigger rules duplicated.
+@warning_ignore("unused_signal")
+signal event_fired(cell: Vector3i)
+
+## The player's own interact button resolved to [param cell] - the tile faced, unless
+## nothing there fired and standing on the player's own tile did instead - and
+## [param found] says whether anything actually fired. [DebugInteractView]'s own
+## marker; nothing else needs this today.
+@warning_ignore("unused_signal")
+signal interact_attempted(cell: Vector3i, found: bool)
 
 
 ## Await a completion key from any system, the same shape as [method wait_for].

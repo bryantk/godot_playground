@@ -17,9 +17,12 @@ func _ready() -> void:
 
 	_test_2d_hidden_then_shown_by_the_debug_flag()
 	_test_2d_follows_the_placement_through_a_plain_node_parent()
+	_test_2d_sizes_itself_from_the_sibling_actors_footprint()
+	_test_2d_keeps_the_authored_size_with_no_actor_beside_it()
 	_test_3d_builds_a_wire_box_sized_to_area_size()
 	_test_3d_box_rests_on_the_anchor_rather_than_straddling_it()
 	_test_3d_follows_the_placement_through_a_plain_node_parent()
+	_test_3d_sizes_itself_from_the_sibling_actors_footprint()
 
 	print("")
 	print("  %d passed, %d failed" % [_passed, _failed])
@@ -78,6 +81,53 @@ func _test_2d_follows_the_placement_through_a_plain_node_parent() -> void:
 		"and keeps tracking it after the placement moves")
 
 	placement.free()
+
+
+## "Show the footprint": the box outgrows [member DebugArea2D.area_size]'s own
+## default the moment a sibling [Actor] carries a bigger [member Actor.footprint],
+## and starts wrapping the whole footprint rather than sitting centred on the
+## anchor cell alone.
+func _test_2d_sizes_itself_from_the_sibling_actors_footprint() -> void:
+	_section("DebugArea2D -- auto-sizes and re-anchors from a sibling Actor's footprint")
+
+	var ctx := MapContext.new()
+	ctx.cell_size = Vector3(4, 0, 4)
+	add_child(ctx)
+
+	var placement := Node2D.new()
+	add_child(placement)
+
+	var actor := Actor.new()
+	actor.actor_id = &"footprint_2d"
+	actor.footprint = Vector3i(2, 1, 1)
+	placement.add_child(actor)
+
+	var game_event := Node.new()
+	game_event.name = "GameEvent"
+	placement.add_child(game_event)
+
+	var area := DebugArea2D.new()
+	game_event.add_child(area)
+	area._ready()
+
+	_eq(area.area_size, Vector2(8, 4), "area_size becomes footprint.x/z * cell_size")
+	_eq(area._rect_pos, Vector2(-2, -2), "and the rect starts half a cell up/left of the anchor")
+
+	ctx.free()
+	placement.free()
+
+
+func _test_2d_keeps_the_authored_size_with_no_actor_beside_it() -> void:
+	_section("DebugArea2D -- a bodiless event (no Actor) keeps area_size exactly as authored")
+
+	var area := DebugArea2D.new()
+	area.area_size = Vector2(30, 10)
+	add_child(area)
+
+	_eq(area.area_size, Vector2(30, 10), "no Actor beside it, so nothing to derive a size from")
+	_eq(area._rect_pos, Vector2(-15, -5), "and it stays centred on offset, as it always was")
+
+	area.free()
 
 
 func _test_3d_builds_a_wire_box_sized_to_area_size() -> void:
@@ -141,6 +191,38 @@ func _test_3d_follows_the_placement_through_a_plain_node_parent() -> void:
 	_eq(area.global_position, placement.global_position,
 		"and keeps tracking it after the placement moves")
 
+	placement.free()
+
+
+func _test_3d_sizes_itself_from_the_sibling_actors_footprint() -> void:
+	_section("DebugArea3D -- auto-sizes X/Z (never Y) and re-anchors from a sibling Actor's footprint")
+
+	var ctx := MapContext.new()
+	ctx.cell_size = Vector3(4, 0, 4)
+	add_child(ctx)
+
+	var placement := Node3D.new()
+	add_child(placement)
+
+	var actor := Actor.new()
+	actor.actor_id = &"footprint_3d"
+	actor.footprint = Vector3i(1, 1, 3)
+	placement.add_child(actor)
+
+	var game_event := Node.new()
+	game_event.name = "GameEvent"
+	placement.add_child(game_event)
+
+	var area := DebugArea3D.new()
+	area.area_size = Vector3(1, 5, 1)
+	game_event.add_child(area)
+	area._ready()
+
+	_eq(area.area_size, Vector3(4, 5, 12), "X/Z from footprint * cell_size; Y left exactly as authored")
+	var box := area.get_node_or_null("WireBox") as MeshInstance3D
+	_eq(box.position, Vector3(0, 2.5, 4), "X/Z re-anchored to the footprint, Y still resting on the ground")
+
+	ctx.free()
 	placement.free()
 
 

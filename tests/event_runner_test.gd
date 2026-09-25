@@ -28,6 +28,9 @@ func _ready() -> void:
 	_test_goto_cycle_trips_budget()
 	_test_nonblocking_key_joined_by_wait_for()
 	_test_print_debug_runs_and_continues()
+	_test_define_route_retries_when_blocked()
+	_test_define_route_jumps_to_blocked_target()
+	_test_move_by_restore_keeps_original_target_not_current_position()
 
 	print("")
 	print("  %d passed, %d failed" % [_passed, _failed])
@@ -235,6 +238,131 @@ func _test_print_debug_runs_and_continues() -> void:
 	_ok(runner.finished, "an all-synchronous chain finishes inside begin() alone")
 	_eq(runner.error, "", "with no error - print_debug has an executor, not the generic fallback")
 	_ok(GameState.flag(&"after_print_debug"), "and control reached the node after it")
+	GameState.clear()
+
+
+# -- define_route ----------------------------------------------------------------------
+
+## The exact shape that used to trip the node budget: a hand-wired back-and-forth of
+## ordinary move_by nodes, permanently blocked. define_route with "blocked" left unwired
+## keeps the run alive instead by retrying - one scheduler tick of pause between each
+## attempt, so retrying forever never spends the node budget the way a same-tick spin
+## would.
+func _test_define_route_retries_when_blocked() -> void:
+	_section("EventRunner -- define_route retries a blocked move rather than tripping the budget")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var guard: Actor = rig["guard"]
+	# A phantom blocker rather than a second Actor - stage_a_test.gd's own technique:
+	# Occupancy answers on ids, and what is under test is the refusal, not who is there.
+	(rig["ctx"] as MapContext).occupancy.place(&"blocker", Vector3i(1, 0, 0))
+	var ctx := EventContext.for_event(rig["ctx"], &"test_map", &"retry_test", guard)
+
+	var nodes: Array[Dictionary] = [
+		{"id": "start", "command": "start", "args": {},
+			"outputs": [{"flow": "next", "target": "dr"}]},
+		# "blocked" left unwired entirely - no entry for it at all - which is what
+		# means "retry" rather than "jump".
+		{"id": "dr", "command": "define_route", "args": {},
+			"outputs": [{"flow": "next", "target": "mv"}]},
+		{"id": "mv", "command": "move_by", "args": {"cells": [1, 0, 0]},
+			"outputs": [{"flow": "next", "target": "done"}]},
+		{"id": "done", "command": "set_flag", "args": {"flag": "route_done"}, "outputs": []},
+	]
+
+	var runner := EventRunner.new(ctx)
+	runner.begin(nodes)
+
+	_ok(not runner.finished, "still busy retrying, permanently blocked, right out of begin()")
+	_eq(runner.error, "", "no node-budget error even after begin()'s own synchronous pass")
+
+	for i in 10:
+		runner.tick(1.0 / 60.0)
+	_ok(not runner.finished, "still retrying ten ticks later - the one-tick pause keeps it alive")
+	_eq(runner.error, "", "and still no budget error")
+	_eq(guard.cell(), Vector3i.ZERO, "the guard has made no progress - every attempt is refused")
+
+	runner.stop()
+	GameState.clear()
+
+
+## "blocked" wired to a node: a blocked move jumps straight there instead of retrying,
+## skipping whatever "next" the move itself would otherwise have taken.
+func _test_define_route_jumps_to_blocked_target() -> void:
+	_section("EventRunner -- define_route jumps to \"blocked\" instead of retrying, when wired")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var guard: Actor = rig["guard"]
+	(rig["ctx"] as MapContext).occupancy.place(&"blocker", Vector3i(1, 0, 0))
+	var ctx := EventContext.for_event(rig["ctx"], &"test_map", &"jump_test", guard)
+
+	var nodes: Array[Dictionary] = [
+		{"id": "start", "command": "start", "args": {},
+			"outputs": [{"flow": "next", "target": "dr"}]},
+		{"id": "dr", "command": "define_route", "args": {},
+			"outputs": [
+				{"flow": "next", "target": "mv"},
+				{"flow": "blocked", "target": "gave_up"},
+			]},
+		{"id": "mv", "command": "move_by", "args": {"cells": [1, 0, 0]},
+			"outputs": [{"flow": "next", "target": "should_not_run"}]},
+		{"id": "should_not_run", "command": "set_flag",
+			"args": {"flag": "should_not_run"}, "outputs": []},
+		{"id": "gave_up", "command": "set_flag",
+			"args": {"flag": "reached_blocked_target"}, "outputs": []},
+	]
+
+	var runner := EventRunner.new(ctx)
+	runner.begin(nodes)
+
+	_ok(runner.finished, "the run finishes rather than retrying or tripping the node budget")
+	_eq(runner.error, "", "with no error")
+	_ok(GameState.flag(&"reached_blocked_target"), "and jumped straight to \"blocked\"'s target")
+	_ok(not GameState.flag(&"should_not_run"), "skipping the move's own \"next\" entirely")
+	_eq(guard.cell(), Vector3i.ZERO, "the guard never actually moved")
+	GameState.clear()
+
+
+## The bug a hand-wired patrol actually hit: a route preempted mid-move_by (a triggered
+## graph taking the lease, then handing it back) and resumed used to recompute its own
+## target cell relative to wherever the actor had already gotten to by resume time,
+## rather than where it stood when the move began - so a move that in fact finished
+## exactly where it meant to still read as blocked, and define_route's own retry (see
+## the section above) would send it another full "cells" delta further than authored.
+## MoveBy/StepCmd's own target_cell now rides along in capture()'s own state instead of
+## being rederived, which is what this proves directly against the executor.
+func _test_move_by_restore_keeps_original_target_not_current_position() -> void:
+	_section("MoveBy -- restore() keeps the move's original target, not one recomputed off the resumed position")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var guard: Actor = rig["guard"]
+	var ctx := EventContext.for_event(rig["ctx"], &"test_map", &"capture_restore_test", guard)
+	var runner := EventRunner.new(ctx)
+
+	var ex: EventCommandExec = EventCommandExec.create("move_by")
+	ex.setup({}, {"cells": Vector3i(0, 0, -2)}, ctx, runner)
+	ex.start()
+	_ok(ex.tick(0.0) == EventCommandExec.Status.DONE, "a viewless actor's move settles synchronously")
+	_eq(guard.cell(), Vector3i(0, 0, -2), "landed the full 2 cells, unobstructed")
+	_ok(not ex.was_blocked(), "and reads as unblocked")
+
+	# The same shape EventRunner._drive() gives a pending_restore node: a fresh executor,
+	# restore() instead of start(), built against whatever capture() returned earlier -
+	# here taken after the move above already fully committed, since the point under
+	# test is what restore() reconstructs its target from, not when capture() ran.
+	var saved := ex.capture()
+	var resumed: EventCommandExec = EventCommandExec.create("move_by")
+	resumed.setup({}, {"cells": Vector3i(0, 0, -2)}, ctx, runner)
+	resumed.restore(saved)
+	resumed.tick(0.0)
+
+	_eq(guard.cell(), Vector3i(0, 0, -2), "restore() does not move the actor again")
+	_ok(not resumed.was_blocked(),
+		"was_blocked() reads false - the original target survived, not one recomputed " +
+		"another 2 cells past the resumed position")
 	GameState.clear()
 
 

@@ -15,11 +15,11 @@ extends Node
 ## [code]INHERIT[/code] so the map's [code]default_motion[/code] is what decides - the
 ## precedence rule that keeps "grid movement in a 3D town" possible.
 ##
-## What separates the three: the player carries a [PlayerBrain]. Neither NPC has a
-## [Brain] any more - the one standing in the doorway simply has nothing driving it,
-## and the guard north of the wall paces because a sibling [GameEvent] compiles and
-## runs its page's own [code]route[/code] (event-pages.md §3, stage-c-plan.md
-## segment 7) instead of the [code]RouteBrain[/code] this scene used to carry.
+## What separates the three: the player carries a [PlayerController]. Neither NPC has
+## one - the one standing in the doorway simply has nothing driving it, and the guard
+## north of the wall paces because a sibling [GameEvent] compiles and runs its page's
+## own [code]route[/code] (event-pages.md §3, stage-c-plan.md segment 7) instead of
+## the [code]RouteBrain[/code] this scene used to carry.
 ##
 ## Controls: WASD/arrows step, X+direction turns in place, Shift runs, Q/E rotate the view,
 ## 1 4-way/8-way, 2 sub-texel smoothing, 3 terrain data on/off, Esc back.
@@ -27,7 +27,7 @@ extends Node
 @onready var _rig: OrthoPixelRig = $Upscale/World/Map/Camera/Rig
 @onready var _ctx: MapContext = $Upscale/World/Map/MapContext
 @onready var _blocks: GridMap = $Upscale/World/Map/Blocks
-@onready var _brain: PlayerBrain = $Upscale/World/Map/Actors/Player/Actor/Brain
+@onready var _player_controller: PlayerController = $Upscale/World/Map/Actors/Player/Actor/PlayerController
 @onready var _player: Actor = $Upscale/World/Map/Actors/Player/Actor
 @onready var _view: SpriteView3D = $Upscale/World/Map/Actors/Player/Actor/View
 @onready var _motion: GridMotion = $Upscale/World/Map/Actors/Player/Actor/Motion
@@ -83,7 +83,7 @@ func _cycle_directions() -> void:
 	var count := 8 if _motion.direction_count == 4 else 4
 	_motion.direction_count = count
 	_player.facing_count = count
-	_brain.profile.direction_count = count
+	_player_controller.profile.direction_count = count
 
 
 ## Turning the terrain layer off leaves occupancy and physics still consulted, which is

@@ -37,6 +37,7 @@ const METADATA_PATH_KEY := "last_file"
 enum FileAction { NEW, OPEN, RELOAD, SAVE }
 enum GraphAction { ADD_COMMAND, ARRANGE, VALIDATE, VIEW_JSON }
 enum ActorAction { LOAD_EVENT, DELETE_ACTOR, FIND_ORPHANS }
+enum PageAction { ADD, DUPLICATE, DELETE, MOVE_FRONT, MOVE_BACK }
 
 ## Where a node dropped by the Add button lands, before the offset below spreads
 ## repeated presses out instead of stacking them.
@@ -49,8 +50,28 @@ const _START_POSITION := Vector2(-160, 80)
 
 var _path := ""
 var _dirty := false
+## Whether the pointer is somewhere over this panel right now - what [method
+## _unhandled_key_input] gates Ctrl+S on, since the panel is a dock rather than a
+## window and has no other reliable "the author means this one" signal: focus would
+## miss a mouse hovering the graph without having clicked anything on it yet, and
+## nothing else the editor exposes says which dock the pointer is over.
+var _mouse_over := false
 ## How many nodes the Add button has placed, so each lands clear of the last.
 var _added := 0
+
+## Copy/paste's own clipboard - [signal GraphEdit.copy_nodes_request] and [signal
+## GraphEdit.paste_nodes_request] both carry no payload of their own, so the receiver
+## is what has to remember what was copied. Survives a page switch (and a document
+## switch) on purpose: copying a handful of nodes out of one page and pasting them into
+## another, or into an entirely different open document, is a real use for this, not an
+## edge case to guard against.
+var _clipboard: Array[Dictionary] = []
+## How many times [method _on_paste_nodes_request] has dropped [member _clipboard]
+## since it was last filled - each paste steps [constant ADD_STEP] further from the
+## copied nodes' own original position than the last, the same reasoning [constant
+## ADD_STEP] already spaces repeated "Add Command" presses by, so a second paste (with
+## no new copy in between) does not land exactly on top of the first.
+var _paste_count := 0
 
 ## The whole loaded file, [EventDocument]-shaped even when [member _wrapped] is false -
 ## a bare array reads as one page the same way [method EventDocument.parse] always
@@ -88,7 +109,12 @@ var _art_picker: EditorResourcePicker
 ## The page's settings.trigger (decision 44's seven, plus a blank "(none)" for a page
 ## only ever entered by `call`) - see [constant EventDocument.TRIGGERS].
 var _trigger_option: OptionButton
-var _speed_spin: SpinBox
+## The page's settings.speed, as a dropdown of [EventGraphNode]'s own named presets
+## rather than a raw number - the same set a move command's own "speed" argument already
+## offers (see [method EventGraphNode.speed_preset_names]), so the two read the same way
+## everywhere they appear. Rebuilt on every page load rather than populated once - see
+## [method _refresh_speed_option].
+var _speed_option: OptionButton
 ## The three actor flags a page carries as siblings of art/conditions - lock_facing,
 ## through and through_terrain, applied to GameEvent's own actor on activation.
 var _lock_facing_check: CheckBox
@@ -131,6 +157,10 @@ func _init() -> void:
 	name = "Graph"
 
 func _ready() -> void:
+	if not mouse_entered.is_connected(_on_mouse_entered):
+		mouse_entered.connect(_on_mouse_entered)
+		mouse_exited.connect(_on_mouse_exited)
+
 	if not _bind():
 		# Reloaded into a panel that is already up - its graph is still on screen.
 		return
@@ -141,6 +171,40 @@ func _ready() -> void:
 		_load(last)
 	else:
 		_new_document()
+
+func _on_mouse_entered() -> void:
+	_mouse_over = true
+
+func _on_mouse_exited() -> void:
+	_mouse_over = false
+
+## Ctrl+S saves this panel's own document, as long as the pointer is over it - and also
+## the scene currently open in the editor, since [method Viewport.set_input_as_handled]
+## below consumes the key before it ever reaches the editor's own "save scene" shortcut.
+## Without the explicit [method EditorInterface.save_scene] call this panel would
+## silently swallow Ctrl+S for the scene entirely while the pointer sat over the graph -
+## an actor's placement (position, [member GameEvent.document_path], every exported
+## field this addon does not itself own) living in the scene, not the JSON, and easy to
+## lose track of having *not* saved when the one Ctrl+S you pressed looked like it did.
+func _unhandled_key_input(event: InputEvent) -> void:
+	if not _mouse_over or not event is InputEventKey:
+		return
+
+	var key_event := event as InputEventKey
+	if not key_event.pressed or key_event.echo:
+		return
+	if key_event.keycode != KEY_S or not key_event.ctrl_pressed:
+		return
+
+	_save()
+	# ERR_UNCONFIGURED with nothing else the editor lets an addon do about it (an
+	# untitled scene that was never saved once, no path to write back to) - a warning
+	# rather than surfacing it in this panel's own status, since it is not this
+	# document's own save that failed.
+	var err := EditorInterface.save_scene()
+	if err != OK:
+		push_warning("Graph editor: could not save the current scene (%s)." % error_string(err))
+	get_viewport().set_input_as_handled()
 
 # --- UI -----------------------------------------------------------------------
 
@@ -169,8 +233,8 @@ func _bind() -> bool:
 		^"Body/PageInspector/PageInspectorBox/ArtSheet") as EditorResourcePicker
 	_trigger_option = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/Trigger") as OptionButton
-	_speed_spin = get_node_or_null(
-		^"Body/PageInspector/PageInspectorBox/Speed") as SpinBox
+	_speed_option = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/Speed") as OptionButton
 	_lock_facing_check = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/LockFacing") as CheckBox
 	_through_check = get_node_or_null(
@@ -258,6 +322,17 @@ func _build_ui() -> void:
 	_page_selector.visible = false
 	toolbar.add_child(_page_selector)
 
+	# Always visible, unlike the selector above - "Add" is what takes a document from
+	# one page to two in the first place, so it cannot wait behind the same visibility
+	# the selector uses.
+	toolbar.add_child(_make_menu_button("Page", [
+		[PageAction.ADD, "Add Page"],
+		[PageAction.DUPLICATE, "Duplicate Page"],
+		[PageAction.DELETE, "Delete Page"],
+		[PageAction.MOVE_FRONT, "Move to Front"],
+		[PageAction.MOVE_BACK, "Move to Back"],
+	], _on_page_menu_id_pressed))
+
 	toolbar.add_child(_make_menu_button("Graph", [
 		[GraphAction.ADD_COMMAND, "Add Command"],
 		[GraphAction.ARRANGE, "Arrange"],
@@ -291,6 +366,8 @@ func _build_ui() -> void:
 	_graph.disconnection_request.connect(_on_disconnection_request)
 	_graph.delete_nodes_request.connect(_on_delete_nodes_request)
 	_graph.duplicate_nodes_request.connect(_on_duplicate_nodes_request)
+	_graph.copy_nodes_request.connect(_on_copy_nodes_request)
+	_graph.paste_nodes_request.connect(_on_paste_nodes_request)
 	# Right-click (or the context-menu key) opens the same command picker "Add
 	# Command" does - see _on_popup_request().
 	_graph.popup_request.connect(_on_popup_request)
@@ -398,14 +475,11 @@ func _build_page_inspector() -> Control:
 	box.add_child(_trigger_option)
 
 	box.add_child(_section_label("Speed"))
-	_speed_spin = SpinBox.new()
-	_speed_spin.name = "Speed"
-	_speed_spin.min_value = 0
-	_speed_spin.max_value = 1000
-	_speed_spin.step = 1
-	_speed_spin.tooltip_text = "The page's settings.speed. 0 means absent - the page does not set one."
-	_speed_spin.value_changed.connect(_on_speed_changed)
-	box.add_child(_speed_spin)
+	_speed_option = OptionButton.new()
+	_speed_option.name = "Speed"
+	_speed_option.tooltip_text = "The page's settings.speed - how fast a move command with no speed argument of its own plays while this page is active."
+	_speed_option.item_selected.connect(_on_speed_selected)
+	box.add_child(_speed_option)
 
 	box.add_child(_section_label("Actor"))
 
@@ -493,12 +567,12 @@ func _load_page_inspector(index: int) -> void:
 	# entry, which would rewrite the file's trigger the moment anything else changed.
 	var trigger := str(settings.get("trigger", ""))
 	_trigger_option.select(EventDoc.TRIGGERS.find(trigger) + 1)
-	_speed_spin.set_value_no_signal(float(settings.get("speed", 0)))
+	_refresh_speed_option(float(settings.get("speed", EventGraphNode.normal_speed())))
 
 	_lock_facing_check.set_pressed_no_signal(bool(page.get("lock_facing", false)))
 	_through_check.set_pressed_no_signal(bool(page.get("through", false)))
 	_through_terrain_check.set_pressed_no_signal(bool(page.get("through_terrain", false)))
-	_lock_player_check.set_pressed_no_signal(bool(page.get("lock_player", false)))
+	_lock_player_check.set_pressed_no_signal(bool(page.get("lock_player", true)))
 
 	_refresh_conditions()
 
@@ -526,15 +600,38 @@ func _on_art_sheet_changed(resource: Resource) -> void:
 		art.erase("sheet")
 	_mark_dirty()
 
-func _on_speed_changed(value: float) -> void:
+## Rebuilds [member _speed_option]'s items around [param speed] rather than populating
+## them once - unlike [member _trigger_option]'s fixed, small set, an older page's
+## [code]settings.speed[/code] may already hold a hand-typed value matching none of
+## [EventGraphNode]'s named presets, and needs a synthesized "Custom (N)" entry to show
+## it instead of silently snapping to whichever preset sits nearest. The identical shape
+## [method EventGraphNode._make_speed_control] already uses for a move command's own
+## "speed" argument, minus that one's "(unset)" entry - a page's speed is always one of
+## these, defaulting to "Normal" (event_document.gd's own [method
+## EventDocument.default_page]).
+func _refresh_speed_option(speed: float) -> void:
+	_speed_option.clear()
+	var matched := -1
+	for preset_name in EventGraphNode.speed_preset_names():
+		_speed_option.add_item(str(preset_name))
+		if is_equal_approx(speed, EventGraphNode.speed_preset_value(preset_name)):
+			matched = _speed_option.item_count - 1
+
+	if matched < 0:
+		_speed_option.add_item("Custom (%s)" % str(speed))
+		matched = _speed_option.item_count - 1
+	_speed_option.select(matched)
+
+func _on_speed_selected(index: int) -> void:
 	if not _live():
 		return
 
+	var preset_name := _speed_option.get_item_text(index)
+	if not EventGraphNode.has_speed_preset(preset_name):
+		return  # the synthesized "Custom (...)" entry - nothing new to write
+
 	var settings: Dictionary = _current_page_dict().get("settings", {})
-	if value > 0:
-		settings["speed"] = value
-	else:
-		settings.erase("speed")
+	settings["speed"] = EventGraphNode.speed_preset_value(preset_name)
 	_mark_dirty()
 
 ## The four below write straight into the page dictionary, not settings - lock_facing/
@@ -1293,6 +1390,72 @@ func _on_duplicate_nodes_request() -> void:
 	if not copies.is_empty():
 		_mark_dirty()
 
+## Ctrl+C. Captures the graph's own selected nodes - ports and all - into [member
+## _clipboard], with their own targets already dropped the same way [method
+## _on_duplicate_nodes_request] drops them and for the same reason: a paste that kept
+## them would point out from the copy at whatever the original pointed at, silently
+## doubling every path leading into that node. The start node is excluded even when
+## selected, matching duplicate - a graph has exactly one, and there is nowhere useful
+## for a second to paste in anyway.
+##
+## Ids are left exactly as copied rather than regenerated here - [method
+## _on_paste_nodes_request] mints fresh ones at paste time instead, since a document may
+## gain new nodes (of its own, or from an earlier paste) between a copy and whichever
+## paste finally uses it, and a clipboard holding stale ids would risk colliding with
+## whatever showed up in the meantime.
+func _on_copy_nodes_request() -> void:
+	if not _live():
+		return
+
+	_clipboard.clear()
+	_paste_count = 0
+	for node in _serialize():
+		var source := _node_by_id(node["id"])
+		if source == null or not source.selected or _is_start_node(source):
+			continue
+		for output in node["outputs"]:
+			output["target"] = ""
+		_clipboard.append(node)
+
+## Ctrl+V. Drops a fresh copy of [member _clipboard] into the graph on screen, each node
+## minted a new id the same way [method _on_duplicate_nodes_request] mints one - a paste
+## into the very document it was copied out of must not collide with the originals, and
+## nothing here can assume it is even the same document, since the clipboard survives a
+## page or file switch on purpose (see [member _clipboard]'s own doc).
+##
+## Offset by [member _paste_count] steps of [constant ADD_STEP] from the copied nodes'
+## own original position, not the mouse - the signal carries no drop position to use
+## even if it did - so a second paste with no new copy in between lands clear of the
+## first instead of exactly on top of it.
+func _on_paste_nodes_request() -> void:
+	if not _live() or _clipboard.is_empty():
+		return
+
+	_paste_count += 1
+	var offset := ADD_STEP * _paste_count
+	var ids := _used_ids()
+	var pasted: Array[GraphNode] = []
+
+	for source_node in _clipboard:
+		var node: Dictionary = source_node.duplicate(true)
+		var id := Doc.generate_id(ids)
+		ids[id] = true
+
+		node["id"] = id
+		node["position"] = (source_node["position"] as Vector2) + offset
+		pasted.append(_make_graph_node(node))
+
+	for graph_node in _graph.get_children():
+		if graph_node is GraphNode:
+			graph_node.selected = false
+
+	for graph_node in pasted:
+		_graph.add_child(graph_node)
+		graph_node.selected = true
+
+	_mark_dirty()
+	_validate()
+
 ## Right-click (or the context-menu key) on the canvas - opens the same picker "Add
 ## Command" does, rather than dropping a bare node the way this used to, since a
 ## command still has to be chosen from the picker or the search either way.
@@ -1499,9 +1662,10 @@ func _commit_current_page() -> void:
 	(pages[_current_page] as Dictionary)[_target_key()] = _serialize()
 
 ## Rebuilds the dropdown from [member _doc]'s pages, with a one-line condition summary
-## per entry (event-pages.md §4.1's page bar, minus reorder/add/duplicate/delete - those
-## stay deferred). Hidden for the ordinary one-page case so the four plain-array examples
-## and any new document do not show a selector with nothing to select.
+## per entry (event-pages.md §4.1's page bar; add/duplicate/delete/reorder live in the
+## "Page" menu beside it instead of on the bar itself). Hidden for the ordinary one-page
+## case so the four plain-array examples and any new document do not show a selector
+## with nothing to select.
 func _refresh_page_selector() -> void:
 	if not is_instance_valid(_page_selector):
 		return
@@ -1528,6 +1692,115 @@ func _on_page_selected(index: int) -> void:
 	if _load_page(index):
 		_mark_dirty()
 	_page_selector.select(index)
+	_validate()
+
+func _on_page_menu_id_pressed(id: int) -> void:
+	match id:
+		PageAction.ADD: _add_page()
+		PageAction.DUPLICATE: _duplicate_page()
+		PageAction.DELETE: _delete_page()
+		PageAction.MOVE_FRONT: _move_page(0)
+		PageAction.MOVE_BACK: _move_page(-1)
+
+## A fresh, empty page appended after the current one and opened - the same
+## [method EventDocument.default_page] a brand new document starts from. [member
+## _wrapped] is forced true the moment a second page exists: the bare-array file shape
+## has nowhere to put more than one page's worth of data, so gaining one always upgrades
+## the save format regardless of what the file on disk started as.
+func _add_page() -> void:
+	if not _live():
+		return
+
+	_commit_current_page()
+	var pages: Array = _doc.get("pages", [])
+	pages.append(EventDoc.default_page())
+	_wrapped = true
+
+	var new_index := pages.size() - 1
+	_load_page(new_index)
+	# _load_page's own _ensure_start_node call only forces one while _editing_route is
+	# true (loading a route view empty on purpose gets no start node it never asked
+	# for) - a brand new page's graph is never that case, so it needs its own forced
+	# call the same way _new_document() forces one onto a brand new document.
+	_ensure_start_node(true)
+	_refresh_page_selector()
+	_mark_dirty()
+	_set_status("Added page %d." % (new_index + 1), _status_color(true))
+	_validate()
+
+## A deep copy of the current page - conditions, settings, art, both node arrays, all of
+## it - inserted right after it and opened. [method Dictionary.duplicate] with [code]
+## true[/code] is what makes this a real copy rather than a second reference into the
+## same nested arrays, which editing one page would then silently edit both of.
+func _duplicate_page() -> void:
+	if not _live():
+		return
+
+	_commit_current_page()
+	var pages: Array = _doc.get("pages", [])
+	if _current_page < 0 or _current_page >= pages.size():
+		return
+
+	var source_number := _current_page + 1
+	var copy: Dictionary = (pages[_current_page] as Dictionary).duplicate(true)
+	var new_index := _current_page + 1
+	pages.insert(new_index, copy)
+	_wrapped = true
+
+	_load_page(new_index)
+	_refresh_page_selector()
+	_mark_dirty()
+	_set_status("Duplicated page %d as page %d." % [source_number, new_index + 1],
+		_status_color(true))
+	_validate()
+
+## Removes the current page outright - no confirmation, the same as deleting a node from
+## the graph itself, since [member _dirty]/Save behind it is the real safety net. Refused
+## on a document's last remaining page: a page-less document is not a smaller one, it is
+## a different, unsupported shape nothing here parses back.
+func _delete_page() -> void:
+	if not _live():
+		return
+
+	var pages: Array = _doc.get("pages", [])
+	if pages.size() <= 1:
+		_set_status("Cannot delete the only page.", _status_color(false))
+		return
+
+	var deleted := _current_page + 1
+	pages.remove_at(_current_page)
+	var new_index := clampi(_current_page, 0, pages.size() - 1)
+
+	_load_page(new_index)
+	_refresh_page_selector()
+	_mark_dirty()
+	_set_status("Deleted page %d." % deleted, _status_color(true))
+	_validate()
+
+## Moves the current page to index 0 ([param to_index] 0) or to the end ([param
+## to_index] -1) - event-pages.md §2.3's "order is priority", so this is a functional
+## edit, not cosmetic, and marks the document dirty the same as any other reorder would.
+## The graph on screen does not change - it is still the same page, just relocated - so
+## this only touches the page list and the selector, never [method _load_page].
+func _move_page(to_index: int) -> void:
+	if not _live():
+		return
+
+	var pages: Array = _doc.get("pages", [])
+	var target := pages.size() - 1 if to_index < 0 else to_index
+	if _current_page == target or pages.size() <= 1:
+		return
+
+	_commit_current_page()
+	var page: Dictionary = pages[_current_page]
+	pages.remove_at(_current_page)
+	pages.insert(target, page)
+	_current_page = target
+
+	_refresh_page_selector()
+	_mark_dirty()
+	_set_status("Moved page to %s." % ("the front" if target == 0 else "the back"),
+		_status_color(true))
 	_validate()
 
 func _reload() -> void:
@@ -1798,6 +2071,34 @@ func _sibling_game_event(actor: Actor) -> GameEvent:
 			return child
 	return null
 
+## The [Actor] already sitting beside [param event] - [method _sibling_game_event],
+## the same shape one dimension over - or null for a bodiless event.
+func _sibling_actor(event: GameEvent) -> Actor:
+	var parent := event.get_parent() if event != null else null
+	if parent == null:
+		return null
+	for child in parent.get_children():
+		if child is Actor:
+			return child
+	return null
+
+## What a fresh [member GameEvent.document_path] should be named after: [method
+## Actor.actor_id] for the sibling [Actor] beside [param event] if it has one, else
+## the placement root's own node name - never [method GameEvent.event_id] alone.
+##
+## [b]Why not [method GameEvent.event_id][/b]: it is just [param event]'s own node
+## name, and every placement in this project names that child the same generic
+## "GameEvent" - so a path built from it collides every actor's first-ever event onto
+## one shared file, and "create a new one" silently reopens whichever placement got
+## there first instead. The placement root (Npc_8_12, y_test, ...) - or the actor_id
+## it carries, when it has one - is the thing that is actually unique per placement.
+func _identity_for(event: GameEvent) -> String:
+	var actor := _sibling_actor(event)
+	if actor != null and actor.actor_id != &"":
+		return String(actor.actor_id)
+	var parent := event.get_parent() if event != null else null
+	return String(parent.name) if parent != null else String(event.event_id())
+
 ## [method _sibling_game_event], creating one there if none exists yet. Named after the
 ## actor's own identity ([member Actor.actor_id], falling back to its node name) so its
 ## default event file ([method open_or_create_game_event]) keeps the name an author
@@ -1816,8 +2117,7 @@ func find_or_create_game_event_for_actor(actor: Actor) -> GameEvent:
 	if parent != null:
 		parent.add_child(event)
 		event.owner = EditorInterface.get_edited_scene_root()
-		if EditorInterface.has_method("mark_scene_as_unsaved"):
-			EditorInterface.mark_scene_as_unsaved()
+		_save_scene()
 
 	return event
 
@@ -1830,11 +2130,22 @@ func open_or_create_game_event(event: GameEvent) -> void:
 		return
 
 	if event.document_path == "":
-		event.document_path = _default_event_path(String(event.event_id()))
-		if EditorInterface.has_method("mark_scene_as_unsaved"):
-			EditorInterface.mark_scene_as_unsaved()
+		event.document_path = _default_event_path(_identity_for(event))
+		_save_scene()
 
 	_open_or_create(event.document_path)
+
+## Persists the scene immediately rather than only flagging it unsaved - a brand new
+## [GameEvent] node or a freshly wired [member GameEvent.document_path] is easy to
+## lose (a crash, a "discard changes" on an unrelated prompt) if it sits unsaved only
+## in the editor's own memory, and unlike the [code].event.json[/code] file [method
+## _create_empty_event_file] writes straight to disk, the scene side of this only
+## ever existed in RAM until now.
+func _save_scene() -> void:
+	if EditorInterface.has_method("save_scene"):
+		EditorInterface.save_scene()
+	elif EditorInterface.has_method("mark_scene_as_unsaved"):
+		EditorInterface.mark_scene_as_unsaved()
 
 ## Shared tail of both methods above: create an empty-but-valid file there if nothing
 ## exists yet, then load it into the graph.
@@ -1844,9 +2155,27 @@ func _open_or_create(path: String) -> void:
 			return
 	_load(path)
 
-## An empty [code][][/code] - the bare-array shorthand [method _load] already accepts
-## for a one-page graph - written to [param path], making its parent folder first.
-## Returns whether it succeeded.
+## A one-page document - one node, just [constant EventCommand.START_COMMAND],
+## nothing wired to it yet - written to [param path] as the full [code]{format, id,
+## pages: []}[/code] wrapper, making its parent folder first. Returns whether it
+## succeeded.
+##
+## [b]Never a bare [code][][/code], and never a bare one-node array either[/b]: both
+## used to be what this wrote (in that order, across two earlier bugs) - the first
+## relied on [method _ensure_start_node]'s own repair to add a start node back the
+## moment the file was opened here, but that repair only ever lands in the editor's
+## in-memory buffer ([member _dirty] marks it unsaved, it does not save it), so a file
+## created and never explicitly re-saved afterward stayed exactly as empty as it
+## started, on disk, forever. The second fixed that, but a bare array is [i]only[/i]
+## ever a page's [code]graph[/code] (event-pages.md §2.1) - it has nowhere to put
+## [code]settings.trigger[/code], [code]art[/code], or any of the rest a real
+## placement's page needs, so the moment an author picked a trigger in the page
+## inspector, [method _save] would write it straight back out through [method
+## Doc.stringify] alone, which does not know settings exist and drops them silently.
+## [method EventDoc.stringify] is the same function [method _save] itself writes
+## through for a wrapped file, so this is never at risk of drifting from what a real
+## save produces, and [member _wrapped] (set by [method _load] reading a top-level
+## [Dictionary] back) is what keeps every later save through this file wrapped too.
 func _create_empty_event_file(path: String) -> bool:
 	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 
@@ -1856,7 +2185,11 @@ func _create_empty_event_file(path: String) -> bool:
 			path, error_string(FileAccess.get_open_error())], _status_color(false))
 		return false
 
-	file.store_string("[]\n")
+	var start_node := Doc.default_node("", _START_POSITION)
+	start_node["command"] = EventCommand.START_COMMAND
+	var doc := EventDoc.default_document()
+	(doc["pages"][0] as Dictionary)["graph"] = [start_node]
+	file.store_string(EventDoc.stringify(doc))
 	file.close()
 	EditorInterface.get_resource_filesystem().update_file(path)
 	return true

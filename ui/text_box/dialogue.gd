@@ -79,6 +79,15 @@ func _next() -> void:
 ## waiting on this one. Each appended message keeps its own key and reports
 ## finished separately.
 func display(text: String, options: Dictionary = {}, key: String = "") -> void:
+	# Paired with [method _finished]'s own pop, on the far side of [method self.hide] -
+	# without this, "action" keeps reading as the field's own interact rather than
+	# this window's advance/dismiss (see [method InputManager._send]'s dispatch to a
+	# single [member InputManager.target]), and a message with more to reveal than one
+	# page can show waits forever for a press that never reaches it. [member
+	# PlayerController._think]'s own [code]intent.interact[/code] stays live
+	# regardless (its own doc explains why), so this is what actually keeps a second
+	# "action" press from re-triggering the field instead of advancing the box.
+	InputManager.push_target(self)
 	self.show()
 	_current = {"text": text, "options": options, "key": key}
 
@@ -117,6 +126,7 @@ func _finished() -> void:
 	_current = {}
 
 	self.hide()
+	InputManager.pop_target()
 	finished.emit()
 	if not message.is_empty():
 		EventBus.dialogue_finished.emit(message.key)

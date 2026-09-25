@@ -100,6 +100,8 @@ func play(anim: StringName) -> String:
 ## only for an [AnimatedSprite3D]. [code]"directions"[/code] is deliberately still not
 ## read: this view's 8 facings against 4 yaw stops are exact by construction (see the
 ## class doc), so nothing here would know what to do with a different count.
+## [b]No `sheet`/`frames` at all means no sprite[/b] - see [method
+## SpriteView2D.apply_art]'s own doc, the same reasoning applied to this view.
 func apply_art(art: Dictionary) -> void:
 	if art.has("sheet") and _visual is Sprite3D:
 		var texture: Texture2D = load(str(art["sheet"])) as Texture2D
@@ -111,6 +113,7 @@ func apply_art(art: Dictionary) -> void:
 		if frames != null:
 			_sprite.sprite_frames = frames
 
+	set_visible(art.has("sheet") or art.has("frames"))
 	_refresh()
 
 

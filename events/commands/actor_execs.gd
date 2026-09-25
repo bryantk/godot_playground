@@ -19,6 +19,11 @@
 ## downgrade, question 39).
 class MoveTo extends EventCommandExec:
 	var _key := ""
+	## Where this move meant to land - a teleport ("path": "raw") always lands exactly
+	## here, so [method was_blocked] never trips for one; an ordinary move that stopped
+	## short is what it exists to catch, for [code]define_route[/code]'s own benefit
+	## (see event_command_exec.gd's own doc on it).
+	var _target_cell := Vector3i.ZERO
 
 	func start() -> void:
 		var a := actor()
@@ -30,10 +35,15 @@ class MoveTo extends EventCommandExec:
 			opts["speed"] = args["speed"]
 		if args.has("path"):
 			opts["path"] = args["path"]
-		_key = a.motion().move_to(Vector3i(args.get("cell", Vector3i.ZERO)), opts)
+		_target_cell = Vector3i(args.get("cell", Vector3i.ZERO))
+		_key = a.motion().move_to(_target_cell, opts)
 
 	func tick(_delta: float) -> int:
 		return Status.DONE if _key == "" or runner.latch.consume(_key) else Status.RUNNING
+
+	func was_blocked() -> bool:
+		var a := actor()
+		return a != null and a.cell() != _target_cell
 
 	func own_key() -> String:
 		return _key
@@ -60,6 +70,7 @@ class MoveTo extends EventCommandExec:
 			start()
 			return
 		ctx.mark_actor_touched(a)
+		_target_cell = Vector3i(args.get("cell", Vector3i.ZERO))
 		var keys := (m as GridMotion).from_save(state.get("motion", {}))
 		_key = str(keys.get("route_key", ""))
 
@@ -68,6 +79,9 @@ class MoveTo extends EventCommandExec:
 ## [method MotionController.move_by] is [code]move_to(cell() + delta)[/code].
 class MoveBy extends EventCommandExec:
 	var _key := ""
+	## See [member MoveTo._target_cell] - the same idea, relative to wherever the actor
+	## stood at [method start] rather than an absolute cell.
+	var _target_cell := Vector3i.ZERO
 
 	func start() -> void:
 		var a := actor()
@@ -79,10 +93,16 @@ class MoveBy extends EventCommandExec:
 			opts["speed"] = args["speed"]
 		if args.has("path"):
 			opts["path"] = args["path"]
-		_key = a.motion().move_by(Vector3i(args.get("cells", Vector3i.ZERO)), opts)
+		var delta := Vector3i(args.get("cells", Vector3i.ZERO))
+		_target_cell = a.cell() + delta
+		_key = a.motion().move_by(delta, opts)
 
 	func tick(_delta: float) -> int:
 		return Status.DONE if _key == "" or runner.latch.consume(_key) else Status.RUNNING
+
+	func was_blocked() -> bool:
+		var a := actor()
+		return a != null and a.cell() != _target_cell
 
 	func own_key() -> String:
 		return _key
@@ -98,7 +118,16 @@ class MoveBy extends EventCommandExec:
 	func capture() -> Dictionary:
 		var a := actor()
 		var m := a.motion() if a != null else null
-		return {"motion": (m as GridMotion).to_save()} if m is GridMotion else {}
+		var out := {"motion": (m as GridMotion).to_save()} if m is GridMotion else {}
+		# _target_cell is relative to wherever the actor stood when this move started,
+		# not to wherever it happens to be now - which a mid-flight capture (a route
+		# preempted by a triggered graph, then resumed) already is not the same cell.
+		# Captured explicitly rather than recomputed from args at restore time, or
+		# was_blocked() would compare against a target shifted by however much of this
+		# move had already committed before the interruption, reading a move that in
+		# fact finished exactly where it meant to as blocked anyway.
+		out["target_cell"] = [_target_cell.x, _target_cell.y, _target_cell.z]
+		return out
 
 	func restore(state: Dictionary) -> void:
 		var a := actor()
@@ -109,6 +138,8 @@ class MoveBy extends EventCommandExec:
 			start()
 			return
 		ctx.mark_actor_touched(a)
+		_target_cell = saved_cell_or(state.get("target_cell"),
+			a.cell() + Vector3i(args.get("cells", Vector3i.ZERO)))
 		var keys := (m as GridMotion).from_save(state.get("motion", {}))
 		_key = str(keys.get("route_key", ""))
 
@@ -119,6 +150,9 @@ class MoveBy extends EventCommandExec:
 ## on [FreeMotion], where a "step" is just a nudge to intent.
 class StepCmd extends EventCommandExec:
 	var _key := ""
+	## See [member MoveBy._target_cell] - meaningful for a grid actor, which is the only
+	## kind this command declares itself for ([code]SPACE_GRID[/code]).
+	var _target_cell := Vector3i.ZERO
 
 	func start() -> void:
 		var a := actor()
@@ -126,6 +160,7 @@ class StepCmd extends EventCommandExec:
 			return
 		ctx.mark_actor_touched(a)
 		var dir := EventCommand.direction_of(args.get("direction"))
+		_target_cell = a.cell() + dir
 		var m := a.motion()
 		if m is GridMotion:
 			_key = (m as GridMotion).step_keyed(dir)
@@ -136,6 +171,10 @@ class StepCmd extends EventCommandExec:
 	func tick(_delta: float) -> int:
 		return Status.DONE if _key == "" or runner.latch.consume(_key) else Status.RUNNING
 
+	func was_blocked() -> bool:
+		var a := actor()
+		return a != null and a.cell() != _target_cell
+
 	func own_key() -> String:
 		return _key
 
@@ -145,7 +184,11 @@ class StepCmd extends EventCommandExec:
 	func capture() -> Dictionary:
 		var a := actor()
 		var m := a.motion() if a != null else null
-		return {"motion": (m as GridMotion).to_save()} if m is GridMotion else {}
+		var out := {"motion": (m as GridMotion).to_save()} if m is GridMotion else {}
+		# See MoveBy.capture()'s own comment - the identical reasoning one direction
+		# token over.
+		out["target_cell"] = [_target_cell.x, _target_cell.y, _target_cell.z]
+		return out
 
 	func restore(state: Dictionary) -> void:
 		var a := actor()
@@ -156,6 +199,8 @@ class StepCmd extends EventCommandExec:
 			start()
 			return
 		ctx.mark_actor_touched(a)
+		_target_cell = saved_cell_or(state.get("target_cell"),
+			a.cell() + EventCommand.direction_of(args.get("direction")))
 		var keys := (m as GridMotion).from_save(state.get("motion", {}))
 		_key = str(keys.get("step_key", ""))
 
@@ -268,6 +313,32 @@ class SetSpeed extends EventCommandExec:
 			a.motion().speed = float(args.get("speed", a.motion().speed))
 
 
+## Removes an actor's whole placement - itself, its [GameEvent] if it has one, its
+## view, everything - from both the running game and the scene, the same shape a
+## page-authored region trigger, a one-time pickup or a defeated patrol wants gone for
+## good. Actor and [GameEvent] are always siblings under one placement root
+## (event-pages.md §4.3's two authored shapes); [method Node.queue_free] on that root
+## is what takes both at once, rather than freeing the [Actor] and leaving an orphaned
+## [GameEvent] node (or the reverse) behind.
+##
+## [b]Safe on [code]@self[/code][/b], the default and overwhelmingly common case:
+## [method Node.queue_free] defers the actual removal to the end of the frame, well
+## after this graph has already moved past this node, so there is nothing to untangle
+## here about a runner freeing the very node driving it. [method GameEvent._exit_tree]
+## is what actually stops whatever runner or lease the erased placement was holding,
+## the moment that removal lands - hardened alongside this command, not a special
+## case for it, since any other way a [GameEvent] leaves the tree needs the same
+## teardown.
+class EraseEvent extends EventCommandExec:
+	func start() -> void:
+		var a := actor()
+		if a == null:
+			return
+		var root := a.get_parent()
+		if root != null:
+			root.queue_free()
+
+
 static func table() -> Dictionary:
 	return {
 		"move_to": MoveTo,
@@ -279,4 +350,5 @@ static func table() -> Dictionary:
 		"teleport": TeleportCmd,
 		"wait_settle": WaitSettle,
 		"set_speed": SetSpeed,
+		"erase_event": EraseEvent,
 	}

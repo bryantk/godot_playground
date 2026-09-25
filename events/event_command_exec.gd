@@ -88,12 +88,40 @@ func actor() -> Actor:
 	return ctx.resolve(str(args.get("actor", "@self")))
 
 
+## True the moment this command's own movement finished somewhere other than where it
+## meant to land - a refused step, not merely one still in flight. [method
+## EventRunner._resolve_finished_node] reads this only while a [code]define_route[/code]
+## scope is active (event_runner.gd's own class doc); a command that never overrides
+## this - almost all of them - can never trigger that path. [code]move_to[/code]/[code]
+## move_by[/code]/[code]step[/code] (events/commands/actor_execs.gd) are the three that
+## do, the same "compare the actor's real cell to where this meant to land" check
+## [code]route_step[/code]/[code]route_move_to[/code]'s own [method flow_port] already
+## makes for a compiled route (events/commands/route_execs.gd).
+func was_blocked() -> bool:
+	return false
+
+
 ## The real key this command's own system minted, if any - "" for a command with none.
 ## What a node's authored [code]key[/code] field (event_command.gd) aliases to, so a
 ## later [code]wait_for[/code] can join a non-blocking command by the name the author
 ## gave it rather than the internal name [GridMotion]/[FreeMotion] happened to mint.
 func own_key() -> String:
 	return ""
+
+
+## A saved cell - a 3-element array, the same shape [method GridMotion.to_save]'s own
+## queue entries already use - back to a [Vector3i], or [param fallback] when [param
+## value] is not one (an older save, captured before a command started saving its own
+## target cell explicitly). Shared by [code]move_by[/code]/[code]step[/code]'s own
+## [method restore] (events/commands/actor_execs.gd) - both need it for the same
+## reason: a target relative to wherever the actor stood when the move started must
+## survive a mid-flight capture, not be recomputed against wherever it has since ended
+## up.
+static func saved_cell_or(value: Variant, fallback: Vector3i) -> Vector3i:
+	if value is Array and (value as Array).size() >= 3:
+		var a: Array = value
+		return Vector3i(int(a[0]), int(a[1]), int(a[2]))
+	return fallback
 
 
 # -- Factory --------------------------------------------------------------------

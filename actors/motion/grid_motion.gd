@@ -143,8 +143,8 @@ func set_step_intent(dir: Vector3i) -> void:
 	_step_intent = dir
 
 
-## A run, as a multiplier on this actor's speed. Set per frame by [Brain] from
-## [member InputIntent.run]; 1.0 is a walk.
+## A run, as a multiplier on this actor's speed. Set per frame by [PlayerController]
+## from [member InputIntent.run]; 1.0 is a walk.
 ##
 ## [b]A grid run is a shorter step, not a longer one.[/b] A step always crosses exactly
 ## one cell - that is the invariant the whole controller is built on - so the only thing
@@ -182,8 +182,9 @@ func set_run_scale(scale: float) -> void:
 ##
 ## [b]Known limit:[/b] a single scripted [method step] carries no route key, so a cutscene
 ## that nudges the player one cell while they lean on the run key crosses that one cell
-## fast. One cell, once, and the alternative is the brain having to know whether anything
-## else is driving its actor - which is the coupling [Brain] exists to avoid.
+## fast. One cell, once, and the alternative is [PlayerController] having to know
+## whether anything else is driving its actor - which is the coupling this exists to
+## avoid.
 func _step_rate_scale() -> float:
 	return 1.0 if _route_key != "" else _run_scale
 
@@ -237,7 +238,9 @@ func step(dir: Vector3i) -> bool:
 		plan = Terrain.resolve_step(ctx, from, d, ctx.max_fall_cells)
 
 	var to: Vector3i = plan["cell"]
-	if not plan["ok"] or not Passability.can_enter(ctx, to, _actor):
+	var from_cells: Array[Vector3i] = _actor.footprint_cells()
+	var to_cells := _shift_cells(from_cells, to - from)
+	if not plan["ok"] or not Passability.can_enter_footprint(ctx, from_cells, to_cells, _actor):
 		_actor.report_blocked(to)
 		return false
 
@@ -247,6 +250,17 @@ func step(dir: Vector3i) -> bool:
 	_fall_begun = false
 	_commit_step(ctx, from, to)
 	return true
+
+
+## [param cells] shifted by [param delta] - the footprint version of "from + d".
+## Its own tiny helper because both [method step] (checking passability) and
+## [method _commit_step] (committing occupancy) need the same shift, and repeating a
+## one-line map() lambda twice invites the two drifting apart.
+func _shift_cells(cells: Array[Vector3i], delta: Vector3i) -> Array[Vector3i]:
+	var out: Array[Vector3i] = []
+	for cell: Vector3i in cells:
+		out.append(cell + delta)
+	return out
 
 
 ## Like [method step], but returns the key for the step just taken instead of a bare
@@ -371,8 +385,8 @@ func jump(_strength: float) -> String:
 # restore actually needs is the sprite's own remainder, the queue behind it, and the
 # fall counters - everything else here is either derived (recomputed fresh in
 # from_save, never trusted from a frozen number a repainted ramp or a retuned
-# cell_size would make stale) or per-frame (_step_intent, _run_scale - Brain rewrites
-# both every frame, and restoring _step_intent would take a phantom step the instant
+# cell_size would make stale) or per-frame (_step_intent, _run_scale - PlayerController
+# rewrites both every frame, and restoring _step_intent would take a phantom step the instant
 # _process next ran).
 
 ## What [method from_save] needs to pick the step in flight, the queue behind it and
@@ -485,7 +499,13 @@ func _commit_step(ctx: MapContext, from: Vector3i, to: Vector3i) -> void:
 	# Every grid actor commits, through or not - the table records presence, and a
 	# phasing actor's claim is simply never refused. Gating the call on the flag would
 	# lose the through actor from the cell it is standing on.
-	if not ctx.occupancy.commit_step(_actor.actor_id, from, to):
+	#
+	# commit_step_footprint over the whole footprint shifted by to-from, not
+	# commit_step(from, to) alone - identical to the old call for the default 1x1x1
+	# footprint (footprint_cells() is just [from]), and what claims every cell a
+	# bigger one covers.
+	var to_cells := _shift_cells(_actor.footprint_cells(), to - from)
+	if not ctx.occupancy.commit_step_footprint(_actor.actor_id, to_cells):
 		# A fall whose landing cell is taken stops in the air above it rather than
 		# continuing into someone. Clearing the remaining depth is what makes that a
 		# stop and not a hang: a pending fall counts as busy (see is_busy), and nothing

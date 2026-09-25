@@ -89,8 +89,8 @@ The conversion to and from `Vector2` happens in exactly one place: the space ada
   └──────────────────────────┬──────────────────────────────────┘
                              │  Vector3 / Vector3i only
   ┌─ Actor ──────────────────▼──────────────────────────────────┐
-  │  Brain (Player | Route | …) ─ Actor (Node)                   │
-  │                              ─ MotionController (Grid | Free)│
+  │  PlayerController (player) ─ Actor (Node)                     │
+  │                            ─ MotionController (Grid | Free)   │
   └──────────────────────────┬──────────────────────────────────┘
                              │  the only Vector2 ⇄ Vector3 seam
   ┌─ Space adapter ──────────▼──────────────────────────────────┐
@@ -197,47 +197,48 @@ A `Node`, not a body subclass — that is what lets the identical script sit und
 `CharacterBody2D` in a town and a `CharacterBody3D` in a field. It registers itself with
 `ActorRegistry` on `_ready` and deregisters on exit.
 
-An actor decides nothing. It is an id, a facing and its axis children; where it goes is a
-`Brain`'s call.
+An actor decides nothing. It is an id, a facing and its axis children; where it goes is
+whichever of the two things below is attached, if either is.
 
-### `Brain` — the one thing that decides
+### `PlayerController` — the only thing left that decides every frame
 
 ```gdscript
-class_name Brain extends Node
+class_name PlayerController extends Node
 
 var intent := InputIntent.new()
 
-func _think(delta: float) -> void     # subclass fills intent
-func _apply(delta: float) -> void     # base hands it to Grid | Free motion
+func _think(delta: float) -> void     # fills intent from the keyboard
+func _apply(delta: float) -> void     # hands it to Grid | Free motion
 ```
 
 **Player and NPC are the same scene.** One actor prefab per game is instanced for every
-actor on the map; what makes one of them the player is a `PlayerBrain` child on its
-`Actor`. An actor with no brain stands there, which is exactly what scenery wants. The
-alternative — a `player_x.tscn` beside an `npc_x.tscn` — duplicated the sprite, the view
-wiring and the collision shape twice per game and made every fix to an actor a fix in two
-files.
+actor on the map; what makes one of them the player is a `PlayerController` child on its
+`Actor`. An actor with no controller and no `GameEvent` stands there, which is exactly
+what scenery wants. The alternative — a `player_x.tscn` beside an `npc_x.tscn` —
+duplicated the sprite, the view wiring and the collision shape twice per game and made
+every fix to an actor a fix in two files.
 
-Brains speak one currency, `InputIntent`, and the base class is what turns an intent into
-motion. That split matters: filling the intent varies by *who is asking* (a keyboard, an
-event graph's own compiled command), applying it varies by *which controller the actor
-has* (`GridMotion` takes a committed step, `FreeMotion` continuous steering), and neither
-side needs to know the other's answer.
+`intent` is one currency, `InputIntent`, and this class is what turns it into motion in
+the same pass it fills it. That split still matters even with one class doing both:
+filling the intent is *reading the keyboard*, applying it is *which controller the actor
+has* (`GridMotion` takes a committed step, `FreeMotion` continuous steering), and the
+motion controllers never need to know input exists.
 
-| Brain | Fills the intent from | Status |
+**This used to be `Brain`/`PlayerBrain`, a base class built for several kinds of decider
+- the player, and a patrolling NPC (`RouteBrain`, stage C through segment 6).**
+Segment 7 (2026-09-20) retired `RouteBrain` in favour of `EventRoute.compile()` turning a
+page's own `route` field (event-pages.md §3) into the same command stream an event graph
+runs, executed by a background `EventRunner` off a sibling `GameEvent` instead - not a
+brain of any kind, so a patrolling actor looks exactly like scenery from `Actor`'s own
+point of view. That left `PlayerBrain` the only concrete subclass, so the shared base
+bought nothing merging back into it didn't already have for free - done since, the
+merged class renamed `PlayerController` to drop a name that no longer described more
+than one thing.
+
+| Decider | Fills/drives from | Status |
 | --- | --- | --- |
-| `PlayerBrain` | the keyboard, through `InputProfile` and the map's camera yaw | stage A, was `InputDriver` |
+| `PlayerController` | the keyboard, through `InputProfile` and the map's camera yaw | stage A, was `InputDriver`, then `Brain`/`PlayerBrain` |
 | event graphs | a runner driving the actor through a lease | stage C, §7 |
-
-**A patrol was `RouteBrain` through stage C segment 6; it is a compiled `route`
-since segment 7 (2026-09-20), and `RouteBrain` is deleted.** What made another actor a
-patrol used to be a `RouteBrain` child running its own fixed command list. Segment 7
-retired that in favour of `EventRoute.compile()` turning a page's own `route` field
-(event-pages.md §3) into the same command stream an event graph runs, executed by its
-own background `EventRunner` off a sibling `GameEvent` — not a `Brain` at all, so a
-patrolling actor now looks exactly like scenery from `Actor`'s own point of view. The
-reasoning below (one format, no branching) is unchanged; only which system owns running
-it moved.
 
 ### `MotionController`
 
@@ -804,9 +805,9 @@ actors/
   actor_registry.gd        autoload — scope unresolved, see §11 and §12.7
   actor_factory.gd         builds motion/view/camera children from GameProfile
   actor_view.gd            ActorView base (+ sprite_view_2d, sprite_view_3d)
-  brain/
-    brain.gd               Brain base — intent in, motion out
-    player_brain.gd        PlayerBrain — the keyboard (was core/input_driver.gd)
+  player_controller.gd     PlayerController — the keyboard, intent in, motion out
+                           (was core/input_driver.gd, then brain/brain.gd +
+                           brain/player_brain.gd)
   motion/
     motion_controller.gd   base
     grid_motion.gd

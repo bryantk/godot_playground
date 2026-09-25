@@ -54,8 +54,10 @@ const TRIGGERS: PackedStringArray = [
 
 # -- Defaults --------------------------------------------------------------------
 
-## A page with no conditions, no settings, no art, no route and no graph - the empty
-## default every field falls back to when a page omits it.
+## A page with no conditions, no art, no route and no graph - the empty default every
+## field falls back to when a page omits it, apart from [code]settings.speed[/code] and
+## [code]lock_player[/code], which start meaningfully non-empty (see their own comments
+## below) rather than at the zero value every other field here uses.
 ##
 ## [b]The two node arrays are typed[/b], matching what [method Doc.parse_nodes] hands
 ## back for a page that does have them. An untyped default is a trap for any reader
@@ -68,7 +70,13 @@ static func default_page() -> Dictionary:
 	var graph: Array[Dictionary] = []
 	return {
 		"conditions": [],
-		"settings": {},
+		# speed: 6.0 is "Normal" on addons/graph_editor/event_graph_node.gd's own named
+		# presets (kept as a literal here, not a reference to that addon script, since
+		# this file also runs at game runtime, where nothing under addons/ is loaded) -
+		# the same speed an actor with no speed argument at all already plays at, so a
+		# freshly authored page starts explicit about a value that was already the
+		# effective one.
+		"settings": {"speed": 6.0},
 		"art": {},
 		# Actor flags GameEvent applies to its Actor on activation - siblings of art
 		# and conditions, not settings, because they describe the actor itself for as
@@ -82,7 +90,12 @@ static func default_page() -> Dictionary:
 		# when the run ends (or is refused), the same capture/restore shape it already
 		# uses for facing. See event-pages.md and events/commands/state_execs.gd's
 		# halt_control/return_control for locking past that boundary on purpose.
-		"lock_player": false,
+		#
+		# Defaults on, unlike the three above: a freshly authored page is more often an
+		# interaction (an NPC's line, a cutscene beat) than not, and a page that is not
+		# supposed to lock the player is one edit away either way, the same as any other
+		# field here.
+		"lock_player": true,
 		"route": route,
 		"graph": graph,
 		"_unknown": {},

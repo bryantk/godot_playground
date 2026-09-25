@@ -44,8 +44,9 @@ func is_travelling() -> bool:
 ## vector's magnitude, because this is where the intent is quantised to
 ## [member direction_count] - snapping to one of eight headings means normalising, which
 ## throws any magnitude above 1 away. That is exactly what happened to [member
-## Brain.run_speed_scale] until 2026-09-14: the brain multiplied the direction by 3 and
-## this method discarded it on the next line, so holding run did nothing in either demo
+## PlayerController.run_speed_scale] until 2026-09-14: the controller multiplied the
+## direction by 3 and this method discarded it on the next line, so holding run did
+## nothing in either demo
 ## and only an actor left analog ([code]direction_count == 0[/code], which nothing ships)
 ## ever ran. Direction and speed are separate arguments so that cannot recur.
 func set_intent(dir: Vector3, scale: float = 1.0) -> void:

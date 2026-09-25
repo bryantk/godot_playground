@@ -9,9 +9,10 @@ class_name Actor extends Node
 ##
 ## [b]It decides nothing.[/b] An actor is an id, a facing and a handful of axis children
 ## - a [SpaceAdapter], a [MotionController], an [ActorView] - none of which choose where
-## to go. Choosing is a [Brain]'s job, and the brain is a child added per placement
+## to go. Choosing is a [PlayerController]'s job for the player, or a [GameEvent]'s for
+## an NPC (its own page graph and route), and either is a child added per placement
 ## rather than baked into the scene. That is what lets the player and every NPC on a map
-## be the same prefab: what differs is which brain, if any, is attached.
+## be the same prefab: what differs is which of those, if any, is attached.
 
 enum MotionMode { INHERIT, GRID, FREE }
 
@@ -52,6 +53,15 @@ enum MotionMode { INHERIT, GRID, FREE }
 @export var through_terrain: bool = false
 
 @export var motion_mode: MotionMode = MotionMode.INHERIT
+
+## Cells wide/deep/tall, from this actor's own anchor cell - the same cell [method cell]
+## already reports, which is this footprint's minimum corner, not its centre (an
+## even-width footprint has no single centre cell). [code]y[/code] is reserved for a
+## future 3D pass and stays [code]1[/code] on a flat/2D map: a 2D actor's height is a
+## bigger sprite, not more occupancy, and a footprint spanning cells at different
+## heights or ramp states is not attempted yet ([member through_terrain] is a flat
+## footprint's own escape hatch on a height map, same as it always was).
+@export var footprint: Vector3i = Vector3i.ONE
 
 ## How many directions this actor's facing quantises to. 4 for game 1, 8 for game 2.
 @export_range(4, 8, 4) var facing_count: int = 4
@@ -107,7 +117,7 @@ var _ctx: MapContext = null
 var _adapter: SpaceAdapter = null
 var _motion: MotionController = null
 var _view: ActorView = null
-var _brain: Brain = null
+var _player_controller: PlayerController = null
 var _facing: Vector3i = Vector3i(0, 0, 1)
 
 ## The zones this actor is standing in, and the subset it has stepped out of but not yet
@@ -128,6 +138,29 @@ func _ready() -> void:
 	_ctx = MapContext.of(self)
 	_resolve_parts()
 
+	# A grid actor's authored placement is a hand-dragged pixel position, snapped to
+	# whatever grid the editor happened to be showing at the time - the map's own
+	# tile grid, most often, not necessarily this actor's cell_size. cell() (and
+	# everything built on it: footprint_cells, footprint_visual_offset, the debug
+	# boxes) all assume [method world_position] already sits exactly on [method
+	# MapContext.cell_centre] of that cell - true of any actor a step has ever moved,
+	# false of one merely dropped in the editor at a stale or off-grid spot. Snapping
+	# once here, before anything reads the position, is what makes "wherever it was
+	# authored" and "where it behaves as if it were" the same place from frame one.
+	if _ctx != null and effective_motion() == MotionMode.GRID:
+		var adapt := adapter()
+		if adapt != null:
+			adapt.set_world_position(_ctx.cell_centre(_ctx.cell_of(adapt.world_position())))
+
+	# Every actor gets this, not just one with a GameEvent beside it - the player
+	# most of all, since it is the one actor with no GameEvent to have pushed it
+	# instead (that used to be where this lived; a footprint bigger than 1x1x1 on the
+	# player read as "always in its own anchor corner" because nothing ever pushed
+	# its correction).
+	var v := view()
+	if v != null and _ctx != null:
+		v.set_visual_offset(_ctx.actor_visual_offset + footprint_visual_offset())
+
 	if _ctx != null and _ctx.register(self):
 		# Deferred, because the parts may not exist yet. A scene-authored actor has
 		# its children before _ready, but one built in code - by hand or by
@@ -146,8 +179,8 @@ func _resolve_parts() -> void:
 		_motion = _find_child_of_type("MotionController") as MotionController
 	if _view == null:
 		_view = _find_child_of_type("ActorView") as ActorView
-	if _brain == null:
-		_brain = _find_child_of_type("Brain") as Brain
+	if _player_controller == null:
+		_player_controller = _find_child_of_type("PlayerController") as PlayerController
 
 
 ## A grid actor takes its spawn cell, and declares how it blocks while it is there.
@@ -156,15 +189,18 @@ func _resolve_parts() -> void:
 ## [member through_actors] is [i]not[/i] for, and why the flag is registered here rather
 ## than standing in for "is in the table".
 ##
-## A spawn is a [method Occupancy.place]: it cannot fail. Two blockers authored onto one
-## tile used to be an error, and is now presumed intentional (open-questions 34) - the
+## A spawn is a [method Occupancy.place_many]: it cannot fail. Two blockers authored onto
+## one tile used to be an error, and is now presumed intentional (open-questions 34) - the
 ## same thing a teleport or an event placement produces, and they walk off normally
-## because only a voluntary step is refused.
+## because only a voluntary step is refused. [method Occupancy.place_many] over
+## [method footprint_cells] rather than [method Occupancy.place] over [method cell]
+## alone - identical for the default 1x1x1 footprint, and what claims every cell a
+## bigger one covers.
 func _claim_spawn_cell() -> void:
 	if _ctx == null or effective_motion() != MotionMode.GRID:
 		return
 	_ctx.occupancy.set_phasing(actor_id, through_actors)
-	_ctx.occupancy.place(actor_id, cell())
+	_ctx.occupancy.place_many(actor_id, footprint_cells())
 
 
 ## The zones an actor is standing in the moment it spawns.
@@ -240,23 +276,24 @@ func view() -> ActorView:
 	return _view
 
 
-## What is driving this actor, if anything. A [PlayerBrain] makes it the player, a
-## [RouteBrain] makes it a patrol, and null is an actor that stands there - which is
-## the difference between two placements of the same prefab.
-func brain() -> Brain:
-	if _brain == null:
+## The [PlayerController] driving this actor, if any - null for an NPC (driven by a
+## [GameEvent] instead, or nothing at all) - which is the difference between two
+## placements of the same prefab.
+func player_controller() -> PlayerController:
+	if _player_controller == null:
 		_resolve_parts()
-	return _brain
+	return _player_controller
 
 
-## Is this the player? A [PlayerBrain] is the real test; the id is the fallback for a
-## map where the player is placed without one (a cutscene-only scene, a test rig).
+## Is this the player? A [PlayerController] is the real test; the id is the fallback
+## for a map where the player is placed without one (a cutscene-only scene, a test
+## rig).
 ##
 ## [b]One definition, used everywhere[/b] - the [code]player_*[/code] signals on
 ## [EventBus] and [AreaComponent]'s PLAYER filter both ask here. Two copies of this test
 ## is how "the trap fires for the player but the music cue does not" happens.
 func is_player() -> bool:
-	return brain() is PlayerBrain or actor_id == &"player"
+	return player_controller() != null or actor_id == &"player"
 
 
 ## [member motion_mode] with INHERIT resolved against the map's default.
@@ -277,10 +314,68 @@ func world_position() -> Vector3:
 
 ## The cell this actor is in. A grid actor's body is always exactly on a cell - the
 ## sprite is the thing that lags - so this never reports a half-cell state.
+##
+## [b]This footprint's anchor corner, not its centre[/b], once [member footprint] is
+## bigger than [code]Vector3i.ONE[/code] - see [method footprint_cells].
 func cell() -> Vector3i:
 	if _ctx == null:
 		return Vector3i.ZERO
 	return _ctx.cell_of(world_position())
+
+
+## Every cell [member footprint] covers right now, anchored at [method cell]. Exactly
+## [code][cell()][/code] for the default 1x1x1 footprint, which is what keeps every
+## existing actor's own path through [Occupancy]/[Passability] identical to before this
+## existed.
+func footprint_cells() -> Array[Vector3i]:
+	var anchor := cell()
+	var out: Array[Vector3i] = []
+	for x in footprint.x:
+		for z in footprint.z:
+			out.append(anchor + Vector3i(x, 0, z))
+	return out
+
+
+## Every cell one step past [method footprint_cells]'s own edge facing [method facing]
+## reaches - what an interact check (or anything else asking "what is directly ahead")
+## should test against, once [member footprint] is bigger than [code]Vector3i.ONE[/code].
+## A 2-wide footprint facing a cardinal direction returns 2 cells, one per column along
+## that edge, not just the single cell ahead of the anchor - "standing in front of a
+## wide thing" reaches all of it, not only its near corner. Exactly
+## [code][cell() + facing()][/code] for the default 1x1x1 footprint (or a diagonal
+## facing on any footprint, which only ever has one true corner cell to be ahead of),
+## which is every existing caller's own case from before this existed.
+##
+## Per-axis: an axis [method facing] does not move along keeps every value that axis'
+## own width already covers (the footprint's whole span perpendicular to travel); an
+## axis it does move along pins to whichever edge - far or near - that facing leaves,
+## since a footprint can only be ahead of the edge it is walking away from.
+func facing_cells() -> Array[Vector3i]:
+	var dir := facing()
+	var anchor := cell()
+	var pinned_x: int = anchor.x + footprint.x - 1 if dir.x > 0 else (anchor.x if dir.x < 0 else -1)
+	var pinned_z: int = anchor.z + footprint.z - 1 if dir.z > 0 else (anchor.z if dir.z < 0 else -1)
+
+	var out: Array[Vector3i] = []
+	for c in footprint_cells():
+		if (dir.x == 0 or c.x == pinned_x) and (dir.z == 0 or c.z == pinned_z):
+			out.append(c + dir)
+	return out
+
+
+## The correction a footprint bigger than 1x1x1 needs so its sprite reads as centred
+## on the whole footprint rather than on just [method cell]'s own anchor corner.
+## [method world_position] sits at the anchor cell's own centre ([method
+## MapContext.cell_centre] never centres a footprint, only ever one cell), so a
+## footprint wider than 1x1 needs pushing right/down by half of the *extra* cells'
+## own width/depth to land back on the footprint's true centre. Zero with no
+## [MapContext] to read [member MapContext.cell_size] off, or for the default 1x1x1
+## footprint every actor before this existed has.
+func footprint_visual_offset() -> Vector2:
+	if _ctx == null:
+		return Vector2.ZERO
+	var extra := Vector2(footprint.x - 1, footprint.z - 1)
+	return extra * Vector2(_ctx.cell_size.x, _ctx.cell_size.z) * 0.5
 
 
 func facing() -> Vector3i:

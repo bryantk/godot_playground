@@ -1,3 +1,4 @@
+@tool
 class_name MapContext extends Node
 
 ## Everything that is true of one loaded map. Both map roots carry one of these as a
@@ -17,6 +18,31 @@ signal actor_unregistered(actor_id: StringName)
 ## Pixels for a 2D map, metres for a 3D one. Nothing compares a distance across maps -
 ## only cells travel between them - so the two never need to agree.
 @export var cell_size: Vector3 = Vector3.ONE
+
+## The grid this map's tile art/pathing mask is actually painted at - independent of
+## [member cell_size], the grid actors move and occupy. [constant Vector3.ZERO] (the
+## default) reads as "same as [member cell_size]", the 1:1 ratio every map that
+## predates this one has, so a map that never sets this is untouched.
+##
+## [b]What this buys[/b]: an actor can move and be occupied at a finer grid than the
+## art was painted at, with nothing repainted. [method Passability.allows_step] only
+## ever consults the painted mask at a crossed *map* cell boundary ([method
+## map_cell_of]) - a step that lands inside the same map cell it started in is
+## unconstrained by the mask, because the mask has nothing to say about a subdivision
+## it does not know exists. Set this to the map's old [member cell_size] the moment
+## [member cell_size] itself is made finer, and every existing [TileMapLayer] keeps
+## meaning exactly what it always painted.
+@export var map_cell_size: Vector3 = Vector3.ZERO
+
+## A map-wide pixel nudge, applied to every actor's sprite on this map ([method
+## Actor._ready] pushes it, alongside that actor's own per-footprint [method
+## Actor.footprint_visual_offset] correction) - the player included, not only an
+## actor with a [GameEvent] beside it. Lives here rather than per-actor because a
+## mismatch between [member cell_size] and [member map_cell_size] shifts every
+## actor's sprite by the same amount - a per-map fact, not a per-placement one - and
+## one number here fixes every actor on the map at once instead of copying the same
+## value onto each of them by hand.
+@export var actor_visual_offset: Vector2 = Vector2.ZERO
 
 ## The motion this map's actors use unless the actor overrides it. This takes
 ## precedence over [member GameProfile.motion_script], which is what keeps
@@ -68,6 +94,17 @@ signal actor_unregistered(actor_id: StringName)
 ## stop accidents, and letting go is not one.
 @export var max_fall_cells: int = 1
 
+## Inspector-only: re-snaps every grid [Actor] under this map onto its own cell's
+## centre at [member cell_size]'s current value, then re-derives every
+## [DebugArea2D]/[DebugArea3D] from the (possibly now-different) result and redraws
+## it. Nothing does either automatically after the first [method Node._ready] - an
+## authored placement is a hand-dragged pixel position, snapped to whatever grid the
+## editor happened to be showing at the time (see [method Actor._ready]'s own
+## spawn-time snap for the run-time half of this), and a [member cell_size] changed
+## afterward leaves every existing placement sitting on the *old* grid until this is
+## pressed.
+@export_tool_button("Update Map Size") var update_map_size_action: Callable = update_map_size
+
 var occupancy := Occupancy.new()
 
 ## The rig looking at this map, registered by [CameraRig] on ready.
@@ -118,6 +155,34 @@ func cell_vector(cell: Vector3i) -> Vector3:
 	return Vector3(cell) * cell_size
 
 
+## [member map_cell_size], defaulting to [member cell_size] when unset - see that
+## member's own doc for why [constant Vector3.ZERO] is the sentinel rather than a real
+## value to fall back to.
+func effective_map_cell_size() -> Vector3:
+	return map_cell_size if map_cell_size != Vector3.ZERO else cell_size
+
+
+## The coarse map/tile cell [param cell] - an actor-grid cell, [method cell_of]'s own
+## unit - falls within. Identity ([code]== cell[/code]) whenever [method
+## effective_map_cell_size] equals [member cell_size], which is every map that has
+## never set [member map_cell_size] to anything else.
+##
+## X/Z only, ground-plane, same scope [Actor.footprint] keeps to: [param cell]'s own Y
+## passes through untouched rather than being divided by a ratio, since a height map's
+## vertical cells are not this feature's concern yet.
+func map_cell_of(cell: Vector3i) -> Vector3i:
+	var map_size := effective_map_cell_size()
+	return Vector3i(
+		floori(float(cell.x) / _ratio(map_size.x, cell_size.x)),
+		cell.y,
+		floori(float(cell.z) / _ratio(map_size.z, cell_size.z)),
+	)
+
+
+func _ratio(map_axis: float, cell_axis: float) -> float:
+	return map_axis / cell_axis if cell_axis > 0.0 else 1.0
+
+
 # -- Actor registry -----------------------------------------------------------
 
 ## Returns false if [param actor_id] is already taken, which is a real authoring
@@ -146,7 +211,7 @@ func unregister(who: Actor) -> void:
 	actor_unregistered.emit(id)
 
 
-## Called by [CameraRig] on ready. One rig per map: a [PlayerBrain] inside an actor
+## Called by [CameraRig] on ready. One rig per map: a [PlayerController] inside an actor
 ## prefab needs the yaw that resolves "up on the stick", and the one thing a shared
 ## prefab must not carry is a [NodePath] up out of itself into whichever map instanced
 ## it. Asking the map is how it finds the rig instead.
@@ -237,3 +302,57 @@ static func of(node: Node) -> MapContext:
 				return child
 		n = n.get_parent()
 	return null
+
+
+# -- Update map size ------------------------------------------------------------
+
+## Walks this map's own root (its parent, the town/field scene both map roots sit
+## under), re-snaps every grid [Actor] found onto its own cell's centre, then
+## re-syncs and redraws every [DebugArea2D]/[DebugArea3D] - see [member
+## update_map_size_action]'s own doc for why either is needed at all.
+func update_map_size() -> void:
+	var root := get_parent()
+	if root == null:
+		return
+	_reposition_actors_under(root)
+	_refresh_debug_areas_under(root)
+
+
+## [member Actor.motion_mode] resolved against this map's [member default_motion] -
+## the same rule [method Actor.effective_motion] applies, duplicated rather than
+## called because that method reads [member Actor._ctx], which is only ever set by
+## [method Actor._ready] and this runs from the editor, where an [Actor] is never
+## ready.
+func _effective_motion(who: Actor) -> Actor.MotionMode:
+	return who.motion_mode if who.motion_mode != Actor.MotionMode.INHERIT else default_motion
+
+
+func _reposition_actors_under(node: Node) -> void:
+	if node is Actor:
+		_snap_actor_to_grid(node as Actor)
+	for child in node.get_children():
+		_reposition_actors_under(child)
+
+
+## Snaps [param who]'s placement body directly, rather than through [method
+## Actor.world_position]/[method Actor.adapter] - both read a [SpaceAdapter] that only
+## binds to its body in [method Node._ready], which never runs for a plain (non-
+## [@tool]) script while a scene is merely open for editing.
+func _snap_actor_to_grid(who: Actor) -> void:
+	if _effective_motion(who) != Actor.MotionMode.GRID:
+		return
+
+	var body := who.get_parent()
+	if body is Node2D:
+		var b2 := body as Node2D
+		b2.position = Space.as_v2(cell_centre(cell_of(Space.as_v3(b2.position))))
+	elif body is Node3D:
+		var b3 := body as Node3D
+		b3.position = cell_centre(cell_of(b3.position))
+
+
+func _refresh_debug_areas_under(node: Node) -> void:
+	if node is DebugArea2D or node is DebugArea3D:
+		node.refresh()
+	for child in node.get_children():
+		_refresh_debug_areas_under(child)
