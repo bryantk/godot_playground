@@ -1,0 +1,54 @@
+{
+	"format": 1,
+	"id": "party_menu_trigger",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {},
+			"art": {},
+			"lock_facing": false,
+			"through": true,
+			"through_terrain": false,
+			"lock_player": false,
+			"route": [],
+			"graph": [
+				{
+					"id": "start",
+					"title": "start",
+					"position": {
+						"x": -180,
+						"y": 0
+					},
+					"command": "start",
+					"args": {
+						"page_entry": true
+					},
+					"outputs": [
+						{
+							"flow": "action",
+							"target": "n1"
+						}
+					]
+				},
+				{
+					"id": "n1",
+					"title": "Party status/equipment",
+					"position": {
+						"x": 100,
+						"y": 0
+					},
+					"command": "open_menu",
+					"args": {
+						"menu": "party"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				}
+			]
+		}
+	]
+}

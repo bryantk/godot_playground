@@ -38,7 +38,7 @@ const DOCUMENT_KEYS: PackedStringArray = ["format", "id", "pages"]
 ## Page keys this file understands.
 const PAGE_KEYS: PackedStringArray = [
 	"conditions", "settings", "art", "lock_facing", "through", "through_terrain",
-	"lock_player", "route", "graph",
+	"step_in_place", "lock_player", "route", "graph",
 ]
 
 # -- Defaults --------------------------------------------------------------------
@@ -73,7 +73,13 @@ static func default_page() -> Dictionary:
 		"lock_facing": false,
 		"through": false,
 		"through_terrain": false,
-		# Unlike the three above, this does not describe the actor for as long as the
+		# A fourth actor-for-as-long-as-the-page-is-active flag, but on ActorView's own
+		# sheet rather than Actor - see ActorView.step_in_place's own doc for why the
+		# runtime write is one call later than the three above. Off by default, same
+		# reasoning as the three above: most actors should stop animating when they
+		# stop moving, same as before this field existed at all.
+		"step_in_place": false,
+		# Unlike the four above, this does not describe the actor for as long as the
 		# page is active - it describes one triggered run of the page's own graph.
 		# GameEvent pushes ModeStack.Mode.CUTSCENE when that run starts and pops it
 		# when the run ends (or is refused), the same capture/restore shape it already
@@ -172,6 +178,8 @@ static func _read_page(raw: Variant, index: int, problems: Array[String]) -> Dic
 	page["through"] = _read_bool(source.get("through", false), where, "through", problems)
 	page["through_terrain"] = _read_bool(
 		source.get("through_terrain", false), where, "through_terrain", problems)
+	page["step_in_place"] = _read_bool(
+		source.get("step_in_place", false), where, "step_in_place", problems)
 	page["lock_player"] = _read_bool(
 		source.get("lock_player", false), where, "lock_player", problems)
 	page["route"] = _read_route(source.get("route", []), where, problems)
@@ -288,6 +296,7 @@ static func stringify(doc: Dictionary) -> String:
 			"lock_facing": bool(page_dict.get("lock_facing", false)),
 			"through": bool(page_dict.get("through", false)),
 			"through_terrain": bool(page_dict.get("through_terrain", false)),
+			"step_in_place": bool(page_dict.get("step_in_place", false)),
 			"lock_player": bool(page_dict.get("lock_player", false)),
 			"route": _route_to_data(page_dict.get("route", [])),
 			"graph": Doc.to_data(_as_nodes(page_dict.get("graph", []))),

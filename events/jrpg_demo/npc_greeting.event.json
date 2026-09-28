@@ -8,11 +8,15 @@
 			"art": {
 				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
 				"directions": 4.0,
-				"idle": "idle"
+				"idle": "idle",
+				"frame_row": 0.0,
+				"frame_col": 2.0,
+				"facing": "s"
 			},
-			"lock_facing": false,
+			"lock_facing": true,
 			"through": false,
 			"through_terrain": false,
+			"step_in_place": true,
 			"lock_player": false,
 			"route": [],
 			"graph": [

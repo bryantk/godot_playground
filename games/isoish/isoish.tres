@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="GameProfile" format=3]
 
-[ext_resource type="Script" path="res://core/camera/ortho_pixel_rig.gd" id="1_6kwjx"]
+[ext_resource type="Script" path="res://world/camera/ortho_pixel_rig.gd" id="1_6kwjx"]
 [ext_resource type="Resource" path="res://games/isoish/isoish_input.tres" id="2_h03vw"]
 [ext_resource type="Script" path="res://actors/motion/free_motion.gd" id="3_g5sx0"]
-[ext_resource type="Script" path="res://core/game_profile.gd" id="4_xtrlx"]
-[ext_resource type="Script" path="res://core/space_3d.gd" id="5_y1r3h"]
+[ext_resource type="Script" path="res://world/game_profile.gd" id="4_xtrlx"]
+[ext_resource type="Script" path="res://world/space_3d.gd" id="5_y1r3h"]
 [ext_resource type="Script" path="res://actors/views/sprite_view_3d.gd" id="6_s3wfk"]
 
 [resource]

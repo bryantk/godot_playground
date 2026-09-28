@@ -13,10 +13,12 @@ extends EditorPlugin
 const PanelScript := preload("res://addons/graph_editor/graph_editor_panel.gd")
 const InspectorScript := preload("res://addons/graph_editor/actor_event_inspector.gd")
 const HighlightScript := preload("res://addons/graph_editor/selection_highlight.gd")
+const FramePickerScript := preload("res://addons/graph_editor/frame_picker_panel.gd")
 
 var _panel: Control = null
 var _button: Button = null
 var _inspector: EditorInspectorPlugin = null
+var _frame_picker: Control = null
 
 func _enter_tree() -> void:
 	_panel = PanelScript.new()
@@ -25,6 +27,11 @@ func _enter_tree() -> void:
 	_inspector = InspectorScript.new()
 	_inspector.setup(_panel, func() -> void: make_bottom_panel_item_visible(_panel))
 	add_inspector_plugin(_inspector)
+
+	_frame_picker = FramePickerScript.new()
+	add_control_to_bottom_panel(_frame_picker, "Frames")
+	_panel.setup_frame_picker(
+		_frame_picker, func() -> void: make_bottom_panel_item_visible(_frame_picker))
 
 	# Without this, the two overrides below never fire at all: the plain (non-"force")
 	# draw-over hooks only run for whichever plugin currently owns the edited object -
@@ -37,6 +44,11 @@ func _exit_tree() -> void:
 	if _inspector != null:
 		remove_inspector_plugin(_inspector)
 		_inspector = null
+
+	if _frame_picker != null:
+		remove_control_from_bottom_panel(_frame_picker)
+		_frame_picker.queue_free()
+		_frame_picker = null
 
 	if _panel == null:
 		return

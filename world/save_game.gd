@@ -3,7 +3,8 @@ extends Node
 ## One save slot, on top of the hooks stage C's segment 5 built. Autoloaded as
 ## [code]SaveGame[/code].
 ##
-## [b]The envelope[/b] is [code]{format, scene_path, game_state, scheduler, actors}[/code]:
+## [b]The envelope[/b] is [code]{format, scene_path, game_state, scheduler, actors,
+## party}[/code]: [member Party.to_save] composes straight in alongside the rest.
 ## [member GameState.to_save]/[method EventScheduler.to_save] compose straight in, and
 ## [code]scene_path[/code] is read off [member SceneTree.current_scene] rather than a
 ## separate map-id-to-scene registry - there is nothing else to keep in sync as maps are
@@ -59,6 +60,7 @@ func save() -> bool:
 		"game_state": GameState.to_save(),
 		"scheduler": scheduler_state,
 		"actors": actors,
+		"party": Party.to_save(),
 	}
 
 	var f := FileAccess.open(SLOT_PATH, FileAccess.WRITE)
@@ -100,6 +102,7 @@ func load() -> bool:
 		return false
 
 	GameState.from_save(data.get("game_state", {}))
+	Party.from_save(data.get("party", {}))
 
 	var actor_states: Dictionary = data.get("actors", {})
 	for a in ctx.actors():

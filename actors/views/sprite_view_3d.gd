@@ -48,6 +48,7 @@ func _after_bind() -> void:
 	_sheet = _visual as SpriteSheet3D
 	if _visual is Node3D:
 		_base_position = (_visual as Node3D).position
+	_write_step_in_place()
 	_refresh()
 
 
@@ -80,6 +81,16 @@ func set_facing(dir: Vector3i) -> void:
 ## of integer arithmetic that is worth asserting on in a headless test.
 func frame_index() -> int:
 	return Space.view_frame(Vector3(_facing), _camera_yaw, FACING_COUNT)
+
+
+func hold_frame(row: int, col: int, mirror: bool = false) -> void:
+	if _sheet != null:
+		_sheet.hold_frame(row, col, mirror)
+
+
+func _write_step_in_place() -> void:
+	if _sheet != null:
+		_sheet.step_in_place = step_in_place
 
 
 func play(anim: StringName) -> String:
@@ -115,6 +126,13 @@ func apply_art(art: Dictionary) -> void:
 
 	set_visible(art.has("sheet") or art.has("frames"))
 	_refresh()
+
+	# Last on purpose: a starting frame is a held pose, and _refresh() above would
+	# stomp it right back to the walk cycle's own frame if this ran first. Picked in
+	# the Frames dock (frame_picker_panel.gd), row/col together - see [method
+	# ActorView.hold_frame].
+	if art.has("frame_row") and art.has("frame_col"):
+		hold_frame(int(art["frame_row"]), int(art["frame_col"]), bool(art.get("frame_flip", false)))
 
 
 func _refresh() -> void:

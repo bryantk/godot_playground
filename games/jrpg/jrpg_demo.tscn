@@ -1,19 +1,20 @@
 [gd_scene format=4 uid="uid://oply4ritckdp"]
 
 [ext_resource type="Script" uid="uid://cavinl4uyp123" path="res://games/jrpg/jrpg_demo.gd" id="1_b3m1s"]
-[ext_resource type="Script" uid="uid://c6bwsrlf14puk" path="res://core/map_context.gd" id="2_shd0p"]
+[ext_resource type="Script" uid="uid://c6bwsrlf14puk" path="res://world/map_context.gd" id="2_shd0p"]
 [ext_resource type="TileSet" uid="uid://tsu77kiojq52" path="res://games/jrpg/jrpg_tiles.tres" id="3_yispp"]
 [ext_resource type="PackedScene" path="res://games/jrpg/actor_jrpg.tscn" id="4_0l83r"]
 [ext_resource type="Script" uid="uid://cfvh6ga4k8rgs" path="res://games/jrpg/debug_only.gd" id="5_4o3kj"]
-[ext_resource type="Script" uid="uid://djxeq3x4vd420" path="res://core/areas/speed_modifier.gd" id="5_ika12"]
+[ext_resource type="Script" uid="uid://djxeq3x4vd420" path="res://world/areas/speed_modifier.gd" id="5_ika12"]
 [ext_resource type="Script" uid="uid://pa3vwqvjw77f" path="res://actors/player_controller.gd" id="5_irolo"]
-[ext_resource type="Script" uid="uid://dfyo0bfp6lnmf" path="res://core/areas/area_zone.gd" id="6_e1s23"]
-[ext_resource type="Script" uid="uid://dbqof4tvekdto" path="res://core/camera/room_camera_2d.gd" id="12_gxjgp"]
-[ext_resource type="Resource" path="res://games/jrpg/jrpg_input.tres" id="14_eih3y"]
+[ext_resource type="Script" uid="uid://dfyo0bfp6lnmf" path="res://world/areas/area_zone.gd" id="6_e1s23"]
+[ext_resource type="Script" uid="uid://dbqof4tvekdto" path="res://world/camera/room_camera_2d.gd" id="12_gxjgp"]
+[ext_resource type="Resource" uid="uid://ddc0auvy6xbyo" path="res://games/jrpg/jrpg_input.tres" id="14_eih3y"]
 [ext_resource type="TileSet" uid="uid://6via8glhbs70" path="res://games/jrpg/jrpg_pathing.tres" id="15_pathing"]
 [ext_resource type="TileSet" uid="uid://bv8ika1wdh0ch" path="res://games/jrpg/gentle_forest_tiles.tres" id="16_forest"]
 [ext_resource type="Script" uid="uid://djiw6eurhp8ym" path="res://events/game_event.gd" id="17_game_event"]
-[ext_resource type="Script" uid="uid://n5vs863cahl4" path="res://core/debug_area_2d.gd" id="18_debug_area"]
+[ext_resource type="Script" uid="uid://n5vs863cahl4" path="res://world/debug_area_2d.gd" id="18_debug_area"]
+[ext_resource type="Script" uid="uid://d3yykaieekkqy" path="res://world/map_marker_2d.gd" id="19_map_marker"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_6lfo2"]
 size = Vector2(32, 32)
@@ -44,6 +45,7 @@ tile_map_data = PackedByteArray("AAABAAEAAAABAAEAAAACAAEAAAAAAAEAAAADAAEAAAABAAE
 tile_set = ExtResource("3_yispp")
 
 [node name="Pathing" type="TileMapLayer" parent="." unique_id=2004097975]
+visible = false
 scale = Vector2(0.5, 0.5)
 tile_map_data = PackedByteArray("AAAAAA0AAAAAAAAAAAABAA0AAAAAAAAAAAACAA0AAAAAAAAAAAADAA0AAAAAAAAAAAAEAA0AAAAAAAAAAAAFAA0AAAAAAAAAAAAGAA0AAAAAAAAAAAAHAA0AAAAAAAAAAAAIAA0AAAAAAAAAAAAJAA0AAAAAAAAAAAAKAA0AAAAAAAAAAAALAA0AAAAAAAAAAAAMAA0AAAAAAAAAAAANAA0AAAAAAAAAAAAOAA0AAAAAAAAAAAAPAA0AAAAAAAAAAAAQAA0AAAAAAAAAAAARAA0AAAAAAAAAAAASAA0AAAAAAAAAAAATAA0AAAAAAAAAAAATAAAAAAAAAAAAAAATAAEAAAAAAAAAAAATAAIAAAAAAAAAAAATAAMAAAAAAAAAAAATAAQAAAAAAAAAAAATAAUAAAAAAAAAAAATAAYAAAAAAAAAAAATAAcAAAAAAAAAAAATAAgAAAAAAAAAAAATAAkAAAAAAAAAAAATAAoAAAAAAAAAAAATAAsAAAAAAAAAAAATAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAACAAAAAAAAAAAAAAADAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAFAAAAAAAAAAAAAAAGAAAAAAAAAAAAAAAHAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAJAAAAAAAAAAAAAAAKAAAAAAAAAAAAAAALAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAANAAAAAAAAAAAAAAAOAAAAAAAAAAAAAAAPAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAARAAAAAAAAAAAAAAASAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAUAAAAAAAAAAAAAAAYAAAAAAAAAAAAAAAcAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAkAAAAAAAAAAAAAAAoAAAAAAAAAAAAAAAsAAAAAAAAAAAAAAAwAAAAAAAAAAAADAAoAAAAAAAAAAAAEAAoAAAAAAAAAAAAFAAoAAAAAAAAAAAAGAAoAAAAAAAAAAAAHAAoAAAAAAAAAAAAHAAcAAAAAAAAAAAAHAAgAAAAAAAAAAAAHAAkAAAAAAAAAAAAEAAcAAAAAAAAAAAAFAAcAAAAAAAAAAAAGAAcAAAAAAAAAAAADAAUAAAAAAAAAAAAEAAUAAAAAAAAAAAAFAAUAAAAAAAAAAAAFAAIAAAAAAAAAAAAFAAMAAAAAAAAAAAAFAAQAAAAAAAAAAAADAAIAAAAAAAAAAAAEAAIAAAAAAAAAAAAKAAIAAAAAAAAAAAAKAAMAAAAAAAAAAAAKAAQAAAAAAAAAAAAKAAUAAAAAAAAAAAAKAAYAAAAAAAAAAAAKAAcAAAAAAAAAAAAKAAgAAAAAAAAAAAAKAAkAAAAAAAAAAAAKAAoAAAAAAAAAAAALAAoAAAAAAAAAAAAMAAoAAAAAAAAAAAANAAoAAAAAAAAAAAAQAAsAAAAAAAAAAAAPAAsAAAAAAAAAAAAQAAoAAAAAAAAAAAARAAoAAAAAAAAAAAAPAAgAAAAAAAAAAAAQAAgAAAAAAAAAAAARAAgAAAAAAAAAAAASAAgAAAAAAAAAAAAPAAYAAAAAAAAAAAAPAAcAAAAAAAAAAAANAAYAAAAAAAAAAAAOAAYAAAAAAAAAAAAOAAMAAAAAAAAAAAAPAAMAAAAAAAAAAAAQAAMAAAAAAAAAAAARAAMAAAAAAAAAAAARAAQAAAAAAAAAAAARAAUAAAAAAAAAAAARAAYAAAAAAAAAAAADAAsAAAAAAAAAAAA=")
 tile_set = ExtResource("15_pathing")
@@ -165,6 +167,77 @@ visible = false
 [node name="DebugArea" type="Node2D" parent="Actors/Npc_8_13__y_level/GameEvent" unique_id=98652832]
 position = Vector2(284, 188)
 script = ExtResource("18_debug_area")
+
+[node name="MapTransfer" parent="Actors" unique_id=900000101 instance=ExtResource("4_0l83r")]
+position = Vector2(220, 140)
+
+[node name="Actor" parent="Actors/MapTransfer" index="0"]
+actor_id = &"map_transfer"
+
+[node name="GameEvent" type="Node" parent="Actors/MapTransfer" unique_id=900000102]
+script = ExtResource("17_game_event")
+document_path = "res://events/jrpg_demo/map_transfer.event.json"
+actor_id = &"map_transfer"
+visible = false
+
+[node name="DebugArea" type="Node2D" parent="Actors/MapTransfer/GameEvent" unique_id=900000103]
+position = Vector2(220, 140)
+script = ExtResource("18_debug_area")
+
+[node name="BattleTrigger" parent="Actors" unique_id=900000201 instance=ExtResource("4_0l83r")]
+position = Vector2(236, 140)
+
+[node name="Actor" parent="Actors/BattleTrigger" index="0"]
+actor_id = &"battle_trigger"
+
+[node name="GameEvent" type="Node" parent="Actors/BattleTrigger" unique_id=900000202]
+script = ExtResource("17_game_event")
+document_path = "res://events/jrpg_demo/battle_trigger.event.json"
+actor_id = &"battle_trigger"
+visible = false
+
+[node name="DebugArea" type="Node2D" parent="Actors/BattleTrigger/GameEvent" unique_id=900000203]
+position = Vector2(236, 140)
+script = ExtResource("18_debug_area")
+
+[node name="PartyMenuTrigger" parent="Actors" unique_id=900000211 instance=ExtResource("4_0l83r")]
+position = Vector2(220, 156)
+
+[node name="Actor" parent="Actors/PartyMenuTrigger" index="0"]
+actor_id = &"party_menu_trigger"
+
+[node name="GameEvent" type="Node" parent="Actors/PartyMenuTrigger" unique_id=900000212]
+script = ExtResource("17_game_event")
+document_path = "res://events/jrpg_demo/party_menu_trigger.event.json"
+actor_id = &"party_menu_trigger"
+visible = false
+
+[node name="DebugArea" type="Node2D" parent="Actors/PartyMenuTrigger/GameEvent" unique_id=900000213]
+position = Vector2(220, 156)
+script = ExtResource("18_debug_area")
+
+[node name="ShopTrigger" parent="Actors" unique_id=900000221 instance=ExtResource("4_0l83r")]
+position = Vector2(204, 140)
+
+[node name="Actor" parent="Actors/ShopTrigger" index="0"]
+actor_id = &"shop_trigger"
+
+[node name="GameEvent" type="Node" parent="Actors/ShopTrigger" unique_id=900000222]
+script = ExtResource("17_game_event")
+document_path = "res://events/jrpg_demo/shop_trigger.event.json"
+actor_id = &"shop_trigger"
+visible = false
+
+[node name="DebugArea" type="Node2D" parent="Actors/ShopTrigger/GameEvent" unique_id=900000223]
+position = Vector2(204, 140)
+script = ExtResource("18_debug_area")
+
+[node name="Markers" type="Node2D" parent="." unique_id=900000104]
+
+[node name="Arrival" type="Node2D" parent="Markers" unique_id=900000105]
+position = Vector2(220, 140)
+script = ExtResource("19_map_marker")
+marker_name = &"arrival"
 
 [node name="Above" type="TileMapLayer" parent="." unique_id=1184425040]
 z_index = 10

@@ -137,6 +137,18 @@ func own_key() -> String:
 ## reason: a target relative to wherever the actor stood when the move started must
 ## survive a mid-flight capture, not be recomputed against wherever it has since ended
 ## up.
+## A [code]texture[/code] argument's resource, loaded from its path - null for "" or a
+## path nothing resolves to. Shared by every fade-driven command ([code]fade[/code]/
+## [code]fade_in[/code]/[code]fade_out[/code], [code]change_map[/code]/
+## [code]change_map_marker[/code]'s own optional fade legs) that lets an author override
+## [FadeOverlay]'s default grayscale mask with their own.
+static func load_texture_arg(value: Variant) -> Texture2D:
+	var path := str(value)
+	if path == "" or not ResourceLoader.exists(path):
+		return null
+	return load(path) as Texture2D
+
+
 static func saved_cell_or(value: Variant, fallback: Vector3i) -> Vector3i:
 	if value is Array and (value as Array).size() >= 3:
 		var a: Array = value
@@ -153,6 +165,8 @@ const _StateExecs := preload("res://events/commands/state_execs.gd")
 const _MapExecs := preload("res://events/commands/map_execs.gd")
 const _PresentationExecs := preload("res://events/commands/presentation_execs.gd")
 const _RouteExecs := preload("res://events/commands/route_execs.gd")
+const _BattleExecs := preload("res://events/commands/battle_execs.gd")
+const _MenuExecs := preload("res://events/commands/menu_execs.gd")
 
 static var _table: Dictionary = {}
 
@@ -160,7 +174,7 @@ static func _ensure_table() -> void:
 	if not _table.is_empty():
 		return
 	for source: GDScript in [_FlowExecs, _ActorExecs, _DialogueExecs, _StateExecs,
-			_MapExecs, _PresentationExecs, _RouteExecs]:
+			_MapExecs, _PresentationExecs, _RouteExecs, _BattleExecs, _MenuExecs]:
 		var part: Dictionary = source.table()
 		for key: Variant in part:
 			_table[key] = part[key]

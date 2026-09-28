@@ -129,8 +129,9 @@ const _COMMAND_CATEGORIES: Dictionary = {
 
 	"state": ["set_flag", "set_self_flag", "set_var", "add_var"],
 
-	"world": ["change_map", "fade", "shake", "camera_to", "camera_follow", "play_anim",
-		"play_sound", "play_music", "set_visible", "start_battle"],
+	"world": ["change_map", "change_map_marker", "fade", "fade_in", "fade_out", "shake",
+		"camera_to", "camera_follow", "play_anim", "play_sound", "play_music",
+		"set_visible", "start_battle", "open_menu"],
 }
 
 ## Generated, or blank for the start node (question 47 follow-up) - what other nodes'

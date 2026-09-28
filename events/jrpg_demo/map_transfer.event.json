@@ -1,0 +1,57 @@
+{
+	"format": 1,
+	"id": "map_transfer",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {},
+			"art": {},
+			"lock_facing": false,
+			"through": true,
+			"through_terrain": false,
+			"lock_player": false,
+			"route": [],
+			"graph": [
+				{
+					"id": "start",
+					"title": "start",
+					"position": {
+						"x": -180,
+						"y": 0
+					},
+					"command": "start",
+					"args": {
+						"page_entry": true
+					},
+					"outputs": [
+						{
+							"flow": "action",
+							"target": "n1"
+						}
+					]
+				},
+				{
+					"id": "n1",
+					"title": "To the iso grid demo",
+					"position": {
+						"x": 100,
+						"y": 0
+					},
+					"command": "change_map_marker",
+					"args": {
+						"map": "res://games/isoish/isoish_grid_demo.tscn",
+						"marker": "arrival",
+						"fade_out": 0.4,
+						"fade_in": 0.4
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				}
+			]
+		}
+	]
+}

@@ -48,6 +48,11 @@ const ADD_STEP := Vector2(40, 30)
 ## conventionally the leftmost node in a graph read left to right.
 const _START_POSITION := Vector2(-160, 80)
 
+## Compass tokens art.facing's dropdown offers - matches [constant
+## EventCommand.DIRECTION_TOKENS]' short form, same set [EventGraphNode]'s own "dir"
+## argument control offers a "direction" argument.
+const _FACING_OPTIONS: PackedStringArray = ["n", "ne", "e", "se", "s", "sw", "w", "nw"]
+
 var _path := ""
 var _dirty := false
 ## Whether the pointer is somewhere over this panel right now - what [method
@@ -106,19 +111,39 @@ var _file_dialog: EditorFileDialog
 ## The panel to the left of the graph - page data no node carries: art, speed, route
 ## and conditions. See [method _build_page_inspector] and [method _load_page_inspector].
 var _art_picker: EditorResourcePicker
+## The page's art.facing - a starting compass direction, applied through
+## [method Actor.set_facing] the moment the page activates (see [method
+## GameEvent._apply_art]). "(unset)" (index 0) leaves the actor facing whatever it
+## already was, same convention as [method EventGraphNode._make_option_control].
+var _facing_option: OptionButton
+## Opens the Frames dock preloaded with this page's art.sheet, armed to write the click
+## straight into art.frame_row/frame_col - see [method _on_pick_frame_pressed].
+var _pick_frame_button: Button
+## What [method _load_page_inspector] shows for art.frame_row/frame_col - "(none)" when
+## the page has no starting frame, so a picked frame is visibly a two-field pair rather
+## than a lone number either could be mistaken for.
+var _frame_readout: Label
+## The Frames dock ([code]frame_picker_panel.gd[/code]), handed in by [code]plugin.gd[/code]
+## once both docks exist - this panel never builds it, just points at it. Untyped
+## [Object] rather than the dock's own script class, matching how
+## [code]actor_event_inspector.gd[/code] already holds this panel itself.
+var _frame_picker: Object = null
+var _reveal_frame_picker: Callable
 ## The page's settings.speed, as a dropdown of [EventGraphNode]'s own named presets
 ## rather than a raw number - the same set a move command's own "speed" argument already
 ## offers (see [method EventGraphNode.speed_preset_names]), so the two read the same way
 ## everywhere they appear. Rebuilt on every page load rather than populated once - see
 ## [method _refresh_speed_option].
 var _speed_option: OptionButton
-## The three actor flags a page carries as siblings of art/conditions - lock_facing,
-## through and through_terrain, applied to GameEvent's own actor on activation.
+## The four actor flags a page carries as siblings of art/conditions - lock_facing,
+## through, through_terrain and step_in_place, applied to GameEvent's own actor (or, for
+## step_in_place, its view) on activation.
 var _lock_facing_check: CheckBox
 var _through_check: CheckBox
 var _through_terrain_check: CheckBox
-## lock_player is a fourth actor flag, but on a different lifecycle from the other
-## three - see event_document.gd's own note on it - so it is kept in its own variable
+var _step_in_place_check: CheckBox
+## lock_player is a fifth actor flag, but on a different lifecycle from the other
+## four - see event_document.gd's own note on it - so it is kept in its own variable
 ## rather than folded into the comment above about siblings of art/conditions.
 var _lock_player_check: CheckBox
 var _conditions_list: VBoxContainer
@@ -228,6 +253,12 @@ func _bind() -> bool:
 
 	_art_picker = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/ArtSheet") as EditorResourcePicker
+	_facing_option = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/ArtFacing") as OptionButton
+	_pick_frame_button = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/FrameRow/Pick Frame") as Button
+	_frame_readout = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/FrameRow/FrameReadout") as Label
 	_speed_option = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/Speed") as OptionButton
 	_lock_facing_check = get_node_or_null(
@@ -236,6 +267,8 @@ func _bind() -> bool:
 		^"Body/PageInspector/PageInspectorBox/Through") as CheckBox
 	_through_terrain_check = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/ThroughTerrain") as CheckBox
+	_step_in_place_check = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/StepInPlace") as CheckBox
 	_lock_player_check = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/LockPlayer") as CheckBox
 	_conditions_list = get_node_or_null(
@@ -459,6 +492,28 @@ func _build_page_inspector() -> Control:
 	_art_picker.resource_changed.connect(_on_art_sheet_changed)
 	box.add_child(_art_picker)
 
+	_facing_option = OptionButton.new()
+	_facing_option.name = "ArtFacing"
+	_facing_option.tooltip_text = "The page's art.facing - a starting compass direction, applied through Actor.set_facing the moment this page activates. \"(unset)\" leaves the actor facing whatever it already was."
+	_facing_option.add_item("(unset)")
+	for token in _FACING_OPTIONS:
+		_facing_option.add_item(token)
+	_facing_option.item_selected.connect(_on_art_facing_selected)
+	box.add_child(_facing_option)
+
+	var frame_row := HBoxContainer.new()
+	frame_row.name = "FrameRow"
+	box.add_child(frame_row)
+
+	_pick_frame_button = _make_button("Pick Frame", _on_pick_frame_pressed)
+	_pick_frame_button.tooltip_text = "Opens the Frames dock on this page's art.sheet to choose art.frame_row/frame_col by clicking a cell, instead of typing them."
+	frame_row.add_child(_pick_frame_button)
+
+	_frame_readout = Label.new()
+	_frame_readout.name = "FrameReadout"
+	_frame_readout.text = "(none)"
+	frame_row.add_child(_frame_readout)
+
 	box.add_child(_section_label("Speed"))
 	_speed_option = OptionButton.new()
 	_speed_option.name = "Speed"
@@ -488,6 +543,13 @@ func _build_page_inspector() -> Control:
 	_through_terrain_check.tooltip_text = "The page's through_terrain - ignores the painted pathing mask / colliders and GridMap, the same as Actor.through_terrain."
 	_through_terrain_check.toggled.connect(_on_through_terrain_toggled)
 	box.add_child(_through_terrain_check)
+
+	_step_in_place_check = CheckBox.new()
+	_step_in_place_check.name = "StepInPlace"
+	_step_in_place_check.text = "Step in place"
+	_step_in_place_check.tooltip_text = "The page's step_in_place - the walk-cycle animation keeps running while this actor stands still, instead of freezing between steps."
+	_step_in_place_check.toggled.connect(_on_step_in_place_toggled)
+	box.add_child(_step_in_place_check)
 
 	_lock_player_check = CheckBox.new()
 	_lock_player_check.name = "LockPlayer"
@@ -546,12 +608,24 @@ func _load_page_inspector(index: int) -> void:
 	var sheet := str(art.get("sheet", ""))
 	_art_picker.edited_resource = load(sheet) if sheet != "" and ResourceLoader.exists(sheet) else null
 
+	var facing := str(art.get("facing", ""))
+	var facing_index := _FACING_OPTIONS.find(facing) + 1  # -1 (not found) lands on 0, "(unset)"
+	_facing_option.select(facing_index)
+
+	if art.has("frame_row") and art.has("frame_col"):
+		var flip_suffix := " (flipped)" if bool(art.get("frame_flip", false)) else ""
+		_frame_readout.text = "Row %s, Col %s%s" % [
+			str(art["frame_row"]), str(art["frame_col"]), flip_suffix]
+	else:
+		_frame_readout.text = "(none)"
+
 	var settings: Dictionary = page.get("settings", {})
 	_refresh_speed_option(float(settings.get("speed", EventGraphNode.normal_speed())))
 
 	_lock_facing_check.set_pressed_no_signal(bool(page.get("lock_facing", false)))
 	_through_check.set_pressed_no_signal(bool(page.get("through", false)))
 	_through_terrain_check.set_pressed_no_signal(bool(page.get("through_terrain", false)))
+	_step_in_place_check.set_pressed_no_signal(bool(page.get("step_in_place", false)))
 	_lock_player_check.set_pressed_no_signal(bool(page.get("lock_player", true)))
 
 	_refresh_conditions()
@@ -566,6 +640,75 @@ func _on_art_sheet_changed(resource: Resource) -> void:
 	else:
 		art.erase("sheet")
 	_mark_dirty()
+	_sync_live_sprite()
+
+## Called once by [code]plugin.gd[/code], after both this panel and the Frames dock
+## exist - the same handshake [code]actor_event_inspector.gd[/code]'s own
+## [code]setup[/code] already does for this panel. [param reveal] brings the dock into
+## view the same way that one does.
+func setup_frame_picker(picker: Object, reveal: Callable) -> void:
+	_frame_picker = picker
+	_reveal_frame_picker = reveal
+
+## index 0 is "(unset)" - clears art.facing rather than authoring an empty string,
+## the same convention [method EventGraphNode._make_option_control] uses for a "dir"
+## argument.
+func _on_art_facing_selected(index: int) -> void:
+	if not _live():
+		return
+
+	var art: Dictionary = _current_page_dict().get("art", {})
+	if index <= 0:
+		art.erase("facing")
+	else:
+		art["facing"] = _FACING_OPTIONS[index - 1]
+	_mark_dirty()
+	_sync_live_sprite()
+
+## Opens the Frames dock on this page's art.sheet (a blank sheet if it has none yet -
+## the dock still lets a row/col be picked against nothing, though a blind pick is not
+## very useful) and arms it to write the next click straight into art.frame_row/
+## frame_col, plus art.facing/frame_flip - see [method _on_frame_picked]. hframes/
+## vframes/facing_offsets are left at the Frames dock's own defaults (3x3, and
+## [SpriteSheet]'s own facing_offsets), since a page's art has no field of its own to
+## carry a sheet's actual layout; the Frames dock's own H/V spinboxes correct it by
+## hand when a sheet differs.
+func _on_pick_frame_pressed() -> void:
+	if _frame_picker == null or not is_instance_valid(_frame_picker):
+		return
+	if _reveal_frame_picker.is_valid():
+		_reveal_frame_picker.call()
+
+	var sheet := str(_current_page_dict().get("art", {}).get("sheet", ""))
+	var texture: Texture2D = (
+		load(sheet) if sheet != "" and ResourceLoader.exists(sheet) else null) as Texture2D
+	_frame_picker.request_pick(texture, 3, 3, _on_frame_picked)
+
+## The Frames dock hands back the row/col clicked plus the facing it assumes from
+## [param facing][/param] ("" when that row maps to none) and whether it was the
+## flipped half of a shared row (see [method FramePickerScript._rebuild_display_rows]) -
+## writing all of it keeps art.facing/frame_flip from silently disagreeing with
+## whichever frame was actually picked.
+func _on_frame_picked(row: int, col: int, facing: String, flip: bool) -> void:
+	if not _live():
+		return
+
+	var art: Dictionary = _current_page_dict().get("art", {})
+	art["frame_row"] = row
+	art["frame_col"] = col
+	if flip:
+		art["frame_flip"] = true
+	else:
+		art.erase("frame_flip")
+
+	if facing != "":
+		art["facing"] = facing
+		_facing_option.select(_FACING_OPTIONS.find(facing) + 1)
+
+	var flip_suffix := " (flipped)" if flip else ""
+	_frame_readout.text = "Row %d, Col %d%s" % [row, col, flip_suffix]
+	_mark_dirty()
+	_sync_live_sprite()
 
 ## Rebuilds [member _speed_option]'s items around [param speed] rather than populating
 ## them once - an older page's [code]settings.speed[/code] may already hold a
@@ -621,6 +764,12 @@ func _on_through_terrain_toggled(pressed: bool) -> void:
 	if not _live():
 		return
 	_current_page_dict()["through_terrain"] = pressed
+	_mark_dirty()
+
+func _on_step_in_place_toggled(pressed: bool) -> void:
+	if not _live():
+		return
+	_current_page_dict()["step_in_place"] = pressed
 	_mark_dirty()
 
 func _on_lock_player_toggled(pressed: bool) -> void:
@@ -2030,6 +2179,58 @@ func _on_load_actor_event() -> void:
 	_set_status(
 		"Select an Actor or a GameEvent, or a node containing one, to load its event file.",
 		_status_color(false))
+
+## Pushes the current page's [code]art[/code] onto the actor this document belongs to,
+## live in the editor viewport - so picking a frame in the Frames dock, or changing
+## art.sheet/art.facing by hand, is visible on the placement immediately instead of only
+## the next time the scene runs. Page 0 only: every other page is some later state
+## (mid-conversation, a locked door already opened) that would be actively misleading to
+## show on an actor sitting untriggered in the editor - page 0 is the one this project's
+## own convention (event-pages.md §2.3, and [method EventDocument.active_page]'s
+## fallback) already treats as the actor's resting default.
+##
+## Finds the actor by searching the edited scene for a [GameEvent] whose
+## [member GameEvent.document_path] is [member _path], the same "no scene tree of its
+## own" reasoning [method _selected_actor] already follows - this panel keeps no
+## standing reference to a placement, since the graph it shows can survive the scene
+## being closed, another opened, or this one's actor deleted out from under it.
+func _sync_live_sprite() -> void:
+	if _current_page != 0 or _editing_route or _path == "":
+		return
+
+	var scene_root := EditorInterface.get_edited_scene_root()
+	if scene_root == null:
+		return
+
+	var event := _find_game_event_with_path(scene_root, _path)
+	if event == null:
+		return
+
+	var actor := _sibling_actor(event)
+	if actor == null:
+		return
+
+	var view := actor.view()
+	if view == null:
+		return
+
+	var art: Dictionary = _current_page_dict().get("art", {})
+	if art.has("facing"):
+		actor.set_facing(EventCommand.direction_of(str(art["facing"])))
+	view.apply_art(art)
+
+## The [GameEvent] anywhere under [param node] whose own [member GameEvent.document_path]
+## is [param path] - unlike [method _first_game_event_under], which stops at the first
+## [GameEvent] regardless of which file it points at, since a scene can hold more than
+## one placement's event.
+static func _find_game_event_with_path(node: Node, path: String) -> GameEvent:
+	if node is GameEvent and (node as GameEvent).document_path == path:
+		return node as GameEvent
+	for child in node.get_children():
+		var found := _find_game_event_with_path(child, path)
+		if found != null:
+			return found
+	return null
 
 ## The [GameEvent] already sitting beside [param actor] - a sibling under the same
 ## parent, which is the shape [method GameEvent._find_actor]'s own fallback checks for

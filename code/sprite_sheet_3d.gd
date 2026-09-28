@@ -50,6 +50,19 @@ func begin_animating() -> void:
 	running = true
 
 
+## Freezes on one exact frame, bypassing [member anim_cycle]/[member facing_offsets]
+## entirely - a held pose (pointing, sitting, surprised) rather than a step of the walk
+## cycle. [param mirror] flips the frame the same way a negative [member
+## facing_offsets] entry does. Resume normal animation with [method animating] or
+## [method set_facing] once [member paused] is cleared.
+func hold_frame(row: int, col: int, mirror: bool = false) -> void:
+	paused = true
+	running = false
+	_stop_next_frame = false
+	flip_h = mirror
+	frame = hframes * row + col
+
+
 func _ready() -> void:
 	set_facing(facing)
 

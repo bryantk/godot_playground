@@ -422,22 +422,34 @@ func _refresh_active_page() -> void:
 	_start_route()
 
 
+## Applies a page's [code]art[/code], plus its optional [code]facing[/code] - a starting
+## compass direction, applied through [method Actor.set_facing] (the real, logical
+## facing, not just the view's own echo of it) [b]before[/b] [method ActorView.apply_art]
+## runs, since that call ends by freezing any [code]frame_row[/code]/[code]frame_col[/code]
+## art carries (see [method SpriteView2D.apply_art]) - applying facing after would have
+## [method Actor.set_facing]'s own view update stomp that frozen frame right back out.
+## Both are picked together in the Frames dock (frame_picker_panel.gd).
 func _apply_art() -> void:
 	if _view == null or _active_page < 0:
 		return
-	_view.apply_art((_pages()[_active_page] as Dictionary).get("art", {}))
+	var art: Dictionary = (_pages()[_active_page] as Dictionary).get("art", {})
+	if _actor != null and art.has("facing"):
+		_actor.set_facing(EventCommand.direction_of(str(art["facing"])))
+	_view.apply_art(art)
 
 
-## Applies a page's [code]lock_facing[/code]/[code]through[/code]/[code]through_terrain[/code]
-## to the actor GameEvent owns, on activation - siblings of [code]art[/code], applied the
-## same way. [method EventDocument.parse] always writes all three explicitly (an
-## omitted key normalizes to [code]false[/code]), so this reads them the same way it
-## always has - see the [member through_actors] group's own doc for what that means for
-## [member facing_locked]/[member through_actors]/[member through_terrain] instead.
-## [code]through[/code] also updates [Occupancy]'s own phasing table directly, not just
-## the export property: [method Actor._claim_spawn_cell] only ever reads
+## Applies a page's [code]lock_facing[/code]/[code]through[/code]/[code]through_terrain[/code]/
+## [code]step_in_place[/code] to the actor GameEvent owns, on activation - siblings of
+## [code]art[/code], applied the same way. [method EventDocument.parse] always writes all
+## four explicitly (an omitted key normalizes to [code]false[/code]), so this reads them
+## the same way it always has - see the [member through_actors] group's own doc for what
+## that means for [member facing_locked]/[member through_actors]/[member through_terrain]
+## instead. [code]through[/code] also updates [Occupancy]'s own phasing table directly,
+## not just the export property: [method Actor._claim_spawn_cell] only ever reads
 ## [member Actor.through_actors] once, at spawn, so a page switch has to push the change
-## to where pathing actually looks for it.
+## to where pathing actually looks for it. [code]step_in_place[/code] is the odd one of
+## the four - a view property, not an actor one - see [member ActorView.step_in_place]'s
+## own doc.
 func _apply_actor_flags() -> void:
 	if _actor == null or _active_page < 0:
 		return
@@ -449,6 +461,9 @@ func _apply_actor_flags() -> void:
 	_actor.through_actors = through
 	if _map != null:
 		_map.occupancy.set_phasing(_actor.actor_id, through)
+
+	if _view != null:
+		_view.set_step_in_place(bool(page.get("step_in_place", false)))
 
 
 func _settings() -> Dictionary:

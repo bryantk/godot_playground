@@ -37,6 +37,7 @@ func _ready() -> void:
 	_test_facing_restored_when_untouched()
 	_test_facing_kept_when_graph_turns_it()
 	_test_lock_facing_ignores_face_commands()
+	_test_step_in_place_animates_while_locked_facing_still_steps()
 	_test_through_changes_proximity_and_phasing()
 
 	_test_route_starts_as_a_background_runner()
@@ -483,6 +484,58 @@ func _test_lock_facing_ignores_face_commands() -> void:
 	_ok(GameState.flag(&"fired_lock_facing"), "the graph still ran to completion")
 	_eq(npc.facing(), Vector3i(0, 0, 1),
 		"but its face_direction east never turned the actor - still the untouched default")
+
+	world["root"].free()
+	EventScheduler.reset()
+	GameState.clear()
+
+
+## step_in_place + lock_facing together: the walk cycle keeps running while the actor
+## stands still (the flag reached the view, not just the actor), a scripted `step` still
+## moves it (facing_locked never gates movement, only [method Actor.set_facing] itself),
+## and the sprite never turns to face the direction it just moved in.
+##
+## Two rigs, not one - [method _build_event]'s real [ActorView]/[SpriteSheet] is what
+## [member SpriteSheet.step_in_place] actually has to reach, but a real view also means
+## [GridMotion] no longer settles a step inside the same tick (see
+## [method _build_event_viewless]'s own doc), and this test has no reason to pump
+## frames just to prove a step lands. The viewless rig proves the step and the facing
+## lock; the real-view one proves the flag's own wiring, with no movement at all.
+func _test_step_in_place_animates_while_locked_facing_still_steps() -> void:
+	_section("GameEvent -- step_in_place reaches the view, lock_facing does not block stepping")
+	EventScheduler.reset()
+	GameState.clear()
+
+	var world := _build_world()
+	var player := _build_actor(world, &"player", Vector3i(0, 0, 0))
+	var rig := _build_event_viewless(
+		world, &"ev", Vector3i(1, 0, 0), FIXTURES + "sched_step_in_place.event.json")
+	var npc: Actor = rig["actor"]
+
+	_ok(npc.facing_locked, "the page's lock_facing was applied to the actor on activation")
+	_eq(npc.cell(), Vector3i(1, 0, 0), "not yet stepped")
+	_eq(npc.facing(), Vector3i(0, 0, 1), "south is Actor's own untouched default facing")
+
+	player.set_facing(Vector3i(1, 0, 0))
+	EventBus.player_interacted.emit()
+
+	_ok(GameState.flag(&"fired_step_in_place"), "the graph ran its step and reached the end")
+	_eq(npc.cell(), Vector3i(2, 0, 0), "the step east actually moved the actor")
+	_eq(npc.facing(), Vector3i(0, 0, 1),
+		"but the step's own face(d) never turned it - still the untouched default")
+
+	world["root"].free()
+	EventScheduler.reset()
+	GameState.clear()
+
+	# The view half, on its own actor - the page's on_load/settings never depend on the
+	# player, so activation alone (no trigger, no movement) is enough to check the flag
+	# reached the sheet.
+	world = _build_world()
+	rig = _build_event(world, &"ev2", Vector3i(0, 0, 0), FIXTURES + "sched_step_in_place.event.json")
+	var event: GameEvent = rig["event"]
+	var sheet := event.get_parent().get_node(^"Sheet") as SpriteSheet
+	_ok(sheet.step_in_place, "and step_in_place reached the real view's SpriteSheet too")
 
 	world["root"].free()
 	EventScheduler.reset()

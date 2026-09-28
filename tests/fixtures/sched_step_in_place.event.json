@@ -1,0 +1,24 @@
+{
+	"format": 1,
+	"id": "sched_step_in_place",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {},
+			"art": {},
+			"lock_facing": true,
+			"through": false,
+			"through_terrain": false,
+			"step_in_place": true,
+			"route": [],
+			"graph": [
+				{"id": "start", "command": "start", "args": {"page_entry": true},
+					"outputs": [{"flow": "action", "target": "n1"}]},
+				{"id": "n1", "command": "step", "args": {"direction": "e"},
+					"outputs": [{"flow": "next", "target": "n2"}]},
+				{"id": "n2", "command": "set_flag", "args": {"flag": "fired_step_in_place"},
+					"outputs": []}
+			]
+		}
+	]
+}

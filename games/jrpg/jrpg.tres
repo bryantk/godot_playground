@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="GameProfile" format=3]
 
-[ext_resource type="Script" path="res://core/camera/room_camera_2d.gd" id="1_8gua1"]
+[ext_resource type="Script" path="res://world/camera/room_camera_2d.gd" id="1_8gua1"]
 [ext_resource type="Resource" path="res://games/jrpg/jrpg_input.tres" id="2_hr6id"]
 [ext_resource type="Script" path="res://actors/motion/grid_motion.gd" id="3_yrq86"]
-[ext_resource type="Script" path="res://core/game_profile.gd" id="4_i1a0b"]
-[ext_resource type="Script" path="res://core/space_2d.gd" id="5_od3if"]
+[ext_resource type="Script" path="res://world/game_profile.gd" id="4_i1a0b"]
+[ext_resource type="Script" path="res://world/space_2d.gd" id="5_od3if"]
 [ext_resource type="Script" path="res://actors/views/sprite_view_2d.gd" id="6_ryqaw"]
 
 [resource]

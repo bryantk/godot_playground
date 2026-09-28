@@ -53,6 +53,26 @@ class_name ActorView extends Node
 		visual_offset = value
 		_write_visual_offset()
 
+## Whether the walk-cycle animation runs while the actor is standing still - a page's
+## [code]step_in_place[/code] (event-pages.md), for an NPC that should always look busy
+## (a fidgeting shopkeeper, an idling campfire's sprite) rather than freezing between
+## steps like every other actor. Forwarded to [SpriteSheet]/[SpriteSheet3D] by
+## [method SpriteView2D._write_step_in_place]/[method SpriteView3D._write_step_in_place] -
+## a no-op here, since the base view has no sheet of its own to hold it.
+##
+## [b]Not re-applied by [method _after_bind][/b], unlike [member visible]/[member
+## y_level]/[member visual_offset] above: those write into [member _visual] directly and
+## [member _visual] is already resolved by the time [method _after_bind] runs, but this
+## writes into [member SpriteView2D._sheet]/[member SpriteView3D._sheet], which a
+## subclass does not cache until partway through its own [method _after_bind] override -
+## calling [method _write_step_in_place] from the base would run before that cache
+## exists on a fresh bind. Each subclass re-applies it itself, at the same point it
+## already re-runs [method _refresh] for the same reason.
+@export var step_in_place: bool = false:
+	set(value):
+		step_in_place = value
+		_write_step_in_place()
+
 var _visual: Node = null
 var _offset: Vector3 = Vector3.ZERO
 var _bound := false
@@ -157,6 +177,20 @@ func set_visual_offset(v: Vector2) -> void:
 	visual_offset = v
 
 
+## Set [member step_in_place] and apply it immediately. What the `set_step_in_place`
+## event command calls; the export exists for a placement's resting default (and a
+## page's own [code]step_in_place[/code], applied by [method GameEvent._apply_actor_flags]),
+## this for changing it while the map is live.
+func set_step_in_place(v: bool) -> void:
+	step_in_place = v
+
+
+## No-op here - see [member step_in_place]'s own doc for why a subclass re-applies this
+## itself instead of being called from [method _after_bind].
+func _write_step_in_place() -> void:
+	pass
+
+
 ## Writes into whichever of the three visual kinds this project's prefabs actually
 ## use - [Sprite2D] (and [SpriteSheet], which extends it), [AnimatedSprite2D], and
 ## [Sprite3D] - all three of which carry their own native [code]offset[/code] pixel
@@ -184,6 +218,13 @@ func set_y_level(v: int) -> void:
 ## does nothing because [SpriteView3D]'s billboards are already depth-sorted by the 3D
 ## renderer and have no equivalent of [CanvasItem.z_index] worth touching.
 func _write_y_level() -> void:
+	pass
+
+
+## Freezes the visual on one exact sprite-sheet frame, if it has one - a held pose
+## rather than a looping animation. Does nothing for a visual that isn't a
+## [SpriteSheet]/[SpriteSheet3D]. See [method SpriteSheet.hold_frame].
+func hold_frame(_row: int, _col: int, _mirror: bool = false) -> void:
 	pass
 
 

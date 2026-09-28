@@ -334,6 +334,43 @@ class SetSpeed extends EventCommandExec:
 			a.motion().speed = float(args.get("speed", a.motion().speed))
 
 
+## Toggles [member Actor.facing_locked] mid-graph, without waiting for the next page
+## switch to reapply the page's own [code]lock_facing[/code] (see [method
+## GameEvent._apply_actor_flags]) - the same "runtime override, until the next page
+## activation reasserts the authored default" relationship [code]set_visible[/code]
+## already has with a page's own [code]art[/code].
+class SetLockFacing extends EventCommandExec:
+	func start() -> void:
+		var a := actor()
+		if a != null:
+			a.facing_locked = bool(args.get("lock_facing", false))
+
+
+## Toggles [member Actor.through_actors] mid-graph, the same runtime-override
+## relationship [method SetLockFacing] has with [code]lock_facing[/code]. Also pushes
+## [Occupancy]'s own phasing table, same as [method GameEvent._apply_actor_flags] does -
+## [method Actor._claim_spawn_cell] only reads the export once, at spawn, so pathing
+## itself would not see a mid-graph flip without this.
+class SetThrough extends EventCommandExec:
+	func start() -> void:
+		var a := actor()
+		if a == null:
+			return
+		var through := bool(args.get("through", false))
+		a.through_actors = through
+		if ctx.map != null:
+			ctx.map.occupancy.set_phasing(a.actor_id, through)
+
+
+## Toggles [member Actor.through_terrain] mid-graph, the same runtime-override
+## relationship [method SetLockFacing] has with [code]lock_facing[/code].
+class SetThroughTerrain extends EventCommandExec:
+	func start() -> void:
+		var a := actor()
+		if a != null:
+			a.through_terrain = bool(args.get("through_terrain", false))
+
+
 ## Removes an actor's whole placement - itself, its [GameEvent] if it has one, its
 ## view, everything - from both the running game and the scene, the same shape a
 ## page-authored region trigger, a one-time pickup or a defeated patrol wants gone for
@@ -371,5 +408,8 @@ static func table() -> Dictionary:
 		"teleport": TeleportCmd,
 		"wait_settle": WaitSettle,
 		"set_speed": SetSpeed,
+		"set_lock_facing": SetLockFacing,
+		"set_through": SetThrough,
+		"set_through_terrain": SetThroughTerrain,
 		"erase_event": EraseEvent,
 	}

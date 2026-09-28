@@ -1,22 +1,23 @@
 [gd_scene format=3 uid="uid://il6eoemdabl0"]
 
 [ext_resource type="Script" uid="uid://mngosoq638vn" path="res://games/isoish/isoish_grid_demo.gd" id="1_nbbrd"]
-[ext_resource type="Script" uid="uid://c6bwsrlf14puk" path="res://core/map_context.gd" id="2_jiamt"]
+[ext_resource type="Script" uid="uid://c6bwsrlf14puk" path="res://world/map_context.gd" id="2_jiamt"]
 [ext_resource type="MeshLibrary" uid="uid://bj0n18m532mb0" path="res://games/isoish/pixel_blocks.tres" id="3_4q3m1"]
 [ext_resource type="PackedScene" path="res://games/isoish/actor_isoish_grid.tscn" id="4_4yn8y"]
 [ext_resource type="Script" uid="uid://pa3vwqvjw77f" path="res://actors/player_controller.gd" id="5_ubx1w"]
 [ext_resource type="Script" uid="uid://cfvh6ga4k8rgs" path="res://games/jrpg/debug_only.gd" id="6_12pxd"]
-[ext_resource type="Script" uid="uid://bywa73wc0217k" path="res://core/camera/ortho_pixel_rig.gd" id="13_oh435"]
+[ext_resource type="Script" uid="uid://bywa73wc0217k" path="res://world/camera/ortho_pixel_rig.gd" id="13_oh435"]
 [ext_resource type="Resource" uid="uid://c3xxi7lq37mk2" path="res://games/isoish/isoish_grid_input.tres" id="15_nu3qy"]
-[ext_resource type="Script" uid="uid://dfyo0bfp6lnmf" path="res://core/areas/area_zone.gd" id="16_zone"]
-[ext_resource type="Script" uid="uid://djxeq3x4vd420" path="res://core/areas/speed_modifier.gd" id="17_speed"]
+[ext_resource type="Script" uid="uid://dfyo0bfp6lnmf" path="res://world/areas/area_zone.gd" id="16_zone"]
+[ext_resource type="Script" uid="uid://djxeq3x4vd420" path="res://world/areas/speed_modifier.gd" id="17_speed"]
 [ext_resource type="PackedScene" path="res://games/isoish/props/rock.tscn" id="20_rock"]
 [ext_resource type="PackedScene" path="res://games/isoish/props/bush.tscn" id="21_bush"]
 [ext_resource type="PackedScene" path="res://games/isoish/props/plant.tscn" id="22_plant"]
 [ext_resource type="PackedScene" path="res://games/isoish/props/stump.tscn" id="23_stump"]
 [ext_resource type="PackedScene" uid="uid://6ddmnpdglqam" path="res://games/isoish/props/tree.tscn" id="24_tree"]
 [ext_resource type="Script" uid="uid://djiw6eurhp8ym" path="res://events/game_event.gd" id="25_game_event"]
-[ext_resource type="Script" uid="uid://brxsy083hd4wd" path="res://core/debug_area_3d.gd" id="26_debug_area"]
+[ext_resource type="Script" uid="uid://brxsy083hd4wd" path="res://world/debug_area_3d.gd" id="26_debug_area"]
+[ext_resource type="Script" uid="uid://dfg7g1mtb2nvf" path="res://world/map_marker_3d.gd" id="27_map_marker"]
 
 [sub_resource type="Environment" id="Environment_ewyff"]
 background_mode = 1
@@ -291,6 +292,29 @@ document_path = "res://events/isoish_grid_demo/event_2_patrol.event.json"
 [node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Event__2/GameEvent" unique_id=835807651]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 4.5)
 script = ExtResource("26_debug_area")
+
+[node name="MapTransfer" parent="Upscale/World/Map/Actors" unique_id=900000201 instance=ExtResource("4_4yn8y")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 7.5)
+
+[node name="Actor" parent="Upscale/World/Map/Actors/MapTransfer" index="1"]
+actor_id = &"map_transfer"
+
+[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/MapTransfer" unique_id=900000202]
+script = ExtResource("25_game_event")
+document_path = "res://events/isoish_grid_demo/map_transfer.event.json"
+actor_id = &"map_transfer"
+visible = false
+
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/MapTransfer/GameEvent" unique_id=900000203]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 7.5)
+script = ExtResource("26_debug_area")
+
+[node name="Markers" type="Node3D" parent="Upscale/World/Map" unique_id=900000204]
+
+[node name="Arrival" type="Node3D" parent="Upscale/World/Map/Markers" unique_id=900000205]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 7.5)
+script = ExtResource("27_map_marker")
+marker_name = &"arrival"
 
 [node name="Camera" type="Camera3D" parent="Upscale/World/Map" unique_id=629880923]
 

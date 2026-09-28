@@ -241,6 +241,24 @@ const COMMANDS: Dictionary = {
 		"resume": RESUME_RESTART,
 		"blurb": "Change an actor's movement speed.",
 	},
+	"set_lock_facing": {
+		"args": {"actor": T_ACTOR + "?", "lock_facing": T_BOOL},
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"blurb": "Toggle an actor's lock_facing without waiting for a page switch.",
+	},
+	"set_through": {
+		"args": {"actor": T_ACTOR + "?", "through": T_BOOL},
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"blurb": "Toggle an actor's through (phases through other actors) without waiting for a page switch.",
+	},
+	"set_through_terrain": {
+		"args": {"actor": T_ACTOR + "?", "through_terrain": T_BOOL},
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"blurb": "Toggle an actor's through_terrain without waiting for a page switch.",
+	},
 	"teleport": {
 		"args": {"actor": T_ACTOR + "?", "cell": T_CELL},
 		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
@@ -374,17 +392,42 @@ const COMMANDS: Dictionary = {
 	"change_map": {
 		# Question 51: gained a "next" port so an exclusive runner can chain across
 		# the load and keep running on the far side, owned by EventScheduler rather
-		# than whatever GameEvent/Actor spawned it.
-		"args": {"map": T_STRING, "cell": T_CELL + "?", "facing": T_DIR + "?"},
+		# than whatever GameEvent/Actor spawned it. fade_out/fade_in/texture are the
+		# "or instant" option (event-pages.md) - omitted or zero skips that leg
+		# entirely rather than fading for zero seconds.
+		"args": {"map": T_STRING, "cell": T_CELL + "?", "facing": T_DIR + "?",
+			"fade_out": T_SECONDS + "?", "fade_in": T_SECONDS + "?", "texture": T_STRING + "?"},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
-		"blurb": "Leave for another map.",
+		"blurb": "Leave for another map, placing the player at a cell.",
+	},
+	"change_map_marker": {
+		# The "linked scene and a named teleport location" half of map transfer - see
+		# core/map_marker_2d.gd/map_marker_3d.gd. "facing" here overrides the marker's
+		# own; with neither set the player's facing is left exactly as it was.
+		"args": {"map": T_STRING, "marker": T_STRING, "facing": T_DIR + "?",
+			"fade_out": T_SECONDS + "?", "fade_in": T_SECONDS + "?", "texture": T_STRING + "?"},
+		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"blurb": "Leave for another map, placing the player at a named marker.",
 	},
 	"fade": {
-		"args": {"to": T_FLOAT + "?", "seconds": T_SECONDS + "?"},
+		"args": {"to": T_FLOAT + "?", "seconds": T_SECONDS + "?", "texture": T_STRING + "?"},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_STATE,
 		"blurb": "Fade the screen to or from a colour.",
+	},
+	"fade_in": {
+		"args": {"seconds": T_SECONDS + "?", "texture": T_STRING + "?"},
+		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"resume": RESUME_STATE,
+		"blurb": "Fade the screen in from a colour.",
+	},
+	"fade_out": {
+		"args": {"seconds": T_SECONDS + "?", "texture": T_STRING + "?"},
+		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"resume": RESUME_STATE,
+		"blurb": "Fade the screen out to a colour.",
 	},
 	"shake": {
 		"args": {"seconds": T_SECONDS + "?", "strength": T_FLOAT + "?"},
@@ -436,10 +479,37 @@ const COMMANDS: Dictionary = {
 		"resume": RESUME_RESTART,
 		"blurb": "Change an actor's draw order relative to other actors and sprites.",
 	},
+	"set_step_in_place": {
+		"args": {"actor": T_ACTOR + "?", "step_in_place": T_BOOL},
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"blurb": "Toggle whether an actor's walk cycle keeps running while it stands still.",
+	},
+	"hold_frame": {
+		"args": {"actor": T_ACTOR + "?", "row": T_INT, "col": T_INT, "flip": T_BOOL + "?"},
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"blurb": "Freeze an actor's sprite sheet on one exact frame.",
+	},
+	"set_sheet": {
+		"args": {"actor": T_ACTOR + "?", "sheet": T_STRING, "facing": T_TURN + "?"},
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"blurb": "Swap an actor's sprite sheet texture, optionally setting its facing.",
+	},
+
+	# -- Menu ------------------------------------------------------------------
+	"open_menu": {
+		"args": {"menu": T_STRING},
+		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"blurb": "Open a full-screen menu (\"party\" or \"shop\") and wait for it to close.",
+	},
 
 	# -- Battle ----------------------------------------------------------------
 	"start_battle": {
-		"args": {"troop": T_STRING},
+		"args": {"troop": T_STRING, "fade_out": T_SECONDS + "?", "fade_in": T_SECONDS + "?",
+			"texture": T_STRING + "?"},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
 		"requires": [GameProfile.Capability.BATTLE_SCENE],

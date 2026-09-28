@@ -19,6 +19,7 @@ extends Node
 var force_fast_forward: bool = false
 
 func is_fast_forward() -> bool:
+	#TODO: change hard coded key to an input map
 	return force_fast_forward or Input.is_physical_key_pressed(KEY_QUOTELEFT)
 
 
