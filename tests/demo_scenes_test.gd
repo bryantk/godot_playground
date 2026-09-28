@@ -29,11 +29,20 @@ func _ok(c: bool, w: String) -> void:
 ## sibling [GameEvent] - the actor it drives has no [PlayerController] of its own at
 ## all, same as the idle one. [method _is_routed] tells them apart by asking that
 ## sibling instead.
+##
+## [b]Only candidates sharing the player's own prefab count.[/b] A map-transfer/battle/
+## shop trigger's own visible placement (games/jrpg/jrpg_demo.tscn's own MapTransfer) is
+## also "no controller, not routed" - it is scenery, just not the *NPC* scenery this
+## check exists to prove is the same prefab as the player and the patrol. Filtering by
+## prefab up front is what tells the two apart without this needing to know a trigger's
+## own name.
 func _check_controllers(ctx: MapContext, player: Actor) -> void:
+	var prefab := (player.get_parent() as Node).scene_file_path
+
 	var routed: Actor = null
 	var idle: Actor = null
 	for who: Actor in ctx.actors():
-		if who == player:
+		if who == player or (who.get_parent() as Node).scene_file_path != prefab:
 			continue
 		if _is_routed(who):
 			routed = who
@@ -46,10 +55,7 @@ func _check_controllers(ctx: MapContext, player: Actor) -> void:
 	if routed == null or idle == null:
 		return
 
-	var prefab := (player.get_parent() as Node).scene_file_path
-	_ok(prefab != "" and prefab == (routed.get_parent() as Node).scene_file_path
-		and prefab == (idle.get_parent() as Node).scene_file_path,
-		"all three are '%s'" % prefab.get_file())
+	_ok(prefab != "", "all three are '%s'" % prefab.get_file())
 
 	# The route walks itself with nobody touching the keyboard; the uncontrolled one
 	# does not drift.

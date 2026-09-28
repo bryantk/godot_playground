@@ -46,7 +46,8 @@ func setup(panel: Object, reveal: Callable) -> void:
 
 
 func _can_handle(object: Object) -> bool:
-	return object is Actor or object is GameEvent or _placement_actor(object) != null
+	return object is Actor or object is GameEvent or _placement_actor(object) != null \
+		or _placement_event(object) != null
 
 
 ## The [Actor] inside [param object], when [param object] is itself a placement's
@@ -65,11 +66,32 @@ func _placement_actor(object: Object) -> Actor:
 	return actors[0] if not actors.is_empty() else null
 
 
+## The [GameEvent] directly under [param object] - a bodiless region trigger's own
+## placement root, a plain positioned node with a [GameEvent] child and no [Actor] at
+## all (games/jrpg/jrpg_demo.tscn's own MapTransfer/BattleTrigger and friends - see
+## that scene's own note on why they carry no Actor/Sprite, unlike an NPC). Direct
+## children only, unlike [method _placement_actor]'s own recursive [method
+## ActorNaming.actors_under] search: a map's whole "Actors" grouping node holds many
+## placements' [GameEvent]s several levels down and must not match here, so - unlike
+## [method _placement_actor] - no instanced-scene check is needed either: "a GameEvent
+## sitting directly under me" is unambiguous on its own.
+func _placement_event(object: Object) -> GameEvent:
+	if not (object is Node) or object is Actor or object is GameEvent:
+		return null
+	for child in (object as Node).get_children():
+		if child is GameEvent:
+			return child as GameEvent
+	return null
+
+
 func _parse_begin(object: Object) -> void:
 	# Resolved once, here, so _on_pressed keeps its original two-branch shape (Actor or
 	# GameEvent) and never needs to know a placement root was ever involved.
-	var target: Object = object if (object is Actor or object is GameEvent) \
-		else _placement_actor(object)
+	var target: Object = object
+	if not (target is Actor or target is GameEvent):
+		target = _placement_actor(object)
+	if target == null:
+		target = _placement_event(object)
 	if target == null:
 		return
 

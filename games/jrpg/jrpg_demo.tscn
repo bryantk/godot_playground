@@ -15,6 +15,7 @@
 [ext_resource type="Script" uid="uid://djiw6eurhp8ym" path="res://events/game_event.gd" id="17_game_event"]
 [ext_resource type="Script" uid="uid://n5vs863cahl4" path="res://world/debug_area_2d.gd" id="18_debug_area"]
 [ext_resource type="Script" uid="uid://d3yykaieekkqy" path="res://world/map_marker_2d.gd" id="19_map_marker"]
+[ext_resource type="PackedScene" path="res://games/jrpg/actor_jrpg_static.tscn" id="20_static_actor"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_6lfo2"]
 size = Vector2(32, 32)
@@ -168,48 +169,51 @@ visible = false
 position = Vector2(284, 188)
 script = ExtResource("18_debug_area")
 
-[node name="MapTransfer" type="Node2D" parent="Actors" unique_id=900000101]
-position = Vector2(220, 132)
+[node name="MapTransfer" parent="Actors" unique_id=900000101 instance=ExtResource("20_static_actor")]
+position = Vector2(220, 121)
+
+[node name="Actor" parent="Actors/MapTransfer" index="0"]
+actor_id = &"map_transfer"
 
 [node name="GameEvent" type="Node" parent="Actors/MapTransfer" unique_id=900000102]
 script = ExtResource("17_game_event")
 document_path = "res://events/jrpg_demo/map_transfer.event.json"
 
 [node name="DebugArea" type="Node2D" parent="Actors/MapTransfer/GameEvent" unique_id=900000103]
-position = Vector2(220, 132)
+position = Vector2(220, 121)
 script = ExtResource("18_debug_area")
 
 [node name="BattleTrigger" type="Node2D" parent="Actors" unique_id=900000201]
-position = Vector2(228, 140)
+position = Vector2(231, 137)
 
 [node name="GameEvent" type="Node" parent="Actors/BattleTrigger" unique_id=900000202]
 script = ExtResource("17_game_event")
 document_path = "res://events/jrpg_demo/battle_trigger.event.json"
 
 [node name="DebugArea" type="Node2D" parent="Actors/BattleTrigger/GameEvent" unique_id=900000203]
-position = Vector2(228, 140)
+position = Vector2(231, 137)
 script = ExtResource("18_debug_area")
 
 [node name="PartyMenuTrigger" type="Node2D" parent="Actors" unique_id=900000211]
-position = Vector2(220, 148)
+position = Vector2(220, 151)
 
 [node name="GameEvent" type="Node" parent="Actors/PartyMenuTrigger" unique_id=900000212]
 script = ExtResource("17_game_event")
 document_path = "res://events/jrpg_demo/party_menu_trigger.event.json"
 
 [node name="DebugArea" type="Node2D" parent="Actors/PartyMenuTrigger/GameEvent" unique_id=900000213]
-position = Vector2(220, 148)
+position = Vector2(220, 151)
 script = ExtResource("18_debug_area")
 
 [node name="ShopTrigger" type="Node2D" parent="Actors" unique_id=900000221]
-position = Vector2(212, 140)
+position = Vector2(202, 137)
 
 [node name="GameEvent" type="Node" parent="Actors/ShopTrigger" unique_id=900000222]
 script = ExtResource("17_game_event")
 document_path = "res://events/jrpg_demo/shop_trigger.event.json"
 
 [node name="DebugArea" type="Node2D" parent="Actors/ShopTrigger/GameEvent" unique_id=900000223]
-position = Vector2(212, 140)
+position = Vector2(202, 137)
 script = ExtResource("18_debug_area")
 
 [node name="Markers" type="Node2D" parent="." unique_id=900000104]
@@ -238,3 +242,4 @@ follow_target = &"player"
 [editable path="Actors/Npc_17_9__npc_greeting"]
 [editable path="Actors/Npc_8_12__nada"]
 [editable path="Actors/Npc_8_13__y_level"]
+[editable path="Actors/MapTransfer"]

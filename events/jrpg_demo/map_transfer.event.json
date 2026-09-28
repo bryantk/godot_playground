@@ -5,9 +5,16 @@
 		{
 			"conditions": [],
 			"settings": {},
-			"art": {},
+			"art": {
+				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
+				"frame_row": 1,
+				"frame_col": 0,
+				"facing": "n"
+			},
 			"lock_facing": false,
+			"through": false,
 			"through_terrain": false,
+			"step_in_place": false,
 			"lock_player": false,
 			"route": [],
 			"graph": [
@@ -24,14 +31,42 @@
 					},
 					"outputs": [
 						{
+							"flow": "player_touch",
+							"target": ""
+						},
+						{
+							"flow": "event_touch",
+							"target": ""
+						},
+						{
 							"flow": "action",
 							"target": "n1"
+						},
+						{
+							"flow": "auto",
+							"target": ""
+						},
+						{
+							"flow": "on_load",
+							"target": ""
+						},
+						{
+							"flow": "leave_cell",
+							"target": ""
+						},
+						{
+							"flow": "on_flag",
+							"target": ""
+						},
+						{
+							"flow": "next",
+							"target": ""
 						}
 					]
 				},
 				{
 					"id": "n1",
-					"title": "To the iso grid demo",
+					"title": "change_map_marker",
 					"position": {
 						"x": 100,
 						"y": 0
