@@ -8,7 +8,7 @@
 			"art": {
 				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
 				"frame_row": 1,
-				"frame_col": 0,
+				"frame_col": 1,
 				"facing": "n"
 			},
 			"lock_facing": false,

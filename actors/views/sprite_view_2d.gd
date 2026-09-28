@@ -1,3 +1,4 @@
+@tool
 class_name SpriteView2D extends ActorView
 
 ## Game 1's presentation: an [AnimatedSprite2D] with 4 directions, Y-sorted by the 2D
@@ -25,8 +26,14 @@ func _after_bind() -> void:
 ## A [SpriteSheet] runs its own cycle and only needs to be told whether to. Polled
 ## rather than driven from a signal because it has to be right for both motions: a grid
 ## step has a clean start and end to hook, and free movement has neither.
+##
+## [b]Skipped in the editor.[/b] [ActorView]'s own `@tool` is only for the graph
+## editor's live sprite sync, which calls [method apply_art]/[method set_facing]
+## directly - it never runs this. [method Actor.is_travelling] reaches into
+## [MotionController], which is not `@tool` and would placeholder-crash the moment this
+## ran outside Play.
 func _process(_delta: float) -> void:
-	if _sheet == null:
+	if Engine.is_editor_hint() or _sheet == null:
 		return
 	var who := get_parent() as Actor
 	if who != null:

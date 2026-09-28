@@ -100,6 +100,17 @@ func restore(_state: Dictionary) -> void:
 	start()
 
 
+## True for a command whose own effect is expected to tear down the very placement that
+## started this runner - [code]change_map[/code]/[code]change_map_marker[/code]/
+## [code]start_battle[/code] (see [method EventRunner.current_exec_survives_teardown]),
+## whose whole job is leaving the map (or leaving for a battle scene) they were
+## triggered from. False for everything else, including [code]erase_event[/code] -
+## that one *wants* [method GameEvent._exit_tree] to stop its own runner, the opposite
+## case this exists to except.
+func survives_teardown() -> bool:
+	return false
+
+
 ## The actor this node addresses - args.actor if given, else @self. Every actor
 ## command's own arg is optional and defaults to self (event_command.gd's own note).
 func actor() -> Actor:

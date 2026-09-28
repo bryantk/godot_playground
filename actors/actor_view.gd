@@ -1,3 +1,4 @@
+@tool
 class_name ActorView extends Node
 
 ## What an actor looks like, independent of what space it lives in. A sibling of
@@ -8,6 +9,17 @@ class_name ActorView extends Node
 ## where the grid-step offset lands - [method set_step_offset] rather than a
 ## [SpaceAdapter] method - because the offset is a lie told to the eye, and keeping it
 ## off the adapter is what keeps the adapter thin.
+##
+## [b]`@tool`[/b] so the graph editor's own live sprite sync ([method
+## GraphEditorPanel._sync_live_sprite]) can call [method apply_art]/[method set_facing]
+## on the actual placement sitting in the edited scene, not a running game - a non-tool
+## script's node is a placeholder outside Play, with no real methods to call at all.
+## [SpriteSheet]/[SpriteSheet3D] (what every subclass actually writes into) are already
+## `@tool` themselves; only this wrapper and its two subclasses were missing it.
+## [method Node._process] overrides in those subclasses guard against
+## [method Engine.is_editor_hint] for exactly the opposite reason: [MotionController]/
+## [SpaceAdapter] are *not* `@tool`, so touching them from a `_process` that now also
+## runs in the editor would hit the same placeholder wall this exists to avoid.
 
 ## The node actually displaced by the step tween and the texel rounding. Left null it
 ## takes the first child, which is the normal arrangement.

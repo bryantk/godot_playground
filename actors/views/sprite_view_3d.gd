@@ -1,3 +1,4 @@
+@tool
 class_name SpriteView3D extends ActorView
 
 ## Game 2's presentation: a billboarded sprite in a rotating 3D world, 8 facings.
@@ -55,8 +56,10 @@ func _after_bind() -> void:
 ## A [SpriteSheet3D] runs its own cycle and only needs to be told whether to. Polled
 ## rather than driven from a signal because it has to be right for both motions: a grid
 ## step has a clean start and end to hook, and free movement has neither.
+##
+## [b]Skipped in the editor[/b] - see [method SpriteView2D._process]'s own doc for why.
 func _process(_delta: float) -> void:
-	if _sheet == null:
+	if Engine.is_editor_hint() or _sheet == null:
 		return
 	var who := get_parent() as Actor
 	if who != null:

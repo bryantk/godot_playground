@@ -291,7 +291,15 @@ func _fire_auto_once_settled() -> void:
 ## inside [EventScheduler] against a [GameEvent] and [Actor] that no longer exist,
 ## still holding their lease and, for a locked page, [ModeStack]'s own cutscene push.
 func _exit_tree() -> void:
-	if _runner != null and not _runner.finished:
+	# Not when the runner's own current command is the reason this node is leaving the
+	# tree at all - change_map/change_map_marker/start_battle (see [method
+	# EventCommandExec.survives_teardown]) tear down this whole map on purpose and
+	# their own "next" port is meant to resolve on the far side of it, per
+	# EventScheduler's own class doc ("an exclusive runner survives a change_map").
+	# Stopping it here on every path out, unconditionally, silently broke exactly that
+	# promise the one time it mattered: the placement that started the runner leaving
+	# is what change_map/start_battle themselves do, not an unrelated deletion.
+	if _runner != null and not _runner.finished and not _runner.current_exec_survives_teardown():
 		if _actor != null:
 			EventScheduler.release_lease(_actor.actor_id, _runner)
 		_runner.stop()

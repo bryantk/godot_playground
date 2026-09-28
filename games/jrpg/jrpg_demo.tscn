@@ -170,17 +170,21 @@ position = Vector2(284, 188)
 script = ExtResource("18_debug_area")
 
 [node name="MapTransfer" parent="Actors" unique_id=900000101 instance=ExtResource("20_static_actor")]
-position = Vector2(220, 121)
+position = Vector2(216, 117)
 
 [node name="Actor" parent="Actors/MapTransfer" index="0"]
 actor_id = &"map_transfer"
+footprint = Vector3i(2, 1, 2)
+
+[node name="Sprite" parent="Actors/MapTransfer" index="1"]
+frame = 1
 
 [node name="GameEvent" type="Node" parent="Actors/MapTransfer" unique_id=900000102]
 script = ExtResource("17_game_event")
 document_path = "res://events/jrpg_demo/map_transfer.event.json"
 
 [node name="DebugArea" type="Node2D" parent="Actors/MapTransfer/GameEvent" unique_id=900000103]
-position = Vector2(220, 121)
+position = Vector2(216, 117)
 script = ExtResource("18_debug_area")
 
 [node name="BattleTrigger" type="Node2D" parent="Actors" unique_id=900000201]

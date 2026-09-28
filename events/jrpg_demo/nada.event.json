@@ -8,11 +8,13 @@
 				"speed": 6.0
 			},
 			"art": {
-				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png"
+				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
+				"facing": "w"
 			},
 			"lock_facing": false,
 			"through": false,
 			"through_terrain": false,
+			"step_in_place": false,
 			"lock_player": false,
 			"route": [
 				{

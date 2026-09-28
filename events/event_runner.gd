@@ -173,6 +173,22 @@ func begin(nodes: Array[Dictionary], doc_path: String = "", page_index: int = -1
 	_drive()
 
 
+## True while the node currently mid-execution is one whose own effect is tearing down
+## the map this runner's placement sits on - [code]change_map[/code]/
+## [code]change_map_marker[/code]/[code]start_battle[/code] (see [method
+## EventCommandExec.survives_teardown]). [method GameEvent._exit_tree] reads this
+## before stopping a runner it originated, so the very map unload that command is
+## causing does not also cut the runner off mid-flight - the "an exclusive runner
+## survives a change_map" guarantee [EventScheduler]'s own class doc already promises,
+## which nothing previously kept true against the *originating* placement's own
+## teardown (only against some unrelated node being freed).
+func current_exec_survives_teardown() -> bool:
+	if _stack.is_empty():
+		return false
+	var frame := _stack.back() as _Frame
+	return frame.exec != null and frame.exec.survives_teardown()
+
+
 ## Interrupted from outside - a lease, a scheduler shutting down. Cancels whatever the
 ## current frame's node is mid-executing so it cannot leave a key outstanding forever
 ## (the same invariant the four motion-key fixes exist to uphold), then drops every

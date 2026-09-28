@@ -6,13 +6,13 @@
 [ext_resource type="PackedScene" uid="uid://dvgv7b755fsko" path="res://games/isoish/actor_isoish.tscn" id="4_xyfnl"]
 [ext_resource type="Script" uid="uid://cfvh6ga4k8rgs" path="res://games/jrpg/debug_only.gd" id="6_occ0q"]
 [ext_resource type="Script" uid="uid://bywa73wc0217k" path="res://world/camera/ortho_pixel_rig.gd" id="12_2n526"]
-[ext_resource type="Script" path="res://actors/player_controller.gd" id="13_4c63s"]
+[ext_resource type="Script" uid="uid://pa3vwqvjw77f" path="res://actors/player_controller.gd" id="13_4c63s"]
 [ext_resource type="Resource" path="res://games/isoish/isoish_input.tres" id="14_tvm3s"]
 [ext_resource type="Script" uid="uid://dfyo0bfp6lnmf" path="res://world/areas/area_zone.gd" id="15_zone"]
 [ext_resource type="Script" uid="uid://djxeq3x4vd420" path="res://world/areas/speed_modifier.gd" id="16_speed"]
 [ext_resource type="PackedScene" path="res://games/isoish/actor_isoish_grid.tscn" id="18_grid"]
 [ext_resource type="Script" uid="uid://djiw6eurhp8ym" path="res://events/game_event.gd" id="20_game_event"]
-[ext_resource type="Script" path="res://world/debug_area_3d.gd" id="21_debug_area"]
+[ext_resource type="Script" uid="uid://brxsy083hd4wd" path="res://world/debug_area_3d.gd" id="21_debug_area"]
 [ext_resource type="Script" uid="uid://dfg7g1mtb2nvf" path="res://world/map_marker_3d.gd" id="22_map_marker"]
 
 [sub_resource type="Environment" id="Environment_tl0cg"]
@@ -32,7 +32,7 @@ size = Vector3(4, 0.02, 1)
 transparency = 1
 albedo_color = Color(0.35, 0.55, 0.95, 0.35)
 
-[sub_resource type="Image" id="Image_occ0q"]
+[sub_resource type="Image" id="Image_6ruuy"]
 data = {
 "data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
 "format": "RGBA8",
@@ -42,7 +42,19 @@ data = {
 }
 
 [sub_resource type="ImageTexture" id="ImageTexture_oxuky"]
-image = SubResource("Image_occ0q")
+image = SubResource("Image_6ruuy")
+
+[sub_resource type="Image" id="Image_xw8l6"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+"format": "RGBA8",
+"height": 11,
+"mipmaps": false,
+"width": 11
+}
+
+[sub_resource type="ImageTexture" id="ImageTexture_dyp7w"]
+image = SubResource("Image_xw8l6")
 
 [node name="IsoishDemo" type="Node" unique_id=725759159]
 script = ExtResource("1_6ruuy")
@@ -135,7 +147,8 @@ jump_strength = 8.0
 script = ExtResource("13_4c63s")
 profile = ExtResource("14_tvm3s")
 
-[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Player/Actor"]
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Player/Actor" index="4" unique_id=1594013517]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 7.5)
 script = ExtResource("21_debug_area")
 
 [node name="Sprite" parent="Upscale/World/Map/Actors/Player" index="2" unique_id=986768101]
@@ -145,7 +158,7 @@ cast_shadow = 0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 7.5)
 texture_albedo = SubResource("ImageTexture_oxuky")
 
-[node name="Wanderer" parent="Upscale/World/Map/Actors" instance=ExtResource("18_grid")]
+[node name="Wanderer" parent="Upscale/World/Map/Actors" unique_id=1104263624 instance=ExtResource("18_grid")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.5, 0, 7.5)
 
 [node name="Actor" parent="Upscale/World/Map/Actors/Wanderer" index="1"]
@@ -155,39 +168,50 @@ motion_mode = 1
 [node name="Motion" parent="Upscale/World/Map/Actors/Wanderer/Actor" index="1"]
 speed = 2.0
 
-[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Wanderer" index="4"]
+[node name="Sprite" parent="Upscale/World/Map/Actors/Wanderer" index="2"]
+frame = 1
+
+[node name="Shadow" parent="Upscale/World/Map/Actors/Wanderer" index="3"]
+size = Vector3(0.7, 0.4, 0.7)
+texture_albedo = SubResource("ImageTexture_dyp7w")
+modulate = Color(0, 0, 0, 0.55)
+
+[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Wanderer" unique_id=1614060532]
 script = ExtResource("20_game_event")
 document_path = "res://events/isoish_demo/wanderer.event.json"
 
-[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Wanderer/GameEvent"]
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Wanderer/GameEvent" unique_id=2135462045]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.5, 0, 7.5)
 script = ExtResource("21_debug_area")
 
-[node name="Spinner" parent="Upscale/World/Map/Actors" instance=ExtResource("4_xyfnl")]
+[node name="Spinner" parent="Upscale/World/Map/Actors" unique_id=1279026774 instance=ExtResource("4_xyfnl")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 10.5)
 
-[node name="Actor" parent="Upscale/World/Map/Actors/Spinner" index="1"]
+[node name="Actor" parent="Upscale/World/Map/Actors/Spinner" index="1" unique_id=1900005135]
 actor_id = &"spinner"
 
-[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Spinner" index="4"]
+[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Spinner" unique_id=923602880]
 script = ExtResource("20_game_event")
 document_path = "res://events/isoish_demo/spinner.event.json"
 
-[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Spinner/GameEvent"]
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Spinner/GameEvent" unique_id=2023037893]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 10.5)
 script = ExtResource("21_debug_area")
 
-[node name="MapTransfer" type="Node3D" parent="Upscale/World/Map/Actors"]
+[node name="MapTransfer" type="Node3D" parent="Upscale/World/Map/Actors" unique_id=1098854572]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 7.5)
 
-[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/MapTransfer"]
+[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/MapTransfer" unique_id=1713695554]
 script = ExtResource("20_game_event")
 document_path = "res://events/isoish_demo/map_transfer.event.json"
 
-[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/MapTransfer/GameEvent"]
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/MapTransfer/GameEvent" unique_id=1949719031]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 7.5)
 script = ExtResource("21_debug_area")
 
-[node name="Markers" type="Node3D" parent="Upscale/World/Map"]
+[node name="Markers" type="Node3D" parent="Upscale/World/Map" unique_id=1341055121]
 
-[node name="Arrival" type="Node3D" parent="Upscale/World/Map/Markers"]
+[node name="Arrival" type="Node3D" parent="Upscale/World/Map/Markers" unique_id=828868975]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 7.5)
 script = ExtResource("22_map_marker")
 marker_name = &"arrival"

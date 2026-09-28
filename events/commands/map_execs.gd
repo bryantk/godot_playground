@@ -27,6 +27,9 @@ class ChangeMapBase extends EventCommandExec:
 	var _phase: int = _Phase.DONE
 	var _guard := 0
 
+	func survives_teardown() -> bool:
+		return true
+
 	func start() -> void:
 		_guard = 0
 		var seconds := float(args.get("fade_out", 0.0))
