@@ -176,6 +176,14 @@ func selected_frame() -> Vector2i:
 	return Vector2i(_row, _col)
 
 
+## Whatever texture is currently loaded in [member _texture_picker] - null if none.
+## [method GraphEditorPanel._on_frame_picked] reads this to fill in a page's own
+## art.sheet when a pick happens against one that had none yet, since the callback
+## a click fires carries only row/col/facing/flip, not the sheet the click was against.
+func current_texture() -> Texture2D:
+	return _texture
+
+
 ## Groups [member _facing_offsets] by the physical row each resolves to
 ## ([code]abs(offset)[/code]), then walks every physical row in order: a row nothing
 ## maps to draws once, plain; a row exactly one facing maps to draws once, in that

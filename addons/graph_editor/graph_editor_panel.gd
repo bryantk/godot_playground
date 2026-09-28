@@ -694,6 +694,17 @@ func _on_frame_picked(row: int, col: int, facing: String, flip: bool) -> void:
 		return
 
 	var art: Dictionary = _current_page_dict().get("art", {})
+
+	# The whole point of picking against a blank sheet ([method _on_pick_frame_pressed]'s
+	# own doc) is choosing one there instead of in the page inspector first - so a pick
+	# that lands with art.sheet still unset takes it from whatever the Frames dock
+	# itself has loaded, the same sheet the pick was actually made against.
+	if str(art.get("sheet", "")) == "" and _frame_picker != null and is_instance_valid(_frame_picker):
+		var texture: Texture2D = _frame_picker.current_texture()
+		if texture != null and texture.resource_path != "":
+			art["sheet"] = texture.resource_path
+			_art_picker.edited_resource = texture
+
 	art["frame_row"] = row
 	art["frame_col"] = col
 	if flip:
