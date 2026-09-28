@@ -1,0 +1,101 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://battle/battle_sandbox.gd" id="1_sandbox"]
+
+[node name="BattleSandbox" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_sandbox")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.09, 0.09, 0.1, 1)
+
+[node name="Layout" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+offset_left = 12.0
+offset_top = 12.0
+offset_right = -12.0
+offset_bottom = -12.0
+
+[node name="Title" type="Label" parent="Layout"]
+layout_mode = 2
+text = "Battle Sandbox - pick allies and enemies, then simulate"
+
+[node name="Columns" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="AllyColumn" type="VBoxContainer" parent="Layout/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="AllyHeader" type="Label" parent="Layout/Columns/AllyColumn"]
+layout_mode = 2
+text = "Allies"
+
+[node name="AllyScroll" type="ScrollContainer" parent="Layout/Columns/AllyColumn"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="AllyList" type="VBoxContainer" parent="Layout/Columns/AllyColumn/AllyScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="EnemyColumn" type="VBoxContainer" parent="Layout/Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="EnemyHeader" type="Label" parent="Layout/Columns/EnemyColumn"]
+layout_mode = 2
+text = "Enemies (count)"
+
+[node name="EnemyScroll" type="ScrollContainer" parent="Layout/Columns/EnemyColumn"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="EnemyList" type="VBoxContainer" parent="Layout/Columns/EnemyColumn/EnemyScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Controls" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="TrialsLabel" type="Label" parent="Layout/Controls"]
+layout_mode = 2
+text = "Trials:"
+
+[node name="TrialsSpin" type="SpinBox" parent="Layout/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 10.0
+max_value = 5000.0
+step = 10.0
+value = 200.0
+
+[node name="SimulateButton" type="Button" parent="Layout/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Simulate"
+
+[node name="ResultsLabel" type="Label" parent="Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Pick allies and enemies, then press Simulate."
+autowrap_mode = 2

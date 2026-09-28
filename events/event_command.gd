@@ -509,7 +509,7 @@ const COMMANDS: Dictionary = {
 	# -- Battle ----------------------------------------------------------------
 	"start_battle": {
 		"args": {"troop": T_STRING, "fade_out": T_SECONDS + "?", "fade_in": T_SECONDS + "?",
-			"texture": T_STRING + "?"},
+			"texture": T_STRING + "?", "allow_defeat": T_BOOL + "?"},
 		"flows": ["next"], "blocking": true, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
 		"requires": [GameProfile.Capability.BATTLE_SCENE],

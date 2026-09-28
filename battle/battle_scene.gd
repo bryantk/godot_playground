@@ -16,10 +16,17 @@ class_name BattleScene extends Control
 @onready var _party_row: HBoxContainer = %PartyRow
 @onready var _action_menu: VBoxContainer = %ActionMenu
 @onready var _target_menu: VBoxContainer = %TargetMenu
+@onready var _debug_help: Label = %DebugHelp
 
 var _state: BattleState
 var _commands: Array[Dictionary] = []
 var _turn_index := 0
+
+## Toggled by [constant KEY_QUOTELEFT] (~) - see [method _unhandled_input]. Off by
+## default even in an editor build: a debug key is still a key an author could hit by
+## accident mid-fight, and the help label alone (shown the moment this turns on) is
+## the reminder of what the other two do.
+var _debug_enabled := false
 
 
 func _ready() -> void:
@@ -31,6 +38,51 @@ func _ready() -> void:
 	_refresh_rows()
 	_log.text = "%s appears!\n" % (troop.id if troop != null else &"a troop")
 	_begin_command_phase()
+
+
+## [code]~[/code] toggles debug (and the help label); with it on, [code]1[/code] fully
+## heals the party and [code]2[/code] kills every foe outright - both meant for testing
+## a fight's ending, not for play.
+func _unhandled_input(event: InputEvent) -> void:
+	if not (event is InputEventKey) or not (event as InputEventKey).pressed \
+			or (event as InputEventKey).echo:
+		return
+
+	var keycode := (event as InputEventKey).keycode
+	if keycode == KEY_QUOTELEFT:
+		_debug_enabled = not _debug_enabled
+		_debug_help.visible = _debug_enabled
+		get_viewport().set_input_as_handled()
+		return
+
+	if not _debug_enabled:
+		return
+
+	if keycode == KEY_1:
+		_debug_heal_party()
+		get_viewport().set_input_as_handled()
+	elif keycode == KEY_2:
+		_debug_kill_foes()
+		get_viewport().set_input_as_handled()
+
+
+func _debug_heal_party() -> void:
+	for b in _state.player_side:
+		b.hp = b.stats.max_hp
+		b.mp = b.stats.max_mp
+	_log.append_text("[debug] party fully healed.\n")
+	_refresh_rows()
+
+
+func _debug_kill_foes() -> void:
+	for b in _state.enemy_side:
+		b.hp = 0
+	_log.append_text("[debug] every foe struck down.\n")
+	_action_menu.hide()
+	_target_menu.hide()
+	_refresh_rows()
+	if _state.is_over():
+		_finish()
 
 
 # -- The command phase: one action per living ally, in order -------------------------
@@ -135,6 +187,11 @@ func _resolve_round() -> void:
 		_begin_command_phase()
 
 
+## Victory always returns to the field. A defeat's own next step is
+## [member BattleTransfer.allow_defeat]'s call: true reads it as just another outcome
+## (same as victory - the executor swaps back and the graph continues); false (the
+## default) swaps straight to [GameOverScene] instead, leaving [code]start_battle[/code]'s
+## own runner to hang - see that member's own doc for why that is fine.
 func _finish() -> void:
 	for b in _state.player_side:
 		b.sync_to_member()
@@ -144,9 +201,12 @@ func _finish() -> void:
 		Party.add_gold(reward)
 		_log.append_text("Victory! %d gold earned.\n" % reward)
 		BattleTransfer.outcome = &"victory"
+	elif BattleTransfer.allow_defeat:
+		_log.append_text("The party has fallen, but lives to try again...\n")
+		BattleTransfer.outcome = &"defeat"
 	else:
 		_log.append_text("The party has fallen...\n")
-		BattleTransfer.outcome = &"defeat"
+		get_tree().change_scene_to_file("res://battle/game_over_scene.tscn")
 
 
 # -- Display ----------------------------------------------------------------------------

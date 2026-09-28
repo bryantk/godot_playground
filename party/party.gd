@@ -56,6 +56,17 @@ func equipment_catalogue() -> Array[Equipment]:
 	return out
 
 
+## Every [PartyMember] this run has ever registered - active, reserve, or neither
+## (a template nobody has recruited yet). What the battle sandbox tool
+## (tools/battle_sandbox.gd) lists allies from, since a sandbox test should not be
+## limited to whoever happens to be in the active party right now.
+func member_catalogue() -> Array[PartyMember]:
+	var out: Array[PartyMember] = []
+	for id: Variant in _member_catalogue:
+		out.append(_member_catalogue[id])
+	return out
+
+
 ## Every currently-fightable member, [constant MAX_ACTIVE] at most - what
 ## [method BattleState.begin] builds the player side from.
 func active_members() -> Array[PartyMember]:

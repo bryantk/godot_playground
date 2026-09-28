@@ -41,7 +41,8 @@
 					"args": {
 						"troop": "slime_pair",
 						"fade_out": 0.4,
-						"fade_in": 0.4
+						"fade_in": 0.4,
+						"allow_defeat": true
 					},
 					"outputs": [
 						{

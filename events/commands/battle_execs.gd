@@ -31,6 +31,7 @@ class StartBattle extends EventCommandExec:
 			if tree.current_scene != null else ""
 		BattleTransfer.pending_troop = troop
 		BattleTransfer.outcome = &""
+		BattleTransfer.allow_defeat = bool(args.get("allow_defeat", false))
 		ModeStack.push(ModeStack.Mode.BATTLE)
 
 		var seconds := float(args.get("fade_out", 0.0))
