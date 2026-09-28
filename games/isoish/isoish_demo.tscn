@@ -175,17 +175,12 @@ document_path = "res://events/isoish_demo/spinner.event.json"
 [node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Spinner/GameEvent"]
 script = ExtResource("21_debug_area")
 
-[node name="MapTransfer" parent="Upscale/World/Map/Actors" instance=ExtResource("4_xyfnl")]
+[node name="MapTransfer" type="Node3D" parent="Upscale/World/Map/Actors"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 7.5)
 
-[node name="Actor" parent="Upscale/World/Map/Actors/MapTransfer" index="1"]
-actor_id = &"map_transfer"
-
-[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/MapTransfer" index="4"]
+[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/MapTransfer"]
 script = ExtResource("20_game_event")
 document_path = "res://events/isoish_demo/map_transfer.event.json"
-actor_id = &"map_transfer"
-visible = false
 
 [node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/MapTransfer/GameEvent"]
 script = ExtResource("21_debug_area")

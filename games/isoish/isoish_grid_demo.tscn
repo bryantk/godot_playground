@@ -293,20 +293,15 @@ document_path = "res://events/isoish_grid_demo/event_2_patrol.event.json"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 4.5)
 script = ExtResource("26_debug_area")
 
-[node name="MapTransfer" parent="Upscale/World/Map/Actors" unique_id=900000201 instance=ExtResource("4_4yn8y")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 7.5)
-
-[node name="Actor" parent="Upscale/World/Map/Actors/MapTransfer" index="1"]
-actor_id = &"map_transfer"
+[node name="MapTransfer" type="Node3D" parent="Upscale/World/Map/Actors" unique_id=900000201]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 8.5)
 
 [node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/MapTransfer" unique_id=900000202]
 script = ExtResource("25_game_event")
 document_path = "res://events/isoish_grid_demo/map_transfer.event.json"
-actor_id = &"map_transfer"
-visible = false
 
 [node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/MapTransfer/GameEvent" unique_id=900000203]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 7.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 8.5)
 script = ExtResource("26_debug_area")
 
 [node name="Markers" type="Node3D" parent="Upscale/World/Map" unique_id=900000204]

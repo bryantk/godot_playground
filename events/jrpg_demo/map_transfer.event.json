@@ -7,7 +7,6 @@
 			"settings": {},
 			"art": {},
 			"lock_facing": false,
-			"through": true,
 			"through_terrain": false,
 			"lock_player": false,
 			"route": [],

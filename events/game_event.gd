@@ -349,8 +349,31 @@ func event_id() -> StringName:
 	return StringName(name)
 
 
+## The [Actor]'s own cell, for an NPC/chest/door; for a bodiless region trigger (no
+## [Actor] at all), the map cell under its own placement root instead - [method
+## _find_actor]'s own "GameEvent is the Actor's parent, or its sibling" shape means
+## [method Node.get_parent] is that placement root either way, the same node
+## [method _derived_actor_id] already reads and [DebugArea2D]/[DebugArea3D]'s own
+## [code]_find_anchor[/code] already walks to for exactly this reason. [constant
+## Vector3i.ZERO] only when there is truly nowhere to read a position from (no map, or
+## a placement root that is not itself a positioned [Node2D]/[Node3D]) - a document
+## authored with a bodiless trigger sitting nowhere in particular, which is not a case
+## any placement in this project's own scenes uses.
 func cell() -> Vector3i:
-	return _actor.cell() if _actor != null else Vector3i.ZERO
+	if _actor != null:
+		return _actor.cell()
+	return _bodiless_cell()
+
+
+func _bodiless_cell() -> Vector3i:
+	if _map == null:
+		return Vector3i.ZERO
+	var root := get_parent()
+	if root is Node2D:
+		return _map.cell_of(Space.as_v3((root as Node2D).global_position))
+	if root is Node3D:
+		return _map.cell_of((root as Node3D).global_position)
+	return Vector3i.ZERO
 
 
 func is_busy() -> bool:
@@ -694,8 +717,16 @@ func _on_player_interacted() -> void:
 
 ## This event's own reachable cells: its actor's whole footprint, or just [method cell]
 ## for a bodiless event (no [Actor] beside it to have one).
+##
+## [b]A bare [code][cell()][/code] literal is not enough[/b] - a ternary's untyped
+## branch does not pick up [Array[Vector3i]] from this function's own return type at
+## runtime, only from static analysis, and [method _cells_overlap] refuses an untyped
+## [Array] outright. Built explicitly typed instead.
 func _target_cells() -> Array[Vector3i]:
-	return _actor.footprint_cells() if _actor != null else [cell()]
+	if _actor != null:
+		return _actor.footprint_cells()
+	var out: Array[Vector3i] = [cell()]
+	return out
 
 
 ## Whether [param a] and [param b] share at least one cell.

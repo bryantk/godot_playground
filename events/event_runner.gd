@@ -487,13 +487,19 @@ func _drive() -> void:
 		return
 
 
-## One line per run, at its start node only: time, the parent node (this runner's own
-## event) name, which page is running, and the trigger that started it.
+## One line per run, at its start node only: time, this runner's own event id, which
+## page is running, and the trigger that started it.
+##
+## [b]Not [member EventContext.self_actor]'s own placement name[/b], even though that
+## used to be what this printed: [member self_actor] is null for a bodiless region
+## trigger (games/jrpg/jrpg_demo.tscn's own MapTransfer/BattleTrigger and friends, none
+## of which carry an [Actor]) - reading [code].get_parent()[/code] off it crashed the
+## moment one of those ran. [member EventContext.event_id] identifies the run just as
+## well and is never null.
 func _log_node_process(frame: _Frame) -> void:
 	var page := "%s#%d" % [frame.doc_path, frame.page_index] if frame.doc_path != "" else "<inline>"
 	print("[%d] event=%s page=%s action=%s"
-		% [Time.get_ticks_msec(), str(ctx.self_actor.get_parent().name) if ctx != null else "", page,
-			frame.entry_flow])
+		% [Time.get_ticks_msec(), str(ctx.event_id) if ctx != null else "", page, frame.entry_flow])
 
 
 ## Moves [param frame]'s cursor to whichever node [param port] targets, or pops the

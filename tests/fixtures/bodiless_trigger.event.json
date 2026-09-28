@@ -1,0 +1,22 @@
+{
+	"format": 1,
+	"id": "bodiless_trigger",
+	"pages": [
+		{
+			"graph": [
+				{
+					"id": "start",
+					"command": "start",
+					"args": { "page_entry": true },
+					"outputs": [{ "flow": "action", "target": "n1" }]
+				},
+				{
+					"id": "n1",
+					"command": "set_flag",
+					"args": { "flag": "trigger_fired" },
+					"outputs": [{ "flow": "next", "target": "" }]
+				}
+			]
+		}
+	]
+}
