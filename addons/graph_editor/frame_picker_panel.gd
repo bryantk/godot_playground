@@ -310,15 +310,26 @@ func _on_grid_draw() -> void:
 	if _texture == null or cell.x <= 0 or cell.y <= 0:
 		return
 
+	# Each cell is mirrored about its own centre, column position kept - never the
+	# whole row reversed end to end. A shared row is one facing played forwards and the
+	# other played as the mirror image of the *same* pose at the *same* column
+	# (SpriteSheet.hold_frame's own col is never remapped for a negative
+	# facing_offsets entry, only flip_h is set) - reversing the whole row instead used
+	# to show column 0's art under the column _hframes-1 label and vice versa, which
+	# read as everything having shifted sideways relative to the direct (unflipped)
+	# row right above/below it.
 	var row_height_tex := _texture.get_height() / float(_vframes)
+	var col_width_tex := _texture.get_width() / float(_hframes)
 	for i in range(_display_rows.size()):
 		var row: Dictionary = _display_rows[i]
-		var src := Rect2(0, row["physical"] * row_height_tex, _texture.get_width(), row_height_tex)
-		var dst := Rect2(0, i * cell.y, cell.x * _hframes, cell.y)
-		if row["flip"]:
-			dst.position.x += dst.size.x
-			dst.size.x = -dst.size.x
-		_grid.draw_texture_rect_region(_texture, dst, src)
+		for c in range(_hframes):
+			var src := Rect2(c * col_width_tex, row["physical"] * row_height_tex,
+				col_width_tex, row_height_tex)
+			var dst := Rect2(c * cell.x, i * cell.y, cell.x, cell.y)
+			if row["flip"]:
+				dst.position.x += dst.size.x
+				dst.size.x = -dst.size.x
+			_grid.draw_texture_rect_region(_texture, dst, src)
 
 	var line_color := Color(1, 1, 1, 0.35)
 	for c in range(_hframes + 1):

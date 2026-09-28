@@ -653,6 +653,16 @@ func setup_frame_picker(picker: Object, reveal: Callable) -> void:
 ## index 0 is "(unset)" - clears art.facing rather than authoring an empty string,
 ## the same convention [method EventGraphNode._make_option_control] uses for a "dir"
 ## argument.
+##
+## [b]Also clears any picked frame_row/frame_col/frame_flip.[/b] A held pose
+## ([method ActorView.hold_frame]) is deliberately picked *for* one specific facing -
+## [method _on_frame_picked] sets both together - and [method SpriteView2D.apply_art]
+## applies that frozen frame last, on purpose, so it always wins over whatever facing
+## says (see that method's own doc). Changing facing here, on its own, left a frame
+## picked for the old facing frozen in place regardless - the editor (and the page at
+## runtime) kept showing the old pose no matter which facing was chosen next. Picking a
+## plain facing is read as "go back to facing-driven art" rather than "keep the old
+## pose but relabel it".
 func _on_art_facing_selected(index: int) -> void:
 	if not _live():
 		return
@@ -662,6 +672,12 @@ func _on_art_facing_selected(index: int) -> void:
 		art.erase("facing")
 	else:
 		art["facing"] = _FACING_OPTIONS[index - 1]
+
+	art.erase("frame_row")
+	art.erase("frame_col")
+	art.erase("frame_flip")
+	_frame_readout.text = "(none)"
+
 	_mark_dirty()
 	_sync_live_sprite()
 
