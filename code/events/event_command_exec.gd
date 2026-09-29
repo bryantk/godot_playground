@@ -169,15 +169,15 @@ static func saved_cell_or(value: Variant, fallback: Vector3i) -> Vector3i:
 
 # -- Factory --------------------------------------------------------------------
 
-const _FlowExecs := preload("res://events/commands/flow_execs.gd")
-const _ActorExecs := preload("res://events/commands/actor_execs.gd")
-const _DialogueExecs := preload("res://events/commands/dialogue_execs.gd")
-const _StateExecs := preload("res://events/commands/state_execs.gd")
-const _MapExecs := preload("res://events/commands/map_execs.gd")
-const _PresentationExecs := preload("res://events/commands/presentation_execs.gd")
-const _RouteExecs := preload("res://events/commands/route_execs.gd")
-const _BattleExecs := preload("res://events/commands/battle_execs.gd")
-const _MenuExecs := preload("res://events/commands/menu_execs.gd")
+const _FlowExecs := preload("res://code/events/commands/flow_execs.gd")
+const _ActorExecs := preload("res://code/events/commands/actor_execs.gd")
+const _DialogueExecs := preload("res://code/events/commands/dialogue_execs.gd")
+const _StateExecs := preload("res://code/events/commands/state_execs.gd")
+const _MapExecs := preload("res://code/events/commands/map_execs.gd")
+const _PresentationExecs := preload("res://code/events/commands/presentation_execs.gd")
+const _RouteExecs := preload("res://code/events/commands/route_execs.gd")
+const _BattleExecs := preload("res://code/events/commands/battle_execs.gd")
+const _MenuExecs := preload("res://code/events/commands/menu_execs.gd")
 
 static var _table: Dictionary = {}
 

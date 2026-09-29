@@ -96,7 +96,7 @@ func _build(cell_size: Vector3, footprint: Vector3i, map_offset: Vector2 = Vecto
 	body.add_child(sprite)
 
 	var view := Node.new()
-	view.set_script(load("res://actors/views/sprite_view_2d.gd"))
+	view.set_script(load("res://code/actors/views/sprite_view_2d.gd"))
 	view.name = "View"
 	view.set("visual_path", NodePath("../Sprite"))
 	actor.add_child(view)

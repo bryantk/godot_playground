@@ -64,11 +64,11 @@ func _test_battle_returns_to_the_field_after_its_own_trigger_unloads() -> void:
 	# author has since dragged BattleTrigger to.
 	trigger._maybe_fire(&"action")
 	var battle_seconds := 0.0
-	while get_tree().current_scene.scene_file_path != "res://battle/battle_scene.tscn" \
+	while get_tree().current_scene.scene_file_path != "res://code/battle/battle_scene.tscn" \
 			and battle_seconds < 5.0:
 		await get_tree().process_frame
 		battle_seconds += get_process_delta_time()
-	_ok(get_tree().current_scene.scene_file_path == "res://battle/battle_scene.tscn",
+	_ok(get_tree().current_scene.scene_file_path == "res://code/battle/battle_scene.tscn",
 		"the battle scene loaded")
 
 	var battle := get_tree().current_scene as BattleScene

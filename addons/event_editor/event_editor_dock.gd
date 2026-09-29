@@ -24,7 +24,7 @@ const ROUTE_PARSER_METHOD := "parse_route"
 ## above: both are addon/project files that exist from the start, unlike EventCommand,
 ## which this dock predates.
 const GraphDoc := preload("res://addons/graph_editor/graph_document.gd")
-const EventDoc := preload("res://events/event_document.gd")
+const EventDoc := preload("res://code/events/event_document.gd")
 
 const EMPTY_DOCUMENT := "[\n]\n"
 ## The command the Add button seeds - a starting point to edit, not a meaningful one.

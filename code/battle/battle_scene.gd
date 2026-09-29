@@ -206,7 +206,7 @@ func _finish() -> void:
 		BattleTransfer.outcome = &"defeat"
 	else:
 		_log.append_text("The party has fallen...\n")
-		get_tree().change_scene_to_file("res://battle/game_over_scene.tscn")
+		get_tree().change_scene_to_file("res://code/battle/game_over_scene.tscn")
 
 
 # -- Display ----------------------------------------------------------------------------

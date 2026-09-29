@@ -16,7 +16,7 @@ extends CanvasLayer
 ## dialogue box and debug readout have nothing to say about a screen with no
 ## [MapContext] on it.
 
-const MAIN_UI_SCENE := preload("res://ui/text_box/main_ui.tscn")
+const MAIN_UI_SCENE := preload("res://code/ui/text_box/main_ui.tscn")
 
 var main_ui: MainUI
 

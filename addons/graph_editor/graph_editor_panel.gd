@@ -25,7 +25,7 @@ extends VBoxContainer
 ## see [method _build_page_inspector].
 
 const Doc := preload("res://addons/graph_editor/graph_document.gd")
-const EventDoc := preload("res://events/event_document.gd")
+const EventDoc := preload("res://code/events/event_document.gd")
 
 const METADATA_SECTION := "graph_editor"
 const METADATA_PATH_KEY := "last_file"
@@ -34,7 +34,7 @@ const METADATA_PATH_KEY := "last_file"
 ## as one long row of buttons. The enum values double as [PopupMenu] item ids, so a
 ## dropdown's [signal PopupMenu.id_pressed] handler can [code]match[/code] on them
 ## directly instead of comparing against the label text.
-enum FileAction { NEW, OPEN, RELOAD, SAVE }
+enum FileAction { NEW, OPEN, RELOAD, SAVE, RENAME }
 enum GraphAction { ADD_COMMAND, ARRANGE, VALIDATE, VIEW_JSON }
 enum ActorAction { LOAD_EVENT, DELETE_ACTOR, FIND_ORPHANS }
 enum PageAction { ADD, DUPLICATE, DELETE, MOVE_FRONT, MOVE_BACK }
@@ -77,6 +77,11 @@ var _clipboard: Array[Dictionary] = []
 ## ADD_STEP] already spaces repeated "Add Command" presses by, so a second paste (with
 ## no new copy in between) does not land exactly on top of the first.
 var _paste_count := 0
+## The (pre-rename) [code]{flow, target}[/code] pairs the start node pointed to,
+## restricted to whichever of its targets were copied alongside it - see [method
+## _on_copy_nodes_request]'s own doc. Empty whenever the start node was not part of
+## the copied selection at all.
+var _clipboard_start_targets: Array[Dictionary] = []
 
 ## The whole loaded file, [EventDocument]-shaped even when [member _wrapped] is false -
 ## a bare array reads as one page the same way [method EventDocument.parse] always
@@ -170,6 +175,10 @@ var _spawn_position := Vector2.INF
 ## [method _build_orphan_dialog].
 var _orphan_dialog: ConfirmationDialog
 var _orphan_list: ItemList
+## The rename popup [method _on_rename] shows - see [method _build_rename_dialog].
+var _rename_dialog: ConfirmationDialog
+var _rename_field: LineEdit
+
 ## What [method _on_orphan_dialog_confirmed] archives - set by
 ## [method _on_find_orphaned_events] just before the dialog pops up, since a
 ## [ConfirmationDialog]'s [signal confirmed] carries no argument of its own.
@@ -283,6 +292,9 @@ func _bind() -> bool:
 	_orphan_dialog = get_node_or_null(^"OrphanDialog") as ConfirmationDialog
 	_orphan_list = get_node_or_null(^"OrphanDialog/OrphanList") as ItemList
 
+	_rename_dialog = get_node_or_null(^"RenameDialog") as ConfirmationDialog
+	_rename_field = get_node_or_null(^"RenameDialog/RenameField") as LineEdit
+
 	if is_instance_valid(_graph):
 		# The path lives in project metadata as well as in _path precisely so that it
 		# survives this.
@@ -319,6 +331,7 @@ func _build_ui() -> void:
 		[FileAction.OPEN, "Open"],
 		[FileAction.RELOAD, "Reload"],
 		[FileAction.SAVE, "Save"],
+		[FileAction.RENAME, "Rename"],
 	], _on_file_menu_id_pressed)
 	toolbar.add_child(_file_menu)
 
@@ -410,6 +423,7 @@ func _build_ui() -> void:
 
 	add_child(_build_command_picker())
 	add_child(_build_orphan_dialog())
+	add_child(_build_rename_dialog())
 
 	_results = ItemList.new()
 	_results.name = "Results"
@@ -1104,6 +1118,23 @@ func _build_orphan_dialog() -> ConfirmationDialog:
 
 	return _orphan_dialog
 
+## The prompt [method _on_rename] pops up - pre-filled with the placement's own node
+## name. [method ConfirmationDialog.register_text_enter] is what lets pressing Enter
+## in the field confirm the same as clicking OK.
+func _build_rename_dialog() -> ConfirmationDialog:
+	_rename_dialog = ConfirmationDialog.new()
+	_rename_dialog.name = "RenameDialog"
+	_rename_dialog.title = "Rename Event File"
+	_rename_dialog.confirmed.connect(_on_rename_dialog_confirmed)
+
+	_rename_field = LineEdit.new()
+	_rename_field.name = "RenameField"
+	_rename_field.custom_minimum_size = Vector2(280, 0)
+	_rename_dialog.add_child(_rename_field)
+	_rename_dialog.register_text_enter(_rename_field)
+
+	return _rename_dialog
+
 func _open_command_picker() -> void:
 	if not _live():
 		return
@@ -1539,12 +1570,18 @@ func _on_duplicate_nodes_request() -> void:
 		_mark_dirty()
 
 ## Ctrl+C. Captures the graph's own selected nodes - ports and all - into [member
-## _clipboard], with their own targets already dropped the same way [method
-## _on_duplicate_nodes_request] drops them and for the same reason: a paste that kept
-## them would point out from the copy at whatever the original pointed at, silently
-## doubling every path leading into that node. The start node is excluded even when
-## selected, matching duplicate - a graph has exactly one, and there is nowhere useful
-## for a second to paste in anyway.
+## _clipboard]. A target is dropped unless it points at another node that was copied
+## alongside it, the same rule [method _on_duplicate_nodes_request] applies: a target
+## outside the copied set would point out from the copy at whatever the original
+## pointed at, silently doubling every path leading into that node, but a target
+## *inside* the copied set has both its ends pasted together and can be rewired
+## between the two copies with no such doubling. The start node is excluded from the
+## copy itself even when selected, matching duplicate - a graph has exactly one, and
+## there is nowhere useful for a second to paste in anyway - but if it was part of the
+## selection, whichever of its targets were copied alongside it are remembered in
+## [member _clipboard_start_targets] so [method _on_paste_nodes_request] can wire the
+## pasted document's own existing start node to the pasted copy, rather than silently
+## dropping the one connection that gave the copied chain a reason to run at all.
 ##
 ## Ids are left exactly as copied rather than regenerated here - [method
 ## _on_paste_nodes_request] mints fresh ones at paste time instead, since a document may
@@ -1556,13 +1593,30 @@ func _on_copy_nodes_request() -> void:
 		return
 
 	_clipboard.clear()
+	_clipboard_start_targets.clear()
 	_paste_count = 0
+
+	var copied_ids := {}
 	for node in _serialize():
 		var source := _node_by_id(node["id"])
-		if source == null or not source.selected or _is_start_node(source):
+		if source != null and source.selected and not _is_start_node(source):
+			copied_ids[node["id"]] = true
+
+	for node in _serialize():
+		var source := _node_by_id(node["id"])
+		if source == null or not source.selected:
 			continue
+
+		if _is_start_node(source):
+			for output in node["outputs"]:
+				var target: String = output["target"]
+				if target != "" and copied_ids.has(target):
+					_clipboard_start_targets.append({"flow": output["flow"], "target": target})
+			continue
+
 		for output in node["outputs"]:
-			output["target"] = ""
+			if not copied_ids.has(output["target"]):
+				output["target"] = ""
 		_clipboard.append(node)
 
 ## Ctrl+V. Drops a fresh copy of [member _clipboard] into the graph on screen, each node
@@ -1575,6 +1629,18 @@ func _on_copy_nodes_request() -> void:
 ## own original position, not the mouse - the signal carries no drop position to use
 ## even if it did - so a second paste with no new copy in between lands clear of the
 ## first instead of exactly on top of it.
+##
+## Wiring happens in two passes, both after every pasted node already exists as a live
+## child of [member _graph] - [method _apply_connections] resolves a target by looking
+## it up there, so a connection asked for one call earlier would silently find nothing.
+## The first pass rewires whatever [method _on_copy_nodes_request] preserved between two
+## copied nodes, remapped from the ids they were copied under to the fresh ones just
+## minted. The second wires [member _clipboard_start_targets] to this document's own
+## existing start node (never a pasted one - the start node itself is never copied),
+## found by the fixed [code]""[/code] id every graph's start node carries - and, unlike
+## the first pass, replaces whatever that port already pointed at rather than adding
+## a second wire beside it, the same "rewire, don't double" rule [method
+## _on_connection_request] already applies to a dragged connection.
 func _on_paste_nodes_request() -> void:
 	if not _live() or _clipboard.is_empty():
 		return
@@ -1583,14 +1649,18 @@ func _on_paste_nodes_request() -> void:
 	var offset := ADD_STEP * _paste_count
 	var ids := _used_ids()
 	var pasted: Array[GraphNode] = []
+	var pasted_entries: Array[Dictionary] = []
+	var id_map := {}
 
 	for source_node in _clipboard:
 		var node: Dictionary = source_node.duplicate(true)
 		var id := Doc.generate_id(ids)
 		ids[id] = true
 
+		id_map[node["id"]] = id
 		node["id"] = id
 		node["position"] = (source_node["position"] as Vector2) + offset
+		pasted_entries.append(node)
 		pasted.append(_make_graph_node(node))
 
 	for graph_node in _graph.get_children():
@@ -1601,8 +1671,56 @@ func _on_paste_nodes_request() -> void:
 		_graph.add_child(graph_node)
 		graph_node.selected = true
 
+	for entry in pasted_entries:
+		for output in (entry["outputs"] as Array):
+			var target: String = output["target"]
+			output["target"] = id_map.get(target, "") if target != "" else ""
+	_apply_connections(pasted_entries)
+
+	_wire_start_targets(id_map)
+
 	_mark_dirty()
 	_validate()
+
+## The second pass [method _on_paste_nodes_request]'s own doc describes: [param id_map]
+## maps a copied node's old id to the fresh one it was pasted under, so whichever of
+## [member _clipboard_start_targets] survived that remap point at something real to
+## wire to. [method EventCommand.flows_of] is read off this document's own live start
+## entry (not a stand-in) so a page-entry start's real flow names ("on_load", "action",
+## ...) resolve to the right port - a bare [code]{id: "", outputs: [...]}[/code] would
+## fall back to a single generic "next" port and silently miss every other trigger.
+func _wire_start_targets(id_map: Dictionary) -> void:
+	var start_targets := {}
+	for start_target in _clipboard_start_targets:
+		var new_id: String = id_map.get(start_target["target"], "")
+		if new_id != "":
+			start_targets[str(start_target["flow"])] = new_id
+	if start_targets.is_empty():
+		return
+
+	var start_node := _node_by_id("")
+	var start_entry := {}
+	for node in _serialize():
+		if node["id"] == "":
+			start_entry = node
+			break
+	if start_node == null or start_entry.is_empty():
+		return
+
+	var flows := EventCommand.flows_of(start_entry)
+	for i in flows.size():
+		var target: String = start_targets.get(flows[i], "")
+		if target == "":
+			continue
+		var to := _node_by_id(target)
+		if to == null:
+			continue
+
+		for connection in _graph.get_connection_list():
+			if connection["from_node"] == start_node.name and connection["from_port"] == i:
+				_graph.disconnect_node(connection["from_node"], connection["from_port"],
+					connection["to_node"], connection["to_port"])
+		_graph.connect_node(start_node.name, i, to.name, 0)
 
 ## Right-click (or the context-menu key) on the canvas - opens the same picker "Add
 ## Command" does, rather than dropping a bare node the way this used to, since a
@@ -2006,6 +2124,93 @@ func _remember_path() -> void:
 	EditorInterface.get_editor_settings().set_project_metadata(
 		METADATA_SECTION, METADATA_PATH_KEY, _path)
 
+## The File dropdown's Rename - pre-fills [member _rename_field] with the placement's
+## own node name (the same identity a brand new file would be named after - see
+## [method _identity_for]), found by searching the edited scene for the [GameEvent]
+## whose [member GameEvent.document_path] is [member _path], same lookup [method
+## _sync_live_sprite] already relies on. No scene open with that placement in it (or
+## no scene at all) falls back to the current file's own stem, so the field still
+## starts somewhere sensible rather than empty.
+func _on_rename() -> void:
+	if not _live() or _path == "":
+		return
+
+	var scene_root := EditorInterface.get_edited_scene_root()
+	var event := _find_game_event_with_path(scene_root, _path) if scene_root != null else null
+	var parent := event.get_parent() if event != null else null
+
+	_rename_field.text = (String(parent.name) if parent != null \
+		else _path.get_file().trim_suffix(".event.json")).to_lower()
+	_rename_dialog.popup_centered()
+	_rename_field.grab_focus.call_deferred()
+	_rename_field.select_all.call_deferred()
+
+## Confirms [method _on_rename]: saves the current buffer under the old name first (so
+## the file that gets moved carries whatever is on screen, not a stale save), moves it
+## on disk, then repoints every [GameEvent] in the edited scene whose [member
+## GameEvent.document_path] named the old file - normally exactly one, but nothing here
+## assumes it (see [method _update_document_path_refs]).
+func _on_rename_dialog_confirmed() -> void:
+	if not _live() or _path == "":
+		return
+
+	# Lower-cased regardless of what was typed - every event file and every id derived
+	# from one is lowercase by convention (see Actor._id_from_parent_name), and a rename
+	# is exactly the moment a stray capital would otherwise get baked in permanently.
+	var new_name := _rename_field.text.strip_edges().to_lower()
+	if new_name == "":
+		_set_status("Rename needs a name.", _status_color(false))
+		return
+
+	var new_path := _path.get_base_dir().path_join(new_name + ".event.json")
+	if new_path == _path:
+		return
+
+	if FileAccess.file_exists(new_path):
+		_set_status("%s already exists." % new_path, _status_color(false))
+		return
+
+	_save()
+
+	var old_path := _path
+	var error := DirAccess.rename_absolute(old_path, new_path)
+	if error != OK:
+		_set_status("Could not rename %s: %s" % [old_path, error_string(error)],
+			_status_color(false))
+		return
+
+	# Let the FileSystem dock notice both the file that vanished and the one that
+	# appeared, rather than showing the old path as if it were still there.
+	EditorInterface.get_resource_filesystem().update_file(old_path)
+	EditorInterface.get_resource_filesystem().update_file(new_path)
+
+	_path = new_path
+	_remember_path()
+	_refresh_title()
+
+	var scene_root := EditorInterface.get_edited_scene_root()
+	var updated := (_update_document_path_refs(scene_root, old_path, new_path)
+		if scene_root != null else 0)
+	if updated > 0:
+		_save_scene()
+
+	_set_status("Renamed to %s.%s" % [new_path,
+		"" if updated == 0 else " Updated %d reference(s)." % updated], _status_color(true))
+
+## Every [GameEvent] under [param node] whose own [member GameEvent.document_path] is
+## [param old_path], repointed to [param new_path] - [method _find_game_event_with_path]
+## generalized to every match rather than the first, since a rename must not leave any
+## placement pointing at a file that no longer exists there. Returns how many were
+## updated.
+func _update_document_path_refs(node: Node, old_path: String, new_path: String) -> int:
+	var updated := 0
+	if node is GameEvent and (node as GameEvent).document_path == old_path:
+		(node as GameEvent).document_path = new_path
+		updated += 1
+	for child in node.get_children():
+		updated += _update_document_path_refs(child, old_path, new_path)
+	return updated
+
 func _mark_dirty() -> void:
 	_dirty = true
 	_refresh_title()
@@ -2025,6 +2230,7 @@ func _refresh_title() -> void:
 		var popup := _file_menu.get_popup()
 		popup.set_item_disabled(popup.get_item_index(FileAction.SAVE), save_disabled)
 		popup.set_item_disabled(popup.get_item_index(FileAction.RELOAD), _path == "")
+		popup.set_item_disabled(popup.get_item_index(FileAction.RENAME), _path == "")
 	if is_instance_valid(_save_icon_button):
 		_save_icon_button.disabled = save_disabled
 
@@ -2102,6 +2308,7 @@ func _on_file_menu_id_pressed(id: int) -> void:
 		FileAction.OPEN: _open()
 		FileAction.RELOAD: _reload()
 		FileAction.SAVE: _save()
+		FileAction.RENAME: _on_rename()
 
 func _on_graph_menu_id_pressed(id: int) -> void:
 	match id:
@@ -2292,12 +2499,16 @@ func _sibling_actor(event: GameEvent) -> Actor:
 ## one shared file, and "create a new one" silently reopens whichever placement got
 ## there first instead. The placement root (Npc_8_12, y_test, ...) - or the actor_id
 ## it carries, when it has one - is the thing that is actually unique per placement.
+##
+## [b]Lower-cased[/b], same as [method Actor._id_from_parent_name] already lower-cases
+## an id derived the identical way - a filename built from this should read the same
+## whether the placement had an [Actor] to derive an id from or not.
 func _identity_for(event: GameEvent) -> String:
 	var actor := _sibling_actor(event)
 	if actor != null and actor.actor_id != &"":
 		return String(actor.actor_id)
 	var parent := event.get_parent() if event != null else null
-	return String(parent.name) if parent != null else String(event.event_id())
+	return (String(parent.name) if parent != null else String(event.event_id())).to_lower()
 
 ## [method _sibling_game_event], creating one there if none exists yet. Named after the
 ## actor's own identity ([member Actor.actor_id], falling back to its node name) so its
@@ -2401,8 +2612,8 @@ func _create_empty_event_file(path: String) -> bool:
 ## [b]A button, not a delete-notification hook.[/b] Godot gives a tool script no
 ## reliable "a node was deleted" signal - only [constant NOTIFICATION_PREDELETE], which
 ## also fires for a script reload's own teardown and for undo/redo churn, none of which
-## should archive anything. An explicit button is the same trade [ActorNaming.assign_all]
-## already makes for the same reason (see its docstring): predictable over automatic.
+## should archive anything. Predictable over automatic, the same trade an explicit
+## button always is over a hook that might fire for the wrong reason.
 func _on_delete_actor() -> void:
 	if not _live():
 		return

@@ -1,6 +1,6 @@
 ## Battle executors. Only [code]start_battle[/code] has one.
 
-const _BATTLE_SCENE := "res://battle/battle_scene.tscn"
+const _BATTLE_SCENE := "res://code/battle/battle_scene.tscn"
 
 ## [code]core/save_game.gd[/code]'s own guard, mirrored - see map_execs.gd's identical
 ## constant for why this polls rather than [code]await[/code]s.

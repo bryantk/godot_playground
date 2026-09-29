@@ -15,7 +15,7 @@ class_name FadeOverlay extends ColorRect
 ## [Tween] does the work and [method is_fading] is the polling half every executor's
 ## own [method EventCommandExec.tick] reads instead.
 
-const _SHADER := preload("res://world/fade_overlay.gdshader")
+const _SHADER := preload("res://code/world/fade_overlay.gdshader")
 
 var _tween: Tween = null
 var _material: ShaderMaterial = null

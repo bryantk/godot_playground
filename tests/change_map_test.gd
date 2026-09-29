@@ -133,7 +133,7 @@ func _test_change_map_marker() -> void:
 
 func _test_marker_lookup() -> void:
 	_section("ChangeMapMarker._find_marker -- recursive, by name, either space")
-	const MapExecs := preload("res://events/commands/map_execs.gd")
+	const MapExecs := preload("res://code/events/commands/map_execs.gd")
 
 	var root := Node3D.new()
 	var nested := Node3D.new()

@@ -1,8 +1,8 @@
 ## Menu executors. Only [code]open_menu[/code] has one.
 
 const _SCENES := {
-	"party": "res://menus/party_menu.tscn",
-	"shop": "res://menus/shop_menu.tscn",
+	"party": "res://code/menus/party_menu.tscn",
+	"shop": "res://code/menus/shop_menu.tscn",
 }
 
 
