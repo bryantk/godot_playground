@@ -53,6 +53,10 @@ var _view_basis: Basis = Basis.IDENTITY
 ## [method add_speed_provider].
 var _speed_providers: Array[Object] = []
 
+## Objects answering [code]allows(actor, to_cells) -> bool[/code]. See
+## [method add_step_restrictor].
+var _step_restrictors: Array[Object] = []
+
 
 func _ready() -> void:
 	_actor = get_parent() as Actor
@@ -126,6 +130,40 @@ func speed_scale(dir: Vector3) -> float:
 	if stale:
 		_speed_providers = _speed_providers.filter(is_instance_valid)
 	return maxf(0.0, scale)
+
+
+# -- Step restrictors ----------------------------------------------------------
+
+## Register something that can veto a step - [RestrictToArea] fencing an event's own
+## actor to one [AreaZone], and later anything else that needs to say "not there"
+## rather than merely "slower there".
+##
+## A veto, not a value, for the same reason [method add_speed_provider] is a provider:
+## nothing here remembers why a cell was refused, so nothing has to un-refuse it later.
+func add_step_restrictor(r: Object) -> void:
+	if r != null and not _step_restrictors.has(r):
+		_step_restrictors.append(r)
+
+
+func remove_step_restrictor(r: Object) -> void:
+	_step_restrictors.erase(r)
+
+
+## False the moment any restrictor refuses [param to_cells] - unanimous, not
+## majority, since one fence saying "not there" has to be enough regardless of how many
+## others would have allowed it.
+func step_allowed(to_cells: Array[Vector3i]) -> bool:
+	var stale := false
+	var allowed := true
+	for r in _step_restrictors:
+		if not is_instance_valid(r):
+			stale = true
+			continue
+		if not bool(r.call("allows", _actor, to_cells)):
+			allowed = false
+	if stale:
+		_step_restrictors = _step_restrictors.filter(is_instance_valid)
+	return allowed
 
 
 func _next_key(kind: String) -> String:

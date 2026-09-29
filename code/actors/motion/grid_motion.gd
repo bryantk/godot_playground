@@ -240,7 +240,8 @@ func step(dir: Vector3i) -> bool:
 	var to: Vector3i = plan["cell"]
 	var from_cells: Array[Vector3i] = _actor.footprint_cells()
 	var to_cells := _shift_cells(from_cells, to - from)
-	if not plan["ok"] or not Passability.can_enter_footprint(ctx, from_cells, to_cells, _actor):
+	if not plan["ok"] or not Passability.can_enter_footprint(ctx, from_cells, to_cells, _actor) \
+			or not step_allowed(to_cells):
 		_actor.report_blocked(to)
 		return false
 

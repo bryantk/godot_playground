@@ -90,10 +90,9 @@ class_name GameEvent extends Node
 ## (see [method _push_init]'s own doc for why that ordering is guaranteed), so
 ## registration and the spawn-cell claim it triggers already see the pushed values.
 ##
-## [b]actor_id[/b] left blank here falls back to the placement node's own name
-## ([method _derived_actor_id]) rather than staying blank - but only when the [Actor]'s
-## own [member Actor.actor_id] is blank too, so a scene authored before this field
-## existed keeps whatever id it already hand-typed there.
+## [b]actor_id[/b] left blank here is not pushed at all - [Actor] derives its own
+## default straight from the placement's own node name (see [method
+## Actor._id_from_parent_name]), so this field only ever means "override that."
 ##
 ## [b]through_actors[/b], [b]through_terrain[/b] and [b]facing_locked[/b] are only this
 ## actor's resting default, not a fallback a page's own settings defer to: every parsed
@@ -205,16 +204,13 @@ func _push_init() -> void:
 	if a == null:
 		return
 
+	# A blank actor_id here is not "nobody named this placement" any more - [Actor]'s
+	# own [method Actor._enter_tree] already derives one from the placement's own node
+	# name the moment it has a parent to read, regardless of whether this runs before
+	# or after that (see [method Actor._id_from_parent_name]'s own doc on the ordering).
+	# This field only ever means "override that with something else."
 	if actor_id != &"":
 		a.actor_id = actor_id
-	elif a.actor_id == &"":
-		# Nobody named this placement anywhere - not this field, and not a hand-typed
-		# id still sitting on the Actor node from before this field existed. Rather than
-		# push it into the world blank (core/map_context.gd's own registration
-		# push_error), fall back to the name the author already gave the node it sits
-		# under - every placement gets one of those for free, and it is usually already
-		# exactly what a hand-typed id would have said anyway (`Npc_17_9`, `Wanderer`).
-		a.actor_id = _derived_actor_id()
 	a.through_actors = through_actors
 	a.through_terrain = through_terrain
 	a.motion_mode = motion_mode
@@ -225,16 +221,6 @@ func _push_init() -> void:
 	if v != null:
 		v.y_level = y_level
 		v.set_visible(visible)
-
-
-## The placement node's own name, as a last-resort [member Actor.actor_id] - see
-## [method _push_init]. [method _find_actor] already covers "the [Actor] is a sibling"
-## and "the [Actor] is this node's own child" (event-pages.md §4.3's two authored
-## shapes), and in both this node's own parent is that placement, not the [Actor] or
-## a document's document-relative anything.
-func _derived_actor_id() -> StringName:
-	var parent := get_parent()
-	return StringName(parent.name) if parent != null else &""
 
 
 func _ready() -> void:
@@ -357,12 +343,20 @@ func event_id() -> StringName:
 	return StringName(name)
 
 
+## The [Actor] this event drives, or [code]null[/code] for a bodiless region trigger -
+## [method _find_actor]'s own result, for a [GameEventModifier] sibling that needs the
+## same actor this event itself acts through rather than re-deriving it.
+func actor() -> Actor:
+	return _actor
+
+
 ## The [Actor]'s own cell, for an NPC/chest/door; for a bodiless region trigger (no
 ## [Actor] at all), the map cell under its own placement root instead - [method
 ## _find_actor]'s own "GameEvent is the Actor's parent, or its sibling" shape means
 ## [method Node.get_parent] is that placement root either way, the same node
-## [method _derived_actor_id] already reads and [DebugArea2D]/[DebugArea3D]'s own
-## [code]_find_anchor[/code] already walks to for exactly this reason. [constant
+## [method Actor._id_from_parent_name] already reads and [DebugArea2D]/[DebugArea3D]'s
+## own parent already is, for exactly this reason (see either class's own doc on why it
+## is a sibling of [GameEvent] and not a child of it). [constant
 ## Vector3i.ZERO] only when there is truly nowhere to read a position from (no map, or
 ## a placement root that is not itself a positioned [Node2D]/[Node3D]) - a document
 ## authored with a bodiless trigger sitting nowhere in particular, which is not a case
@@ -707,18 +701,30 @@ func _check_continuous_touch() -> void:
 ## edge too. [method _cells_overlap] is "do either side's cells share one", which
 ## degenerates to the old single-cell equality check for every 1x1x1 pair.
 ##
-## [b]A free-motion player gets a distance check instead of either.[/b] A grid player's
-## body is always exactly on a cell, so cell arithmetic is exact; a free player can stop
-## anywhere, and the same arithmetic reads as a miss for one a few pixels short of
-## "aligned" - which is what it felt like to press the button next to an event and have
-## nothing happen. See [method _in_range_free].
+## [b]A free-motion player gets a distance check instead of facing[/b], for a
+## non-through event: a grid player's body is always exactly on a cell, so cell
+## arithmetic is exact; a free player can stop anywhere, and the same arithmetic reads
+## as a miss for one a few pixels short of "aligned" - which is what it felt like to
+## press the button next to an event and have nothing happen. See [method
+## _in_range_free]. [b]A through event never gets that leniency, in either motion
+## mode[/b]: it has no front to be lenient about (the class doc's own reasoning for why
+## it checks overlap instead of facing at all), and a reach check would fire it for
+## merely standing nearby - in front of it, say - rather than on it. [method
+## footprint_cells] quantises a free player's continuous position to a cell exactly
+## the same way a grid player's already is, so the overlap check is exact for both.
 func _on_player_interacted() -> void:
 	var player := _player()
 	if player == null or _map == null:
 		return
-	var in_range := _in_range_free(player) if player.motion() is FreeMotion \
-		else (_cells_overlap(player.footprint_cells(), _target_cells()) if _through_actors() \
-			else _cells_overlap(player.facing_cells(), _target_cells()))
+
+	var in_range: bool
+	if _through_actors():
+		in_range = _cells_overlap(player.footprint_cells(), _target_cells())
+	elif player.motion() is FreeMotion:
+		in_range = _in_range_free(player)
+	else:
+		in_range = _cells_overlap(player.facing_cells(), _target_cells())
+
 	if in_range:
 		_maybe_fire(&"action")
 
