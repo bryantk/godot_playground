@@ -16,6 +16,14 @@ class_name Pushable extends GameEventModifier
 ## solid, unmovable prop.
 @export var max_pushes: int = -1
 
+## Off by default. A diagonal step only ever grazes one corner cell of a 1x1 footprint,
+## but against a 2x2-or-bigger one it can overlap an edge cell the blocker is standing
+## nowhere near square to - so with this off, a diagonal refusal is ignored outright
+## rather than shoving the whole footprint along both axes at once from an off-centre
+## approach. Only meaningful on a map with diagonal movement at all; a 4-direction one
+## never produces a diagonal [code]to - from[/code] in the first place.
+@export var allow_diagonal_shoves: bool = false
+
 var _pushes_used: int = 0
 
 
@@ -45,10 +53,13 @@ func _on_actor_blocked(blocked_id: StringName, from: Vector3i, to: Vector3i) -> 
 	if not _shifted_overlap(blocker.footprint_cells(), from, to, my_actor.footprint_cells()):
 		return  # this refusal had nothing to do with this event
 
+	var direction := to - from
+	if not allow_diagonal_shoves and direction.x != 0 and direction.z != 0:
+		return  # an off-centre diagonal graze, not a square push - see the class doc
+
 	if max_pushes >= 0 and _pushes_used >= max_pushes:
 		return  # spent - an ordinary, silent wall bump from here on
 
-	var direction := to - from
 	if my_actor.motion().step(direction):
 		_pushes_used += 1
 		AudioMaster.play_sound_effect(&"push", 80.0)

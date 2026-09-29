@@ -17,6 +17,8 @@ func _ready() -> void:
 	await _test_pushable_moves_one_cell_and_frees_the_cell_behind_it()
 	await _test_pushable_gives_up_when_the_cell_beyond_it_is_blocked()
 	await _test_pushable_stops_once_max_pushes_is_spent()
+	await _test_pushable_ignores_an_off_centre_diagonal_shove_by_default()
+	await _test_pushable_allows_a_diagonal_shove_when_enabled()
 	await _test_restrict_to_area_refuses_a_step_that_would_leave_the_zone()
 	await _test_restrict_to_area_allows_a_step_that_stays_inside_the_zone()
 
@@ -82,6 +84,48 @@ func _test_pushable_stops_once_max_pushes_is_spent() -> void:
 	(world["root"] as Node).free()
 
 
+## The bug this guards against: a 2x2 crate's north-west cell is directly north of the
+## crate's south-west cell, so a walker standing west of the *south* cell and stepping
+## diagonally north-east lands on the *north* cell - blocked, and "aimed at" this event,
+## despite the walker never actually squaring up to that cell at all. Off by default,
+## so that graze is ignored outright rather than shoving the whole 2x2 footprint
+## diagonally from an approach that was never square to it.
+func _test_pushable_ignores_an_off_centre_diagonal_shove_by_default() -> void:
+	_section("Pushable -- an off-centre diagonal shove against a 2x2+ footprint is ignored by default")
+
+	var world := _build_world()
+	var walker := _build_actor(world, &"walker", Vector3i(1, 0, 3), 8)
+	var crate := _build_pushable(world, &"crate", Vector3i(2, 0, 2), -1, Vector3i(2, 1, 2), 8)
+
+	await get_tree().process_frame
+
+	_ok(not walker.motion().step(Vector3i(1, 0, -1)),
+		"the diagonal step onto the crate's NW cell is still refused")
+	_eq(crate.cell(), Vector3i(2, 0, 2), "but the crate itself never moved")
+	_eq((crate.get_parent().get_node("Pushable") as Pushable)._pushes_used, 0,
+		"no push was counted")
+
+	(world["root"] as Node).free()
+
+
+func _test_pushable_allows_a_diagonal_shove_when_enabled() -> void:
+	_section("Pushable -- allow_diagonal_shoves opts back into the diagonal push")
+
+	var world := _build_world()
+	var walker := _build_actor(world, &"walker", Vector3i(1, 0, 3), 8)
+	var crate := _build_pushable(world, &"crate", Vector3i(2, 0, 2), -1, Vector3i(2, 1, 2), 8)
+	(crate.get_parent().get_node("Pushable") as Pushable).allow_diagonal_shoves = true
+
+	await get_tree().process_frame
+
+	_ok(not walker.motion().step(Vector3i(1, 0, -1)), "the walker's own step is still refused")
+	_eq(crate.cell(), Vector3i(3, 0, 1), "but the crate has been shoved diagonally north-east")
+	_eq((crate.get_parent().get_node("Pushable") as Pushable)._pushes_used, 1,
+		"counted as one push")
+
+	(world["root"] as Node).free()
+
+
 # -- RestrictToArea -------------------------------------------------------------------
 
 func _test_restrict_to_area_refuses_a_step_that_would_leave_the_zone() -> void:
@@ -142,7 +186,8 @@ func _build_world() -> Dictionary:
 	return {"root": root, "ctx": ctx}
 
 
-func _build_actor(world: Dictionary, id: StringName, cell: Vector3i) -> Actor:
+func _build_actor(world: Dictionary, id: StringName, cell: Vector3i,
+		direction_count: int = 4) -> Actor:
 	var ctx: MapContext = world["ctx"]
 
 	var body := Node2D.new()
@@ -160,6 +205,7 @@ func _build_actor(world: Dictionary, id: StringName, cell: Vector3i) -> Actor:
 
 	var motion := GridMotion.new()
 	motion.name = "Motion"
+	motion.direction_count = direction_count
 	actor.add_child(motion)
 
 	(world["root"] as Node).add_child(body)
@@ -169,8 +215,10 @@ func _build_actor(world: Dictionary, id: StringName, cell: Vector3i) -> Actor:
 ## An [Actor]/[GameEvent]/[Pushable] rig, [GameEvent] and [Pushable] siblings of the
 ## [Actor] under one placement body - the shape [method GameEvent._find_actor] resolves
 ## through its own "sibling under the same parent" fallback.
-func _build_pushable(world: Dictionary, id: StringName, cell: Vector3i, max_pushes: int) -> Actor:
-	var actor := _build_actor(world, id, cell)
+func _build_pushable(world: Dictionary, id: StringName, cell: Vector3i, max_pushes: int,
+		footprint: Vector3i = Vector3i.ONE, direction_count: int = 4) -> Actor:
+	var actor := _build_actor(world, id, cell, direction_count)
+	actor.footprint = footprint
 	var body := actor.get_parent()
 
 	var event := GameEvent.new()
