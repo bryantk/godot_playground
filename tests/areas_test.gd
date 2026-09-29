@@ -25,6 +25,7 @@ func _ready() -> void:
 
 	_test_cardinals()
 	await _test_zone_crossings()
+	await _test_zone_collision_polygon()
 
 	print("")
 	print("  %d passed, %d failed" % [_passed, _failed])
@@ -175,6 +176,57 @@ func _test_zone_crossings() -> void:
 	root.queue_free()
 
 
+## [AreaZone] does no shape reading of its own - it only sets up the [Area2D]/[Area3D]
+## it sits under and reacts to signals/point queries the physics server resolves - so a
+## [CollisionPolygon2D] sibling works exactly like a [CollisionShape2D] one. This is
+## the one place that irregular shape is actually exercised end to end, since every
+## other zone in this file is built from a rectangle.
+func _test_zone_collision_polygon() -> void:
+	_section("AreaZone -- a CollisionPolygon2D collider works the same as a CollisionShape2D")
+
+	var map := _build_map()
+	var root: Node2D = map["root"]
+	add_child(root)
+
+	var area := Area2D.new()
+	area.name = "notch"
+	root.add_child(area)
+
+	var poly := CollisionPolygon2D.new()
+	# Cells 2..4 on row z=0, same footprint _build_zone's rectangle covers elsewhere -
+	# only the collider shape differs.
+	poly.polygon = PackedVector2Array([
+		Vector2(2, 0) * 16.0, Vector2(5, 0) * 16.0, Vector2(5, 1) * 16.0, Vector2(2, 1) * 16.0,
+	])
+	area.add_child(poly)
+
+	var zone := AreaZone.new()
+	zone.name = "Zone"
+	area.add_child(zone)
+
+	var actor: Actor = map["actor"]
+	_watch(zone)
+
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	_eq(AreaZone.zones_at(actor, Vector3i(3, 0, 0)).size(), 1, "the polygon's own cell is covered")
+	_ok(AreaZone.zones_at(actor, Vector3i(0, 0, 0)).is_empty(), "cell 0 is outside the polygon")
+
+	# The previous test's root is only queue_free()'d, not freed outright, so its own
+	# zones can still deliver a deferred exit signal into this shared log during the
+	# physics_frame awaits above. Clear once more right before the assertions that
+	# actually care what is in it.
+	_log.clear()
+
+	await _step(actor, Vector3i(1, 0, 0))          # 0 -> 1, still outside
+	await _step(actor, Vector3i(1, 0, 0))          # 1 -> 2, enters
+	_eq(_log, [["entered", &"notch"], ["arrived", &"notch"]],
+		"body_entered/exited fire the same way for a polygon as for a rectangle shape")
+
+	root.queue_free()
+
+
 # -- Building -----------------------------------------------------------------
 
 func _build_map() -> Dictionary:
@@ -241,7 +293,6 @@ func _build_zone(root: Node2D, id: StringName, cells: Rect2i) -> Dictionary:
 
 	var zone := AreaZone.new()
 	zone.name = "Zone"
-	zone.zone_id = id
 	area.add_child(zone)
 
 	var modifier := SpeedModifier.new()
@@ -253,10 +304,11 @@ func _build_zone(root: Node2D, id: StringName, cells: Rect2i) -> Dictionary:
 
 
 func _watch(zone: AreaZone) -> void:
-	zone.actor_entered.connect(func (_a: Actor) -> void: _log.append(["entered", zone.zone_id]))
-	zone.actor_arrived.connect(func (_a: Actor) -> void: _log.append(["arrived", zone.zone_id]))
-	zone.actor_leaving.connect(func (_a: Actor) -> void: _log.append(["leaving", zone.zone_id]))
-	zone.actor_exited.connect(func (_a: Actor) -> void: _log.append(["exited", zone.zone_id]))
+	var id := zone.area().name
+	zone.actor_entered.connect(func (_a: Actor) -> void: _log.append(["entered", id]))
+	zone.actor_arrived.connect(func (_a: Actor) -> void: _log.append(["arrived", id]))
+	zone.actor_leaving.connect(func (_a: Actor) -> void: _log.append(["leaving", id]))
+	zone.actor_exited.connect(func (_a: Actor) -> void: _log.append(["exited", id]))
 
 
 # -- Awaiting a step ----------------------------------------------------------

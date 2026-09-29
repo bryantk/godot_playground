@@ -62,9 +62,6 @@ enum State {
 	LEAVING,  ## Committed a step out; the sprite is still inside.
 }
 
-## Optional name, for a component that has to tell one zone from another.
-@export var zone_id: StringName = &""
-
 signal actor_entered(actor: Actor)
 signal actor_arrived(actor: Actor)
 signal actor_leaving(actor: Actor)

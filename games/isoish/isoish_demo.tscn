@@ -1,19 +1,19 @@
 [gd_scene format=3 uid="uid://4x6dubucyh3e"]
 
 [ext_resource type="Script" uid="uid://c3okvne0qk1yd" path="res://games/isoish/isoish_demo.gd" id="1_6ruuy"]
-[ext_resource type="Script" uid="uid://c6bwsrlf14puk" path="res://world/map_context.gd" id="2_xw8l6"]
+[ext_resource type="Script" uid="uid://c6bwsrlf14puk" path="res://code/world/map_context.gd" id="2_xw8l6"]
 [ext_resource type="MeshLibrary" uid="uid://bj0n18m532mb0" path="res://games/isoish/pixel_blocks.tres" id="3_dyp7w"]
 [ext_resource type="PackedScene" uid="uid://dvgv7b755fsko" path="res://games/isoish/actor_isoish.tscn" id="4_xyfnl"]
 [ext_resource type="Script" uid="uid://cfvh6ga4k8rgs" path="res://games/jrpg/debug_only.gd" id="6_occ0q"]
-[ext_resource type="Script" uid="uid://bywa73wc0217k" path="res://world/camera/ortho_pixel_rig.gd" id="12_2n526"]
-[ext_resource type="Script" uid="uid://pa3vwqvjw77f" path="res://actors/player_controller.gd" id="13_4c63s"]
+[ext_resource type="Script" uid="uid://bywa73wc0217k" path="res://code/world/camera/ortho_pixel_rig.gd" id="12_2n526"]
+[ext_resource type="Script" uid="uid://pa3vwqvjw77f" path="res://code/actors/player_controller.gd" id="13_4c63s"]
 [ext_resource type="Resource" path="res://games/isoish/isoish_input.tres" id="14_tvm3s"]
-[ext_resource type="Script" uid="uid://dfyo0bfp6lnmf" path="res://world/areas/area_zone.gd" id="15_zone"]
-[ext_resource type="Script" uid="uid://djxeq3x4vd420" path="res://world/areas/speed_modifier.gd" id="16_speed"]
+[ext_resource type="Script" uid="uid://dfyo0bfp6lnmf" path="res://code/world/areas/area_zone.gd" id="15_zone"]
+[ext_resource type="Script" uid="uid://djxeq3x4vd420" path="res://code/world/areas/speed_modifier.gd" id="16_speed"]
 [ext_resource type="PackedScene" path="res://games/isoish/actor_isoish_grid.tscn" id="18_grid"]
-[ext_resource type="Script" uid="uid://djiw6eurhp8ym" path="res://events/game_event.gd" id="20_game_event"]
-[ext_resource type="Script" uid="uid://brxsy083hd4wd" path="res://world/debug_area_3d.gd" id="21_debug_area"]
-[ext_resource type="Script" uid="uid://dfg7g1mtb2nvf" path="res://world/map_marker_3d.gd" id="22_map_marker"]
+[ext_resource type="Script" uid="uid://djiw6eurhp8ym" path="res://code/events/game_event.gd" id="20_game_event"]
+[ext_resource type="Script" uid="uid://brxsy083hd4wd" path="res://code/world/debug_area_3d.gd" id="21_debug_area"]
+[ext_resource type="Script" uid="uid://dfg7g1mtb2nvf" path="res://code/world/map_marker_3d.gd" id="22_map_marker"]
 
 [sub_resource type="Environment" id="Environment_tl0cg"]
 background_mode = 1
@@ -116,7 +116,6 @@ shape = SubResource("BoxShape3D_slow")
 
 [node name="AreaZone" type="Node" parent="Upscale/World/Map/Areas/SlowStrip" unique_id=1611650029]
 script = ExtResource("15_zone")
-zone_id = &"slow_strip"
 
 [node name="SpeedModifier" type="Node" parent="Upscale/World/Map/Areas/SlowStrip/AreaZone" unique_id=1701669308]
 script = ExtResource("16_speed")
@@ -137,19 +136,12 @@ script = ExtResource("6_occ0q")
 [node name="Player" parent="Upscale/World/Map/Actors" unique_id=1199946026 instance=ExtResource("4_xyfnl")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 7.5)
 
-[node name="Actor" parent="Upscale/World/Map/Actors/Player" index="1" unique_id=1900005135]
-actor_id = &"player"
-
-[node name="Motion" parent="Upscale/World/Map/Actors/Player/Actor" index="1" unique_id=321912954]
+[node name="Motion" parent="Upscale/World/Map/Actors/Player/Actor" parent_id_path=PackedInt32Array(1199946026, 1900005135) index="1" unique_id=321912954]
 jump_strength = 8.0
 
-[node name="PlayerController" type="Node" parent="Upscale/World/Map/Actors/Player/Actor" index="3" unique_id=506339890]
+[node name="PlayerController" type="Node" parent="Upscale/World/Map/Actors/Player/Actor" parent_id_path=PackedInt32Array(1199946026, 1900005135) index="3" unique_id=506339890]
 script = ExtResource("13_4c63s")
 profile = ExtResource("14_tvm3s")
-
-[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Player/Actor" index="4" unique_id=1594013517]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 7.5)
-script = ExtResource("21_debug_area")
 
 [node name="Sprite" parent="Upscale/World/Map/Actors/Player" index="2" unique_id=986768101]
 cast_shadow = 0
@@ -158,11 +150,13 @@ cast_shadow = 0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 7.5)
 texture_albedo = SubResource("ImageTexture_oxuky")
 
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Player" unique_id=1594013517]
+script = ExtResource("21_debug_area")
+
 [node name="Wanderer" parent="Upscale/World/Map/Actors" unique_id=1104263624 instance=ExtResource("18_grid")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.5, 0, 7.5)
 
 [node name="Actor" parent="Upscale/World/Map/Actors/Wanderer" index="1"]
-actor_id = &"wanderer"
 motion_mode = 1
 
 [node name="Motion" parent="Upscale/World/Map/Actors/Wanderer/Actor" index="1"]
@@ -180,22 +174,17 @@ modulate = Color(0, 0, 0, 0.55)
 script = ExtResource("20_game_event")
 document_path = "res://events/isoish_demo/wanderer.event.json"
 
-[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Wanderer/GameEvent" unique_id=2135462045]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.5, 0, 7.5)
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Wanderer" unique_id=2135462045]
 script = ExtResource("21_debug_area")
 
 [node name="Spinner" parent="Upscale/World/Map/Actors" unique_id=1279026774 instance=ExtResource("4_xyfnl")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 10.5)
 
-[node name="Actor" parent="Upscale/World/Map/Actors/Spinner" index="1" unique_id=1900005135]
-actor_id = &"spinner"
-
 [node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Spinner" unique_id=923602880]
 script = ExtResource("20_game_event")
 document_path = "res://events/isoish_demo/spinner.event.json"
 
-[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Spinner/GameEvent" unique_id=2023037893]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 10.5)
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Spinner" unique_id=2023037893]
 script = ExtResource("21_debug_area")
 
 [node name="MapTransfer" type="Node3D" parent="Upscale/World/Map/Actors" unique_id=1098854572]
@@ -205,8 +194,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 7.5)
 script = ExtResource("20_game_event")
 document_path = "res://events/isoish_demo/map_transfer.event.json"
 
-[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/MapTransfer/GameEvent" unique_id=1949719031]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 7.5)
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/MapTransfer" unique_id=1949719031]
 script = ExtResource("21_debug_area")
 
 [node name="Markers" type="Node3D" parent="Upscale/World/Map" unique_id=1341055121]
