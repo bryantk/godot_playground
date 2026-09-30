@@ -14,8 +14,8 @@
 			"graph": [
 				{"id": "start", "command": "start", "args": {"page_entry": true},
 					"outputs": [{"flow": "action", "target": "n1"}]},
-				{"id": "n1", "command": "step", "args": {"direction": "e"},
-					"outputs": [{"flow": "next", "target": "n2"}]},
+				{"id": "n1", "command": "move_by", "args": {"cells": [1, 0, 0]},
+					"outputs": [{"flow": "reached", "target": "n2"}, {"flow": "immediate", "target": ""}]},
 				{"id": "n2", "command": "set_flag", "args": {"flag": "fired_step_in_place"},
 					"outputs": []}
 			]

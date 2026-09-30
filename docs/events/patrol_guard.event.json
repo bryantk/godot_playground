@@ -10,6 +10,7 @@
 			"through": false,
 			"through_terrain": false,
 			"step_in_place": false,
+			"lock_animation": false,
 			"lock_player": false,
 			"route": [],
 			"graph": [
@@ -62,14 +63,17 @@
 							0.0,
 							4.0
 						],
-						"path": "line",
 						"speed": 0.22
 					},
 					"blocking": true,
 					"outputs": [
 						{
-							"flow": "next",
+							"flow": "reached",
 							"target": "n3"
+						},
+						{
+							"flow": "immediate",
+							"target": ""
 						}
 					]
 				},
@@ -106,14 +110,17 @@
 							0.0,
 							4.0
 						],
-						"path": "line",
 						"speed": 0.22
 					},
 					"blocking": true,
 					"outputs": [
 						{
-							"flow": "next",
+							"flow": "reached",
 							"target": "n5"
+						},
+						{
+							"flow": "immediate",
+							"target": ""
 						}
 					]
 				},

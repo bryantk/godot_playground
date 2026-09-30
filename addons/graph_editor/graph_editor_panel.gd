@@ -35,7 +35,7 @@ const METADATA_PATH_KEY := "last_file"
 ## dropdown's [signal PopupMenu.id_pressed] handler can [code]match[/code] on them
 ## directly instead of comparing against the label text.
 enum FileAction { NEW, OPEN, RELOAD, SAVE, RENAME }
-enum GraphAction { ADD_COMMAND, ARRANGE, VALIDATE, VIEW_JSON }
+enum GraphAction { ADD_COMMAND, GOTO_START, VALIDATE, VIEW_JSON }
 enum ActorAction { LOAD_EVENT, DELETE_ACTOR, FIND_ORPHANS }
 enum PageAction { ADD, DUPLICATE, DELETE, MOVE_FRONT, MOVE_BACK }
 
@@ -105,6 +105,10 @@ var _title: Label
 var _page_selector: OptionButton
 var _results: ItemList
 var _status: Label
+## Bottom-right readout over the graph - total node count, or how many are selected
+## once any are. Kept separate from [member _status], which is a transient log line
+## rather than a running total.
+var _node_count_label: Label
 ## The File dropdown - kept, unlike the others, because [method _refresh_title]
 ## enables and disables its Save and Reload items.
 var _file_menu: MenuButton
@@ -140,13 +144,26 @@ var _reveal_frame_picker: Callable
 ## everywhere they appear. Rebuilt on every page load rather than populated once - see
 ## [method _refresh_speed_option].
 var _speed_option: OptionButton
-## The four actor flags a page carries as siblings of art/conditions - lock_facing,
-## through, through_terrain and step_in_place, applied to GameEvent's own actor (or, for
-## step_in_place, its view) on activation.
+## The five actor flags a page carries as siblings of art/conditions - lock_facing,
+## through, through_terrain, step_in_place and lock_animation, applied to GameEvent's
+## own actor (or, for step_in_place/lock_animation, its view) on activation.
 var _lock_facing_check: CheckBox
 var _through_check: CheckBox
 var _through_terrain_check: CheckBox
 var _step_in_place_check: CheckBox
+var _lock_animation_check: CheckBox
+## The page's own animation_speed, as a dropdown of the same named presets a move
+## command's own "animation_speed" argument offers (see [method
+## EventGraphNode.animation_speed_preset_names]) - unlike [member _speed_option], this
+## one also offers "(unset)": a page's animation_speed has no default at all (event_document.gd's
+## own note on it), so leaving it unset has to be a real, selectable choice here, not
+## just the absence of a field nothing shows. Rebuilt on every page load, the same
+## reason [member _speed_option] is - see [method _refresh_animation_speed_option].
+var _animation_speed_option: OptionButton
+
+## The page's [code]color[/code] tint - see [method _on_page_color_changed]. Reset writes
+## nothing at all (the key is absent), which is "leave the actor's tint alone".
+var _color_picker: ColorPickerButton
 ## lock_player is a fifth actor flag, but on a different lifecycle from the other
 ## four - see event_document.gd's own note on it - so it is kept in its own variable
 ## rather than folded into the comment above about siblings of art/conditions.
@@ -179,6 +196,16 @@ var _orphan_list: ItemList
 var _rename_dialog: ConfirmationDialog
 var _rename_field: LineEdit
 
+## Whichever node is currently selected in the Scene dock, watched for [signal
+## Node.renamed] - see [method _on_editor_selection_changed] and [method
+## _on_watched_node_renamed]. Tracked so the old watch can be dropped the moment
+## selection moves on, rather than piling up a listener per node ever selected.
+var _watched_node: Node = null
+
+## The Clone/Delete menu a right-click on a node opens - see [method _show_node_menu].
+## Built on first use.
+var _node_menu: PopupMenu
+
 ## What [method _on_orphan_dialog_confirmed] archives - set by
 ## [method _on_find_orphaned_events] just before the dialog pops up, since a
 ## [ConfirmationDialog]'s [signal confirmed] carries no argument of its own.
@@ -191,6 +218,10 @@ func _ready() -> void:
 	if not mouse_entered.is_connected(_on_mouse_entered):
 		mouse_entered.connect(_on_mouse_entered)
 		mouse_exited.connect(_on_mouse_exited)
+
+	var selection := EditorInterface.get_selection()
+	if not selection.selection_changed.is_connected(_on_editor_selection_changed):
+		selection.selection_changed.connect(_on_editor_selection_changed)
 
 	if not _bind():
 		# Reloaded into a panel that is already up - its graph is still on screen.
@@ -255,7 +286,8 @@ func _bind() -> bool:
 	_title = get_node_or_null(^"Toolbar/Title") as Label
 	_page_selector = get_node_or_null(^"Toolbar/PageSelector") as OptionButton
 	_results = get_node_or_null(^"Results") as ItemList
-	_status = get_node_or_null(^"Status") as Label
+	_status = get_node_or_null(^"StatusBar/Status") as Label
+	_node_count_label = get_node_or_null(^"StatusBar/NodeCount") as Label
 	_file_menu = get_node_or_null(^"Toolbar/File") as MenuButton
 	_save_icon_button = get_node_or_null(^"Toolbar/SaveIcon") as Button
 	_file_dialog = get_node_or_null(^"FileDialog") as EditorFileDialog
@@ -278,6 +310,12 @@ func _bind() -> bool:
 		^"Body/PageInspector/PageInspectorBox/ThroughTerrain") as CheckBox
 	_step_in_place_check = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/StepInPlace") as CheckBox
+	_lock_animation_check = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/LockAnimation") as CheckBox
+	_animation_speed_option = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/AnimationSpeed") as OptionButton
+	_color_picker = get_node_or_null(
+		^"Body/PageInspector/PageInspectorBox/ColorRow/Color") as ColorPickerButton
 	_lock_player_check = get_node_or_null(
 		^"Body/PageInspector/PageInspectorBox/LockPlayer") as CheckBox
 	_conditions_list = get_node_or_null(
@@ -376,10 +414,9 @@ func _build_ui() -> void:
 
 	toolbar.add_child(_make_menu_button("Graph", [
 		[GraphAction.ADD_COMMAND, "Add Command"],
-		[GraphAction.ARRANGE, "Arrange"],
+		[GraphAction.GOTO_START, "Goto Start"],
 		[GraphAction.VALIDATE, "Validate"],
-		[GraphAction.VIEW_JSON, "View JSON"],
-	], _on_graph_menu_id_pressed))
+		[GraphAction.VIEW_JSON, "View JSON"],	], _on_graph_menu_id_pressed))
 
 	toolbar.add_child(_make_menu_button("Actor", [
 		[ActorAction.LOAD_EVENT, "Load Actor Event"],
@@ -415,6 +452,12 @@ func _build_ui() -> void:
 	# Dragging a node is an edit like any other, but it arrives once per drag rather
 	# than once per pixel, so it is cheap to mark dirty on.
 	_graph.end_node_move.connect(_mark_dirty)
+	# The node-count readout tracks both how many nodes there are and how many are
+	# selected, so it needs to hear about additions/removals as well as selection.
+	_graph.node_selected.connect(_update_node_count)
+	_graph.node_deselected.connect(_update_node_count)
+	_graph.child_entered_tree.connect(_update_node_count)
+	_graph.child_exiting_tree.connect(_update_node_count)
 
 	# Every output may land on an input, which is the only thing type 0 is used for.
 	_graph.add_valid_connection_type(Doc.FLOW_SLOT_TYPE, 0)
@@ -432,11 +475,24 @@ func _build_ui() -> void:
 	_results.item_selected.connect(_on_result_selected)
 	add_child(_results)
 
+	var status_bar := HBoxContainer.new()
+	status_bar.name = "StatusBar"
+	add_child(status_bar)
+
 	_status = Label.new()
 	_status.name = "Status"
 	_status.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_status.mouse_filter = Control.MOUSE_FILTER_PASS
-	add_child(_status)
+	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_bar.add_child(_status)
+
+	# Right of the status line rather than overlaid on the graph - a running total
+	# that reads alongside "N page(s), N node(s) loaded" rather than floating over
+	# whatever the author is looking at on the canvas.
+	_node_count_label = Label.new()
+	_node_count_label.name = "NodeCount"
+	_node_count_label.mouse_filter = Control.MOUSE_FILTER_PASS
+	status_bar.add_child(_node_count_label)
 
 	_file_dialog = EditorFileDialog.new()
 	_file_dialog.name = "FileDialog"
@@ -535,6 +591,27 @@ func _build_page_inspector() -> Control:
 	_speed_option.item_selected.connect(_on_speed_selected)
 	box.add_child(_speed_option)
 
+	box.add_child(_section_label("Animation Speed"))
+	_animation_speed_option = OptionButton.new()
+	_animation_speed_option.name = "AnimationSpeed"
+	_animation_speed_option.tooltip_text = "The page's animation_speed - how fast the walk-cycle animation plays while this page is active. Unset means \"leave whatever pace is already playing alone.\""
+	_animation_speed_option.item_selected.connect(_on_animation_speed_selected)
+	box.add_child(_animation_speed_option)
+
+	box.add_child(_section_label("Color"))
+	var color_row := HBoxContainer.new()
+	color_row.name = "ColorRow"
+	box.add_child(color_row)
+
+	_color_picker = ColorPickerButton.new()
+	_color_picker.name = "Color"
+	_color_picker.edit_alpha = true
+	_color_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_color_picker.tooltip_text = "The page's color - tints the actor's art while this page is active, so an event can start colored. Reset leaves the actor's tint alone."
+	_color_picker.color_changed.connect(_on_page_color_changed)
+	color_row.add_child(_color_picker)
+	color_row.add_child(_make_button("Reset", _on_page_color_reset))
+
 	box.add_child(_section_label("Actor"))
 
 	_lock_facing_check = CheckBox.new()
@@ -564,6 +641,13 @@ func _build_page_inspector() -> Control:
 	_step_in_place_check.tooltip_text = "The page's step_in_place - the walk-cycle animation keeps running while this actor stands still, instead of freezing between steps."
 	_step_in_place_check.toggled.connect(_on_step_in_place_toggled)
 	box.add_child(_step_in_place_check)
+
+	_lock_animation_check = CheckBox.new()
+	_lock_animation_check.name = "LockAnimation"
+	_lock_animation_check.text = "Lock animation"
+	_lock_animation_check.tooltip_text = "The page's lock_animation - freezes the walk-cycle animation outright, independent of which frame a picked pose (Pick Frame) happens to show."
+	_lock_animation_check.toggled.connect(_on_lock_animation_toggled)
+	box.add_child(_lock_animation_check)
 
 	_lock_player_check = CheckBox.new()
 	_lock_player_check.name = "LockPlayer"
@@ -635,11 +719,16 @@ func _load_page_inspector(index: int) -> void:
 
 	var settings: Dictionary = page.get("settings", {})
 	_refresh_speed_option(float(settings.get("speed", EventGraphNode.normal_speed())))
+	_refresh_animation_speed_option(page.get("animation_speed"))
+
+	var page_color := str(page.get("color", ""))
+	_color_picker.color = Color.html(page_color) if Color.html_is_valid(page_color) else Color.WHITE
 
 	_lock_facing_check.set_pressed_no_signal(bool(page.get("lock_facing", false)))
 	_through_check.set_pressed_no_signal(bool(page.get("through", false)))
 	_through_terrain_check.set_pressed_no_signal(bool(page.get("through_terrain", false)))
 	_step_in_place_check.set_pressed_no_signal(bool(page.get("step_in_place", false)))
+	_lock_animation_check.set_pressed_no_signal(bool(page.get("lock_animation", false)))
 	_lock_player_check.set_pressed_no_signal(bool(page.get("lock_player", true)))
 
 	_refresh_conditions()
@@ -785,10 +874,65 @@ func _on_speed_selected(index: int) -> void:
 	settings["speed"] = EventGraphNode.speed_preset_value(preset_name)
 	_mark_dirty()
 
-## The four below write straight into the page dictionary, not settings - lock_facing/
-## through/through_terrain/lock_player are siblings of art and conditions, not settings,
-## even though lock_player (unlike the other three) describes one triggered run rather
-## than the whole time the page is active - see event_document.gd's own note on it.
+## Rebuilds [member _animation_speed_option]'s items around [param value] - [code]null[/code]
+## for "unset" (event_document.gd's own note on why a page's animation_speed has no
+## default), a [float]/[int] for an authored one, synthesizing a "Custom (N)" entry the
+## same way [method _refresh_speed_option] does for a hand-typed value matching none of
+## [EventGraphNode]'s named presets. Unlike that one, this always offers "(unset)" -
+## there is no "Normal" fallback to land on when nothing is authored, only leaving the
+## actor's current pace alone.
+func _refresh_animation_speed_option(value: Variant) -> void:
+	_animation_speed_option.clear()
+	_animation_speed_option.add_item("(unset)")
+
+	var authored := value is float or value is int
+	var matched := -1
+	for preset_name in EventGraphNode.animation_speed_preset_names():
+		_animation_speed_option.add_item(str(preset_name))
+		if authored and is_equal_approx(float(value), EventGraphNode.animation_speed_preset_value(preset_name)):
+			matched = _animation_speed_option.item_count - 1
+
+	if authored and matched < 0:
+		_animation_speed_option.add_item("Custom (%s)" % str(value))
+		matched = _animation_speed_option.item_count - 1
+	_animation_speed_option.select(matched if matched >= 0 else 0)
+
+func _on_animation_speed_selected(index: int) -> void:
+	if not _live():
+		return
+
+	var text := _animation_speed_option.get_item_text(index)
+	if text == "(unset)":
+		_current_page_dict().erase("animation_speed")
+	elif EventGraphNode.has_animation_speed_preset(text):
+		_current_page_dict()["animation_speed"] = EventGraphNode.animation_speed_preset_value(text)
+	# Else the synthesized "Custom (...)" entry - nothing new to write.
+	_mark_dirty()
+
+func _on_page_color_changed(color: Color) -> void:
+	if not _live():
+		return
+	_current_page_dict()["color"] = color.to_html()
+	_mark_dirty()
+
+func _on_page_color_reset() -> void:
+	if not _live():
+		return
+	_current_page_dict().erase("color")
+	_color_picker.color = Color.WHITE
+	_mark_dirty()
+
+func _on_lock_animation_toggled(pressed: bool) -> void:
+	if not _live():
+		return
+	_current_page_dict()["lock_animation"] = pressed
+	_mark_dirty()
+
+## The five below write straight into the page dictionary, not settings - lock_facing/
+## through/through_terrain/lock_animation/lock_player are siblings of art and
+## conditions, not settings, even though lock_player (unlike the other four) describes
+## one triggered run rather than the whole time the page is active - see
+## event_document.gd's own note on it.
 func _on_lock_facing_toggled(pressed: bool) -> void:
 	if not _live():
 		return
@@ -1271,7 +1415,107 @@ func _on_command_picked(index: int) -> void:
 func _make_graph_node(node: Dictionary) -> EventGraphNode:
 	var graph_node := EventGraphNode.create(node)
 	graph_node.changed.connect(_mark_dirty)
+	graph_node.gui_input.connect(_on_graph_node_gui_input.bind(graph_node))
+	graph_node.pick_cell_requested.connect(_on_pick_cell_requested)
 	return graph_node
+
+# --- Cell picking -------------------------------------------------------------
+
+## Waiting for a click in the scene viewport to fill in a cell argument - set by a node's
+## "Pick" button, answered by [method complete_pick] (called from the plugin's viewport
+## input hooks) or dropped by [method cancel_pick].
+var _pick_node: EventGraphNode = null
+var _pick_key := ""
+
+func _on_pick_cell_requested(graph_node: EventGraphNode, key: String) -> void:
+	_pick_node = graph_node
+	_pick_key = key
+	_set_status("Click a cell in the scene viewport (Esc cancels).", _muted_color())
+
+func is_picking() -> bool:
+	return is_instance_valid(_pick_node)
+
+func cancel_pick() -> void:
+	if is_picking():
+		_set_status("Pick cancelled.", _muted_color())
+	_pick_node = null
+	_pick_key = ""
+
+## Writes the cell containing [param world] (a position on the ground plane, in the edited
+## map's own units) into the argument a "Pick" button asked for. Uses the edited scene's
+## [MapContext] for its cell size; without one the click cannot be turned into a cell.
+func complete_pick(world: Vector3) -> void:
+	if not is_picking():
+		return
+	var map := _find_map_context(EditorInterface.get_edited_scene_root())
+	if map == null:
+		_set_status("No MapContext in the edited scene to read the cell size from.",
+			_status_color(false))
+		cancel_pick()
+		return
+	var cell := map.cell_of(world)
+	_pick_node.set_cell_arg(_pick_key, cell)
+	_set_status("Picked cell %d, %d, %d." % [cell.x, cell.y, cell.z], _status_color(true))
+	_pick_node = null
+	_pick_key = ""
+
+func _find_map_context(node: Node) -> MapContext:
+	if node == null:
+		return null
+	if node is MapContext:
+		return node as MapContext
+	for child in node.get_children():
+		var found := _find_map_context(child)
+		if found != null:
+			return found
+	return null
+
+## Right-click on a node - its own Clone/Delete menu, rather than the canvas's "new
+## node" picker.
+func _on_graph_node_gui_input(event: InputEvent, graph_node: GraphNode) -> void:
+	var click := event as InputEventMouseButton
+	if click == null or click.button_index != MOUSE_BUTTON_RIGHT or not click.pressed:
+		return
+	graph_node.accept_event()
+	_show_node_menu(graph_node)
+
+## Clone or delete the right-clicked node - or the whole selection, if it is part of one.
+## A right-click on an unselected node selects just that node first, the way file managers
+## do. The start node can be neither cloned nor deleted (see [method
+## _on_duplicate_nodes_request] and [method _on_delete_nodes_request]), so both items are
+## greyed out for it.
+func _show_node_menu(graph_node: GraphNode) -> void:
+	if not _live():
+		return
+
+	if not graph_node.selected:
+		for other in _graph_nodes():
+			other.selected = false
+		graph_node.selected = true
+
+	if not is_instance_valid(_node_menu):
+		_node_menu = PopupMenu.new()
+		_node_menu.name = "NodeMenu"
+		_node_menu.add_item("Clone", 0)
+		_node_menu.add_item("Delete", 1)
+		_node_menu.id_pressed.connect(_on_node_menu_id_pressed)
+		add_child(_node_menu)
+
+	var is_start := _is_start_node(graph_node)
+	_node_menu.set_item_disabled(0, is_start)
+	_node_menu.set_item_disabled(1, is_start)
+	_node_menu.popup(Rect2i(Vector2i(get_global_mouse_position()), Vector2i.ZERO))
+
+func _on_node_menu_id_pressed(id: int) -> void:
+	if id == 0:
+		_on_duplicate_nodes_request()
+		return
+
+	var names: Array[StringName] = []
+	for graph_node in _graph_nodes():
+		if graph_node.selected:
+			names.append(graph_node.name)
+	_on_delete_nodes_request(names)
 
 # --- Reading the graph back ---------------------------------------------------
 
@@ -1340,10 +1584,15 @@ func _used_ids() -> Dictionary:
 func _default_args_for(command: String) -> Dictionary:
 	match command:
 		"move_by":
-			# North, one step, at EventGraphNode's own "Normal" speed preset - a step
-			# in some direction at some speed is the whole shape of this command, so
-			# it opens already saying one instead of empty.
-			return {"cells": [0, 0, -1], "speed": EventGraphNode.normal_speed()}
+			# North, one step - a direction is the whole shape of this command, so it
+			# opens already saying one instead of empty. "speed" is left unset on
+			# purpose: unset means "whatever this actor already moves at" (question 42,
+			# MotionController's own speed export), not a hardcoded preset silently
+			# overriding it the moment a node is spawned.
+			return {"cells": [0, 0, -1]}
+		"set_color":
+			# Opens on what the picker already shows, so an untouched node is valid.
+			return {"color": "#ffffffff"}
 		_:
 			return {}
 
@@ -1729,6 +1978,13 @@ func _on_popup_request(at_position: Vector2) -> void:
 	if not _live():
 		return
 
+	# Over a node (when the click reached the canvas rather than the node's own handler),
+	# the node menu wins over the picker.
+	for graph_node in _graph_nodes():
+		if graph_node.get_global_rect().has_point(get_global_mouse_position()):
+			_show_node_menu(graph_node)
+			return
+
 	# at_position is in the control's own space; the offset and zoom turn it back
 	# into graph coordinates, same conversion [method _spawn_node]'s own default
 	# position already does for [constant ADD_POSITION].
@@ -1739,20 +1995,16 @@ func _on_popup_request(at_position: Vector2) -> void:
 	_command_picker.popup(Rect2i(Vector2i(get_global_mouse_position()), Vector2i(320, 320)))
 	_command_search.grab_focus.call_deferred()
 
-## Lays the nodes out in a grid, in document order. A way back from a graph that has
-## been dragged into a pile, or from a hand-written file where nothing has a position.
-func _arrange() -> void:
+## Centres the view on the start node - a quick way back from a graph that has been
+## scrolled or zoomed away from it, without hunting for the one node every graph has.
+func _goto_start() -> void:
 	if not _live():
 		return
 
-	var columns := maxi(1, int(ceil(sqrt(float(_graph_nodes().size())))))
-	var index := 0
 	for graph_node in _graph_nodes():
-		graph_node.position_offset = ADD_POSITION + Vector2(
-			(index % columns) * 260.0, (index / columns) * 180.0)
-		index += 1
-
-	_mark_dirty()
+		if _is_start_node(graph_node):
+			_center_on_node(graph_node)
+			return
 
 # --- Document -----------------------------------------------------------------
 
@@ -2197,6 +2449,123 @@ func _on_rename_dialog_confirmed() -> void:
 	_set_status("Renamed to %s.%s" % [new_path,
 		"" if updated == 0 else " Updated %d reference(s)." % updated], _status_color(true))
 
+## Keeps [member _watched_node] pointed at whatever the Scene dock currently has
+## selected, so a rename typed there (F2, or double-click on the node's row) is heard
+## the moment it happens - see [method _on_watched_node_renamed]. One node at a time:
+## selecting something else drops the old watch rather than accumulating one per node
+## ever clicked.
+func _on_editor_selection_changed() -> void:
+	var selection := EditorInterface.get_selection().get_selected_nodes()
+	var node: Node = selection[0] if not selection.is_empty() else null
+	if node == _watched_node:
+		return
+
+	if is_instance_valid(_watched_node) and _watched_node.renamed.is_connected(_on_watched_node_renamed):
+		_watched_node.renamed.disconnect(_on_watched_node_renamed)
+
+	_watched_node = node
+	if is_instance_valid(_watched_node):
+		_watched_node.renamed.connect(_on_watched_node_renamed)
+
+## The other direction from [method _on_rename_dialog_confirmed]: there, an author types
+## a new name and the file follows it; here, an author renames the placement itself (the
+## normal way, in the Scene dock) and the file follows *that* instead, with no dialog to
+## go through. Fires on [signal Node.renamed], by which point [member _watched_node]'s
+## own name already reads as the new one - exactly the string a fresh file for this
+## placement would be named after (see [method _identity_for]), so there is nothing left
+## to compute except where the old file already is.
+func _on_watched_node_renamed() -> void:
+	if not is_instance_valid(_watched_node):
+		return
+
+	var event := _event_near(_watched_node)
+	if event == null:
+		return
+
+	var old_path := event.document_path
+	if old_path == "" or not FileAccess.file_exists(old_path):
+		return
+
+	# Carries the current buffer's edits into the moved file, same precaution [method
+	# _on_rename_dialog_confirmed] takes - only relevant when this happens to be the
+	# file open in the panel right now.
+	if _path == old_path and _dirty:
+		_save()
+
+	var new_path := _sync_event_path_to_name(event)
+	if new_path == "" or new_path == old_path:
+		return
+
+	if _path == old_path:
+		_path = new_path
+		_remember_path()
+		_refresh_title()
+		_set_status("Renamed to %s to match." % new_path, _status_color(true))
+
+## The name the placement [param event] belongs to, lower-cased: its parent (the
+## placement root), else the event node's own name. The placement's name, not its
+## [member Actor.actor_id], is what decides which file it loads.
+func _placement_name(event: GameEvent) -> String:
+	var parent := event.get_parent()
+	return (String(parent.name) if parent != null else String(event.name)).to_lower()
+
+## Makes [param event]'s [member GameEvent.document_path] follow its name: the file is
+## [code]<name>.event.json[/code] beside where it already is (or in the map's folder if
+## it has none yet). If that file already exists the placement simply adopts it;
+## otherwise the old file is copied there when another placement still uses it (a
+## duplicate), or moved when this placement was its only user. Returns the resulting
+## path, or "" if nothing could be done. Only flags the scene as modified - never saves
+## it, which crashed the editor from inside a Scene-dock rename.
+func _sync_event_path_to_name(event: GameEvent) -> String:
+	var old_path := event.document_path
+	var dir := old_path.get_base_dir() if old_path != "" \
+		else _map_event_dir(EditorInterface.get_edited_scene_root())
+	var new_path := dir.path_join(_placement_name(event) + ".event.json")
+	if new_path == old_path:
+		return old_path
+
+	if FileAccess.file_exists(new_path):
+		print("Graph editor: %s adopts the existing %s, named for it." % [
+			_placement_name(event), new_path])
+	elif old_path != "" and FileAccess.file_exists(old_path):
+		var scene_root := EditorInterface.get_edited_scene_root()
+		var shared := scene_root != null and _count_document_path_refs(scene_root, old_path) > 1
+		var error := (DirAccess.copy_absolute(old_path, new_path) if shared
+			else DirAccess.rename_absolute(old_path, new_path))
+		if error != OK:
+			push_warning("Graph editor: could not move %s to %s to match its placement name: %s" % [
+				old_path, new_path, error_string(error)])
+			return ""
+		print("Graph editor: %s %s to %s to match its placement name." % [
+			"copied" if shared else "moved", old_path, new_path])
+		EditorInterface.get_resource_filesystem().update_file(old_path)
+		EditorInterface.get_resource_filesystem().update_file(new_path)
+
+	event.document_path = new_path
+	EditorInterface.mark_scene_as_unsaved()
+	return new_path
+
+## The [GameEvent] a Scene-dock rename of [param node] means: under it if it is the
+## placement root (or the event itself), otherwise a sibling reached through its parent -
+## the same two shapes [method _sibling_game_event] and [method _first_game_event_under]
+## already cover individually, combined here since a rename could land on either the
+## placement root, the [GameEvent] child, or another sibling like [Actor].
+func _event_near(node: Node) -> GameEvent:
+	if node == null:
+		return null
+	var under := _first_game_event_under(node)
+	if under != null:
+		return under
+	var parent := node.get_parent()
+	return _first_game_event_under(parent) if parent != null else null
+
+## How many [GameEvent]s under [param node] point at [param path].
+func _count_document_path_refs(node: Node, path: String) -> int:
+	var count := 1 if node is GameEvent and (node as GameEvent).document_path == path else 0
+	for child in node.get_children():
+		count += _count_document_path_refs(child, path)
+	return count
+
 ## Every [GameEvent] under [param node] whose own [member GameEvent.document_path] is
 ## [param old_path], repointed to [param new_path] - [method _find_game_event_with_path]
 ## generalized to every match rather than the first, since a rename must not leave any
@@ -2297,8 +2666,34 @@ func _on_result_selected(index: int) -> void:
 
 	# Centre the offending node rather than only highlighting it - on a graph wider
 	# than the panel it may well be off screen.
+	_center_on_node(graph_node)
+
+## Scrolls the graph so [param graph_node] sits in the middle of the panel - on a graph
+## wider than the panel, the node in question may well be off screen otherwise.
+func _center_on_node(graph_node: GraphNode) -> void:
 	_graph.scroll_offset = graph_node.position_offset * _graph.zoom \
 		- (_graph.size - graph_node.size * _graph.zoom) * 0.5
+
+## Keeps [member _node_count_label] in step with the graph - the total node count
+## normally, or how many are selected once any are, since that is the more useful
+## number while an author is mid-selection. [param _node] is whichever [GraphEdit]
+## signal fired ([signal GraphEdit.node_selected], [signal Node.child_entered_tree],
+## etc.) - unused, since every one of them means "recount".
+func _update_node_count(_node: Node = null) -> void:
+	if not is_instance_valid(_node_count_label):
+		return
+
+	var total := 0
+	var selected := 0
+	for graph_node in _graph_nodes():
+		total += 1
+		if graph_node.selected:
+			selected += 1
+
+	if selected > 0:
+		_node_count_label.text = "%d selected" % selected
+	else:
+		_node_count_label.text = "%d nodes" % total
 
 # --- Toolbar dropdowns ---------------------------------------------------------
 
@@ -2313,10 +2708,9 @@ func _on_file_menu_id_pressed(id: int) -> void:
 func _on_graph_menu_id_pressed(id: int) -> void:
 	match id:
 		GraphAction.ADD_COMMAND: _open_command_picker()
-		GraphAction.ARRANGE: _arrange()
+		GraphAction.GOTO_START: _goto_start()
 		GraphAction.VALIDATE: _validate()
 		GraphAction.VIEW_JSON: _view_json()
-
 func _on_actor_menu_id_pressed(id: int) -> void:
 	match id:
 		ActorAction.LOAD_EVENT: _on_load_actor_event()
@@ -2376,7 +2770,7 @@ static func _first_game_event_under(node: Node) -> GameEvent:
 func _map_event_dir(map_root: Node) -> String:
 	var scene_path := map_root.scene_file_path if map_root != null else ""
 	var map_id := scene_path.get_file().get_basename() if scene_path != "" else "map"
-	return "res://events/%s" % map_id
+	return "res://code/events/%s" % map_id
 
 ## Where a newly-linked actor's or event's file goes, under [method _map_event_dir].
 ## [param event_id] names the file - [member Actor.actor_id] (falling back to the node
@@ -2540,11 +2934,13 @@ func open_or_create_game_event(event: GameEvent) -> void:
 	if not _live() or event == null:
 		return
 
-	if event.document_path == "":
-		event.document_path = _default_event_path(_identity_for(event))
-		_save_scene()
+	# The placement's name decides the file - a duplicate still pointing at its source's
+	# json gets its own (or adopts the one already named for it) before it opens.
+	var path := _sync_event_path_to_name(event)
+	if path == "":
+		path = event.document_path
 
-	_open_or_create(event.document_path)
+	_open_or_create(path)
 
 ## Persists the scene immediately rather than only flagging it unsaved - a brand new
 ## [GameEvent] node or a freshly wired [member GameEvent.document_path] is easy to

@@ -27,6 +27,8 @@ func _ready() -> void:
 	_test_bare_array_is_one_page()
 	_test_page_repair()
 	_test_actor_flags()
+	_test_lock_animation_and_animation_speed()
+	_test_page_color()
 	_test_active_page()
 	_test_unreachable_warning()
 	_test_round_trip()
@@ -232,6 +234,67 @@ func _test_actor_flags() -> void:
 	_eq(out_page["lock_facing"], true, "stringify carries lock_facing through")
 	_eq(out_page["through"], true, "  ...")
 	_eq(out_page["through_terrain"], true, "  ...")
+
+
+# -- lock_animation / animation_speed ----------------------------------------------
+
+## [code]lock_animation[/code] is a fifth always-explicit actor flag, the same shape as
+## [code]lock_facing[/code] above. [code]animation_speed[/code] is the odd one out: no
+## default at all, unlike every other page field here, since "unset" has to mean
+## "leave whatever pace is already playing alone" (see [method GameEvent._apply_actor_flags]),
+## not "Normal" or any other resolved value.
+func _test_lock_animation_and_animation_speed() -> void:
+	_section("lock_animation / animation_speed -- a lock (always explicit) and an unset-by-default pace")
+
+	_eq(EventDocument.default_page()["lock_animation"], false, "default page: lock_animation false")
+	_ok(not EventDocument.default_page().has("animation_speed"),
+		"default page: animation_speed is absent, not defaulted to anything")
+
+	var doc := EventDocument.parse(JSON.stringify({
+		"pages": [{"lock_animation": true, "animation_speed": 1.5}, {}],
+	}))
+	var page: Dictionary = doc["pages"][0]
+	_eq(page["lock_animation"], true, "an authored true parses through")
+	_eq(page["animation_speed"], 1.5, "and an authored number parses through")
+
+	var page2: Dictionary = doc["pages"][1]
+	_eq(page2["lock_animation"], false, "a page that omits lock_animation normalizes to false")
+	_ok(not page2.has("animation_speed"), "but one that omits animation_speed stays absent, not 1.0")
+
+	var bad := EventDocument.parse(JSON.stringify({
+		"pages": [{"lock_animation": "yes", "animation_speed": "fast"}],
+	}))
+	var bad_page: Dictionary = bad["pages"][0]
+	_eq(bad_page["lock_animation"], false, "a non-bool lock_animation repairs to false")
+	_eq(bad_page["animation_speed"], 1.0, "a non-number animation_speed repairs to 1.0 (still authored, just wrong)")
+	_ok((bad["problems"] as Array).size() >= 2, "and each one is reported")
+
+	var out: Variant = JSON.parse_string(EventDocument.stringify(doc))
+	var out_page: Dictionary = out["pages"][0]
+	_eq(out_page["lock_animation"], true, "stringify carries lock_animation through")
+	_eq(out_page["animation_speed"], 1.5, "  ...and animation_speed")
+	_ok(not (out["pages"][1] as Dictionary).has("animation_speed"),
+		"a page that never authored animation_speed still has none after a round trip")
+
+
+func _test_page_color() -> void:
+	_section("color -- optional page tint, absent unless authored, invalid values reported")
+
+	_ok(not EventDocument.default_page().has("color"), "default page: color is absent")
+
+	var doc := EventDocument.parse(JSON.stringify({
+		"pages": [{"color": "#ff8800cc"}, {}],
+	}))
+	_eq((doc["pages"][0] as Dictionary)["color"], "#ff8800cc", "an authored colour parses through")
+	_ok(not (doc["pages"][1] as Dictionary).has("color"), "a page that omits it stays absent")
+
+	var bad := EventDocument.parse(JSON.stringify({"pages": [{"color": "not a colour"}]}))
+	_ok(not (bad["pages"][0] as Dictionary).has("color"), "an invalid colour is dropped")
+	_ok((bad["problems"] as Array).size() >= 1, "and reported")
+
+	var out: Variant = JSON.parse_string(EventDocument.stringify(doc))
+	_eq((out["pages"][0] as Dictionary)["color"], "#ff8800cc", "stringify carries it through")
+	_ok(not (out["pages"][1] as Dictionary).has("color"), "and an unset one stays unset")
 
 
 # -- Page selection --------------------------------------------------------------

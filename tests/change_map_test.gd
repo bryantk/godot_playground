@@ -26,6 +26,9 @@ func _ready() -> void:
 	await _test_change_map_by_cell()
 	await _test_change_map_marker()
 	_test_marker_lookup()
+	await _test_change_map_pauses_background_processing_until_ready()
+	await _test_change_map_fades_collapse_under_fast_forward()
+	await _test_change_map_from_a_live_game_event_does_not_strand_cutscene()
 
 	print("")
 	print("  %d passed, %d failed" % [_passed, _failed])
@@ -63,6 +66,14 @@ func _test_change_map_by_cell() -> void:
 	var ctx_before: MapContext = get_tree().get_first_node_in_group(&"map_context")
 	_ok(ctx_before != null, "the jrpg demo registered its own MapContext first")
 
+	# A cutscene left the camera on an NPC before this transfer fired - the case
+	# EventBus.map_arrived (event_bus.gd)/CameraRig._on_map_arrived exists for: that NPC
+	# has no equivalent on the destination map, and nothing should still be looking for it.
+	var rig_before := ctx_before.camera_rig() if ctx_before != null else null
+	if rig_before != null:
+		rig_before.follow(&"npc_8_12")
+		_eq(rig_before.target(), &"npc_8_12", "camera_follow put it on the NPC first")
+
 	var event_ctx := EventContext.for_event(ctx_before, &"jrpg_demo", &"test")
 	var nodes: Array[Dictionary] = [
 		{"id": "start", "command": "start", "args": {},
@@ -91,6 +102,14 @@ func _test_change_map_by_cell() -> void:
 	if player != null:
 		_eq(player.cell(), Vector3i(3, 0, 2), "placed at the authored cell")
 		_eq(player.facing(), Vector3i(1, 0, 0), "and facing the authored direction")
+
+	# EventBus.map_arrived (event_bus.gd) - CameraRig._on_map_arrived's own hook, fired
+	# right where the assertions above already confirm the map actually rebound.
+	var rig := new_ctx.camera_rig() if new_ctx != null else null
+	if rig != null and player != null:
+		_eq(rig.target(), player.actor_id,
+			"the destination's own camera rig is already following the player, not " +
+			"whatever the source map's camera happened to be pointed at")
 
 
 # -- change_map_marker, a named point in the destination scene -------------------------
@@ -151,6 +170,181 @@ func _test_marker_lookup() -> void:
 		"resolved_facing() reads the compass token")
 
 	root.free()
+
+
+# -- ModeStack.Mode.TRANSITION -- the exit/load/ready lifecycle -----------------------
+
+## Real EventScheduler.tick() calls throughout, not [method _pump]'s direct
+## [method EventRunner.tick] - the whole point is to prove [code]change_map[/code]
+## doesn't deadlock the very scheduler it needs to keep ticking it (see
+## [method EventScheduler.tick]'s own doc on why the exclusive runner is exempt from
+## [method ModeStack.pauses_physics]), and that background runners genuinely pause
+## for the transition rather than merely by coincidence.
+func _test_change_map_pauses_background_processing_until_ready() -> void:
+	_section("change_map -- ModeStack.Mode.TRANSITION pauses background processing, without deadlocking itself")
+	GameState.clear()
+	EventScheduler.reset()
+	ModeStack.reset()
+
+	await _load_current_scene(JRPG_SCENE)
+	var ctx_before: MapContext = get_tree().get_first_node_in_group(&"map_context")
+
+	# A background probe whose own wait (0.05s) is much shorter than the transition
+	# below (0.2s fade out + swap + 0.2s fade in) - if EventScheduler ever ticked it
+	# during the transition, it would finish and set its flag well before the
+	# transition itself does.
+	var bg_ctx := EventContext.for_event(ctx_before, &"jrpg_demo", &"bg_probe")
+	var bg_nodes: Array[Dictionary] = [
+		{"id": "start", "command": "start", "args": {},
+			"outputs": [{"flow": "next", "target": "w"}]},
+		{"id": "w", "command": "wait", "args": {"seconds": 0.05},
+			"outputs": [{"flow": "next", "target": "sf"}]},
+		{"id": "sf", "command": "set_flag", "args": {"flag": "bg_advanced"}, "outputs": []},
+	]
+	var bg_runner := EventRunner.new(bg_ctx)
+	EventScheduler.run_background(bg_runner, bg_nodes)
+	_ok(not bg_runner.finished, "background probe started, waiting on its own short timer")
+
+	var event_ctx := EventContext.for_event(ctx_before, &"jrpg_demo", &"test")
+	var nodes: Array[Dictionary] = [
+		{"id": "start", "command": "start", "args": {},
+			"outputs": [{"flow": "next", "target": "cm"}]},
+		{"id": "cm", "command": "change_map", "args": {
+			"map": ISO_GRID_SCENE, "cell": [3, 0, 2], "facing": [1, 0, 0],
+			"fade_out": 0.2, "fade_in": 0.2},
+			"outputs": [{"flow": "next", "target": ""}]},
+	]
+	var runner := EventRunner.new(event_ctx)
+	_ok(EventScheduler.run_exclusive(runner, nodes), "acquired the exclusive slot")
+	_ok(ModeStack.current() == ModeStack.Mode.TRANSITION,
+		"ModeStack.Mode.TRANSITION pushed the instant change_map's own start() ran")
+
+	# Real frames through the actual scheduler for the fade-out's own duration - well
+	# before the scene has even swapped.
+	var elapsed := 0.0
+	while elapsed < 0.15:
+		await get_tree().process_frame
+		EventScheduler.tick(get_process_delta_time())
+		elapsed += get_process_delta_time()
+	_ok(not runner.finished, "the transition itself is still going - not deadlocked")
+	_ok(not GameState.flag(&"bg_advanced"),
+		"the background probe made no progress mid-fade-out, though its own timer is shorter than this wait")
+
+	# The rest of the way through the scene swap and the fade-in.
+	var guard := 0
+	while EventScheduler.is_exclusive_held() and guard < 600:
+		await get_tree().process_frame
+		EventScheduler.tick(get_process_delta_time())
+		guard += 1
+	_ok(not EventScheduler.is_exclusive_held(), "the transition finished")
+	_ok(ModeStack.current() != ModeStack.Mode.TRANSITION,
+		"ModeStack.Mode.TRANSITION was popped again, not left stuck")
+
+	# A few more frames for the background probe's own short wait to resolve now that
+	# ticking has resumed.
+	for i in 10:
+		await get_tree().process_frame
+		EventScheduler.tick(get_process_delta_time())
+	_ok(GameState.flag(&"bg_advanced"),
+		"and the background probe finally advanced once processing resumed")
+
+	EventScheduler.reset()
+	ModeStack.reset()
+	GameState.clear()
+
+
+## A *real* [GameEvent], still parented under the map it is about to unload, driving
+## the transfer - not [method EventRunner.begin]/[method EventRunner.tick] called
+## directly the way every other test above does. That distinction is the whole point:
+## with no fade and nothing else queued, [method SceneTree.change_scene_to_file] (called
+## from inside [code]change_map_marker[/code]'s own [code]start()[/code]) tears down
+## this map - and the very [GameEvent] running this graph - before that [code]start()[/code]
+## call even returns. [method GameEvent._exit_tree] firing reentrantly right there used
+## to see [member EventRunner._Frame.exec] still null (not assigned until one statement
+## later) and stop this runner out from under its own still-running command, leaving
+## [constant ModeStack.Mode.CUTSCENE] (pushed by [method EventScheduler.run_exclusive])
+## stranded forever - the player locked out of moving on every map's own transfer point,
+## permanently, since nothing else was ever going to pop it.
+func _test_change_map_from_a_live_game_event_does_not_strand_cutscene() -> void:
+	_section("change_map_marker -- fired from a live GameEvent, ModeStack returns all the way to FIELD")
+	GameState.clear()
+	EventScheduler.reset()
+	ModeStack.reset()
+
+	await _load_current_scene(ISO_GRID_SCENE)
+	_ok(ModeStack.is_field(), "starts at FIELD")
+
+	var transfer_event := get_tree().current_scene.get_node(
+		"Upscale/World/Map/Actors/MapTransfer/GameEvent")
+	_ok(transfer_event != null, "the scene's own map-transfer GameEvent resolved")
+
+	# The same private entry point GameEvent._on_player_interacted calls for the
+	# "action" trigger - simulating the button press itself would need a live Input
+	# map this test has no business depending on.
+	transfer_event.call("_maybe_fire", &"action")
+
+	var guard := 0
+	while (EventScheduler.is_exclusive_held() or not ModeStack.is_field()) and guard < 600:
+		await get_tree().process_frame
+		EventScheduler.tick(get_process_delta_time())
+		guard += 1
+
+	_ok(not EventScheduler.is_exclusive_held(), "the transfer's own runner finished")
+	_ok(ModeStack.is_field(),
+		"and ModeStack.Mode.CUTSCENE came back off too - not stranded above FIELD forever")
+
+	var new_ctx: MapContext = get_tree().get_first_node_in_group(&"map_context")
+	_ok(new_ctx != null and new_ctx.map_id == &"isoish_demo", "landed on the destination map")
+
+	EventScheduler.reset()
+	ModeStack.reset()
+	GameState.clear()
+
+
+## The same fade_out/fade_in 0.2s each as the test above, but with [method
+## DebugFlags.is_fast_forward] held - [method ChangeMapBase.start]/[method
+## ChangeMapBase._begin_fade_in] read both as 0 while it is, so the whole transition
+## (fade out, scene swap, fade in) finishes within a handful of frames instead of
+## needing the 0.4s of real fade time alone the test above spends mid-transition.
+func _test_change_map_fades_collapse_under_fast_forward() -> void:
+	_section("change_map -- fade_out/fade_in collapse to one frame under DebugFlags.is_fast_forward")
+	GameState.clear()
+	EventScheduler.reset()
+	ModeStack.reset()
+	var was_forced := DebugFlags.force_fast_forward
+	DebugFlags.force_fast_forward = true
+
+	await _load_current_scene(JRPG_SCENE)
+	var ctx_before: MapContext = get_tree().get_first_node_in_group(&"map_context")
+
+	var event_ctx := EventContext.for_event(ctx_before, &"jrpg_demo", &"test")
+	var nodes: Array[Dictionary] = [
+		{"id": "start", "command": "start", "args": {},
+			"outputs": [{"flow": "next", "target": "cm"}]},
+		{"id": "cm", "command": "change_map", "args": {
+			"map": ISO_GRID_SCENE, "cell": [3, 0, 2], "facing": [1, 0, 0],
+			"fade_out": 0.2, "fade_in": 0.2},
+			"outputs": [{"flow": "next", "target": ""}]},
+	]
+	var runner := EventRunner.new(event_ctx)
+	_ok(EventScheduler.run_exclusive(runner, nodes), "acquired the exclusive slot")
+
+	const FRAME_BUDGET := 30
+	var guard := 0
+	while EventScheduler.is_exclusive_held() and guard < FRAME_BUDGET:
+		await get_tree().process_frame
+		EventScheduler.tick(get_process_delta_time())
+		guard += 1
+
+	_ok(not EventScheduler.is_exclusive_held(),
+		"the transition finished within %d frames (got %d), not the full 0.4s of fade time" %
+			[FRAME_BUDGET, guard])
+	_ok(not GameUI.is_fading(), "and the fade overlay was not left mid-tween")
+
+	DebugFlags.force_fast_forward = was_forced
+	EventScheduler.reset()
+	ModeStack.reset()
+	GameState.clear()
 
 
 # -- Helpers ----------------------------------------------------------------------------

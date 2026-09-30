@@ -22,8 +22,6 @@ extends Node
 
 @onready var _rig: OrthoPixelRig = $Upscale/World/Map/Camera/Rig
 @onready var _player: Actor = $Upscale/World/Map/Actors/Player/Actor
-@onready var _view: SpriteView3D = $Upscale/World/Map/Actors/Player/Actor/View
-@onready var _main_ui: MainUI = GameUI.main_ui
 
 
 func _ready() -> void:
@@ -45,6 +43,12 @@ func _on_yaw_changed(yaw: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_pressed() or event.is_echo():
 		return
+	# toggle_a/b (keys 1/2) are this scene's own cycling shortcuts below, but the same
+	# keys also drive DebugFlags's own debug-category menu while it is open (~ to
+	# open) - deferring to it here is what stops "toggle the actor-debug category"
+	# from also flipping this scene's camera snap out from under it.
+	if DebugFlags.is_menu_open():
+		return
 
 	if event.is_action("yaw_ccw"):
 		_rig.rotate_by_stops(-1)
@@ -56,23 +60,3 @@ func _unhandled_input(event: InputEvent) -> void:
 		_rig.subtexel_smoothing = not _rig.subtexel_smoothing
 	elif event.is_action("back"):
 		DemoLauncher.back_to_menu(self)
-
-
-func _process(_delta: float) -> void:
-	_main_ui.set_debug_text("\n".join([
-		# roundi, not int: 16 * sin(30 deg) is 7.99999... in floating point, and
-		# truncating it reports a 7 px tile for a pitch chosen precisely to give 8.
-		"ISO-ISH   pitch %.2f  |  yaw stop %d of 4  |  tile %d x %d px" % [
-			_rig.pitch_degrees, _rig.yaw_stop, _rig.texels_per_unit,
-			roundi(_rig.floor_depth_px())],
-		"facing %s  frame %d of 8   (sheet has 4, so a diagonal shows the nearer one)" % [
-			_player.facing(), _view.frame_index()],
-		"wall face %.3f px/unit   %s" % [
-			_rig.wall_px_per_unit(),
-			"walking" if _player.is_travelling() else "still"],
-		"",
-		"WASD move   Space jump   Shift run   Q/E rotate",
-		"1 texel snap: %s   2 sub-texel smooth: %s   Esc back" % [
-			"on" if _rig.quantise_camera else "OFF",
-			"on" if _rig.subtexel_smoothing else "OFF"],
-	]))

@@ -1,7 +1,7 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3]
 
 [ext_resource type="Texture2D" uid="uid://dn8h81c1yph03" path="res://resources/test/plant.png" id="1_tex"]
-[ext_resource type="Script" path="res://world/grid_obstacle.gd" id="2_obstacle"]
+[ext_resource type="Script" uid="uid://dianvaay53crf" path="res://code/world/grid_obstacle.gd" id="2_obstacle"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_1"]
 size = Vector3(0.6, 0.6, 0.6)

@@ -10,6 +10,7 @@
 			"through": false,
 			"through_terrain": false,
 			"step_in_place": false,
+			"lock_animation": false,
 			"lock_player": false,
 			"route": [],
 			"graph": [
@@ -43,13 +44,17 @@
 							3.0,
 							8.0
 						],
-						"seconds": 1.2
+						"speed": 5.0
 					},
 					"blocking": false,
 					"key": "cam",
 					"outputs": [
 						{
-							"flow": "next",
+							"flow": "reached",
+							"target": ""
+						},
+						{
+							"flow": "immediate",
 							"target": "n2"
 						}
 					]
@@ -69,14 +74,17 @@
 							1.0,
 							8.0
 						],
-						"path": "astar",
 						"speed": 3.5
 					},
 					"blocking": true,
 					"outputs": [
 						{
-							"flow": "next",
+							"flow": "reached",
 							"target": "n3"
+						},
+						{
+							"flow": "immediate",
+							"target": ""
 						}
 					]
 				},
@@ -90,18 +98,22 @@
 					"command": "jump",
 					"args": {
 						"actor": "@npc_scout",
-						"strength": 6.0,
-						"toward": [
+						"cell": [
 							20.0,
 							3.0,
 							8.0
-						]
+						],
+						"height": 1.5
 					},
 					"blocking": true,
 					"outputs": [
 						{
-							"flow": "next",
+							"flow": "reached",
 							"target": "n4"
+						},
+						{
+							"flow": "immediate",
+							"target": ""
 						}
 					]
 				},
@@ -153,7 +165,7 @@
 					"command": "camera_follow",
 					"args": {
 						"actor": "@player",
-						"seconds": 0.8
+						"speed": 5.0
 					},
 					"blocking": true,
 					"outputs": [

@@ -29,17 +29,13 @@ extends Node
 @onready var _blocks: GridMap = $Upscale/World/Map/Blocks
 @onready var _player_controller: PlayerController = $Upscale/World/Map/Actors/Player/Actor/PlayerController
 @onready var _player: Actor = $Upscale/World/Map/Actors/Player/Actor
-@onready var _view: SpriteView3D = $Upscale/World/Map/Actors/Player/Actor/View
 @onready var _motion: GridMotion = $Upscale/World/Map/Actors/Player/Actor/Motion
-@onready var _main_ui: MainUI = GameUI.main_ui
 
 var _terrain_data := true
-var _steps := 0
 
 
 func _ready() -> void:
 	_rig.yaw_changed.connect(_on_yaw_changed)
-	EventBus.actor_stepped.connect(_on_stepped)
 
 
 func _on_yaw_changed(yaw: float) -> void:
@@ -51,12 +47,14 @@ func _on_yaw_changed(yaw: float) -> void:
 			(v as SpriteView3D).set_camera_yaw(yaw)
 
 
-func _on_stepped(_id: StringName, _from: Vector3i, _to: Vector3i) -> void:
-	_steps += 1
-
-
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_pressed() or event.is_echo():
+		return
+	# toggle_a/b/c (keys 1/2/3) are this scene's own cycling shortcuts below, but the
+	# same three keys also drive DebugFlags's own debug-category menu while it is open
+	# (~ to open) - deferring to it here is what stops "toggle the actor-debug
+	# category" from also flipping this scene's direction count out from under it.
+	if DebugFlags.is_menu_open():
 		return
 
 	if event.is_action("yaw_ccw"):
@@ -92,25 +90,3 @@ func _cycle_directions() -> void:
 func _cycle_terrain_data() -> void:
 	_terrain_data = not _terrain_data
 	_ctx.collision_node = _ctx.get_path_to(_blocks) if _terrain_data else NodePath()
-
-
-func _process(_delta: float) -> void:
-	_main_ui.set_debug_text("\n".join([
-		"ISO-ISH + GRID   cell %s   facing %s   %s" % [
-			_player.cell(), _player.facing(),
-			"stepping" if _player.is_moving() else "idle"],
-		"yaw stop %d of 4   frame %d of 8   steps %d   occupied cells %d" % [
-			_rig.yaw_stop, _view.frame_index(), _steps, _ctx.occupancy.size()],
-		"%d-way   step %.0f ms   terrain data %s (occupancy and physics always on)" % [
-			_motion.direction_count, _motion.step_duration() * 1000.0,
-			"on" if _terrain_data else "OFF"],
-		"",
-		# This scene is why turn_in_place is X: it is the only one that is both a grid
-		# map and a rotatable camera, so the turn modifier and yaw-left would have shared
-		# Q here and nowhere else. Game 1 proper has no yaw.
-		"WASD/arrows step   Shift run   X+dir turn   Q/E rotate the view",
-		"1 %d-way   2 sub-texel smooth: %s   3 terrain data: %s   Esc back" % [
-			8 if _motion.direction_count == 4 else 4,
-			"on" if _rig.subtexel_smoothing else "OFF",
-			"on" if _terrain_data else "OFF"],
-	]))

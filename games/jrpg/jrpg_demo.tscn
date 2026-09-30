@@ -72,6 +72,7 @@ shape = SubResource("RectangleShape2D_6lfo2")
 [node name="DebugArea2D" type="Node2D" parent="Areas/SlowZone" unique_id=444401010 node_paths=PackedStringArray("target")]
 script = ExtResource("18_debug_area")
 target = NodePath("../CollisionShape2D")
+type = 2
 area_size = Vector2(32, 32)
 color = Color(0.9402241, 0.35923114, 0.15545186, 0.9019608)
 fill = true
@@ -93,6 +94,7 @@ polygon = PackedVector2Array(128, 127, 128, 113, 96, 112, 96, 80, 160, 80, 160, 
 [node name="DebugArea2D_2" type="Node2D" parent="Areas/Area2D" unique_id=1678553619 node_paths=PackedStringArray("target")]
 script = ExtResource("18_debug_area")
 target = NodePath("../CollisionPolygon2D")
+type = 2
 area_size = Vector2(32, 32)
 color = Color(0.9402241, 0.35923114, 0.15545186, 0.9019608)
 fill = true
@@ -124,18 +126,26 @@ direction_count = 8
 script = ExtResource("5_irolo")
 profile = ExtResource("14_eih3y")
 
+[node name="DebugArea2D" parent="Actors/Player" index="1" unique_id=1907705465]
+color = Color(0.65, 0.35, 0.85, 0.9)
+
 [node name="Sprite" parent="Actors/Player" index="2" unique_id=277189655]
 position = Vector2(4, 0)
 
 [node name="DebugArea" type="Node2D" parent="Actors/Player" unique_id=1024040940 node_paths=PackedStringArray("target")]
 script = ExtResource("18_debug_area")
 target = NodePath("../Actor")
+type = 4
+color = Color(0.65, 0.35, 0.85, 0.9)
 
 [node name="Npc_17_9" parent="Actors" unique_id=632867843 instance=ExtResource("4_0l83r")]
 position = Vector2(292, 164)
 
 [node name="Actor" parent="Actors/Npc_17_9" index="0" unique_id=39714522]
 footprint = Vector3i(2, 1, 2)
+
+[node name="DebugArea2D" parent="Actors/Npc_17_9" index="1" unique_id=1907705465]
+color = Color(0.65, 0.35, 0.85, 0.9)
 
 [node name="Sprite" parent="Actors/Npc_17_9" index="2" unique_id=277189655]
 modulate = Color(0.65, 0.8, 1, 1)
@@ -148,12 +158,17 @@ actor_id = &"npc_17_9"
 [node name="DebugArea" type="Node2D" parent="Actors/Npc_17_9" unique_id=686686382 node_paths=PackedStringArray("target")]
 script = ExtResource("18_debug_area")
 target = NodePath("../Actor")
+type = 4
+color = Color(0.65, 0.35, 0.85, 0.9)
 
 [node name="Npc_8_12" parent="Actors" unique_id=1777864491 instance=ExtResource("4_0l83r")]
 position = Vector2(212, 196)
 
 [node name="Actor" parent="Actors/Npc_8_12" index="0" unique_id=39714522]
 footprint = Vector3i(2, 1, 2)
+
+[node name="DebugArea2D" parent="Actors/Npc_8_12" index="1" unique_id=1907705465]
+color = Color(0.65, 0.35, 0.85, 0.9)
 
 [node name="Sprite" parent="Actors/Npc_8_12" index="2" unique_id=277189655]
 modulate = Color(0.65, 0.8, 1, 1)
@@ -167,6 +182,8 @@ actor_id = &"npc_8_12"
 [node name="DebugArea" type="Node2D" parent="Actors/Npc_8_12" unique_id=507263382 node_paths=PackedStringArray("target")]
 script = ExtResource("18_debug_area")
 target = NodePath("../Actor")
+type = 4
+color = Color(0.65, 0.35, 0.85, 0.9)
 
 [node name="Npc_8_13" parent="Actors" unique_id=87675178 instance=ExtResource("4_0l83r")]
 position = Vector2(284, 188)
@@ -174,6 +191,9 @@ position = Vector2(284, 188)
 [node name="Actor" parent="Actors/Npc_8_13" index="0" unique_id=39714522]
 through_actors = true
 footprint = Vector3i(2, 1, 2)
+
+[node name="DebugArea2D" parent="Actors/Npc_8_13" index="1" unique_id=1907705465]
+color = Color(0.65, 0.35, 0.85, 0.9)
 
 [node name="Sprite" parent="Actors/Npc_8_13" index="2" unique_id=277189655]
 modulate = Color(0.65, 0.8, 1, 1)
@@ -187,6 +207,8 @@ visible = false
 [node name="DebugArea" type="Node2D" parent="Actors/Npc_8_13" unique_id=98652832 node_paths=PackedStringArray("target")]
 script = ExtResource("18_debug_area")
 target = NodePath("../Actor")
+type = 4
+color = Color(0.65, 0.35, 0.85, 0.9)
 
 [node name="MapTransfer" parent="Actors" unique_id=900000101 instance=ExtResource("20_static_actor")]
 position = Vector2(212, 116)
@@ -198,7 +220,6 @@ footprint = Vector3i(2, 1, 2)
 position = Vector2(4, 0)
 offset = Vector2(0, 0)
 frame = 1
-paused = true
 
 [node name="GameEvent" type="Node" parent="Actors/MapTransfer" unique_id=900000102]
 script = ExtResource("17_game_event")
@@ -207,6 +228,8 @@ document_path = "res://code/events/jrpg_demo/map_transfer.event.json"
 [node name="DebugArea" type="Node2D" parent="Actors/MapTransfer" unique_id=900000103 node_paths=PackedStringArray("target")]
 script = ExtResource("18_debug_area")
 target = NodePath("../Actor")
+type = 3
+color = Color(0.95, 0.55, 0.15, 0.9)
 
 [node name="BattleTrigger" type="Node2D" parent="Actors" unique_id=900000201]
 position = Vector2(228, 132)
@@ -239,6 +262,7 @@ document_path = "res://code/events/jrpg_demo/battle_trigger.event.json"
 [node name="DebugArea" type="Node2D" parent="Actors/BattleTrigger" unique_id=900000203 node_paths=PackedStringArray("target")]
 script = ExtResource("18_debug_area")
 target = NodePath("../Actor")
+type = 1
 
 [node name="PartyMenuTrigger" type="Node2D" parent="Actors" unique_id=900000211]
 position = Vector2(216, 152)
@@ -249,6 +273,7 @@ document_path = "res://code/events/jrpg_demo/party_menu_trigger.event.json"
 
 [node name="DebugArea" type="Node2D" parent="Actors/PartyMenuTrigger" unique_id=900000213]
 script = ExtResource("18_debug_area")
+type = 1
 
 [node name="ShopTrigger" type="Node2D" parent="Actors" unique_id=900000221]
 position = Vector2(200, 136)
@@ -259,6 +284,7 @@ document_path = "res://code/events/jrpg_demo/shop_trigger.event.json"
 
 [node name="DebugArea" type="Node2D" parent="Actors/ShopTrigger" unique_id=900000223]
 script = ExtResource("18_debug_area")
+type = 1
 
 [node name="wander" parent="Actors" unique_id=211123574 instance=ExtResource("4_0l83r")]
 position = Vector2(132, 84)
@@ -266,8 +292,8 @@ position = Vector2(132, 84)
 [node name="Actor" parent="Actors/wander" index="0" unique_id=39714522]
 footprint = Vector3i(2, 1, 2)
 
-[node name="Sprite" parent="Actors/wander" index="2" unique_id=277189655]
-paused = true
+[node name="DebugArea2D" parent="Actors/wander" index="1" unique_id=1907705465]
+color = Color(0.65, 0.35, 0.85, 0.9)
 
 [node name="GameEvent" type="Node" parent="Actors/wander" unique_id=2138380605]
 script = ExtResource("17_game_event")
@@ -280,6 +306,55 @@ allow_diagonal_shoves = true
 [node name="Restrict" type="Node" parent="Actors/wander" unique_id=646797147 node_paths=PackedStringArray("target_zone")]
 script = ExtResource("20_132e7")
 target_zone = NodePath("../../../Areas/Area2D/AreaZone_2")
+
+[node name="debug-2" parent="Actors" unique_id=2083077171 instance=ExtResource("4_0l83r")]
+position = Vector2(179, 36)
+
+[node name="Actor" parent="Actors/debug-2" index="0" unique_id=39714522]
+footprint = Vector3i(2, 1, 2)
+
+[node name="DebugArea2D" parent="Actors/debug-2" index="1" unique_id=1907705465]
+color = Color(0.65, 0.35, 0.85, 0.9)
+
+[node name="GameEvent" type="Node" parent="Actors/debug-2" unique_id=394750894]
+script = ExtResource("17_game_event")
+document_path = "res://code/events/jrpg_demo/debug-2.event.json"
+
+[node name="Pushable" type="Node" parent="Actors/debug-2" unique_id=140344496]
+script = ExtResource("19_pw8xa")
+
+[node name="debug-4" parent="Actors" unique_id=2097166772 instance=ExtResource("4_0l83r")]
+position = Vector2(179, 20)
+
+[node name="Actor" parent="Actors/debug-4" index="0" unique_id=39714522]
+footprint = Vector3i(2, 1, 2)
+
+[node name="DebugArea2D" parent="Actors/debug-4" index="1" unique_id=1907705465]
+color = Color(0.65, 0.35, 0.85, 0.9)
+
+[node name="GameEvent" type="Node" parent="Actors/debug-4" unique_id=464929358]
+script = ExtResource("17_game_event")
+document_path = "res://code/events/jrpg_demo/debug-4.event.json"
+
+[node name="Pushable" type="Node" parent="Actors/debug-4" unique_id=1789115772]
+script = ExtResource("19_pw8xa")
+
+[node name="debug-3" parent="Actors" unique_id=1722418449 instance=ExtResource("4_0l83r")]
+position = Vector2(212, 66)
+
+[node name="Actor" parent="Actors/debug-3" index="0" unique_id=39714522]
+footprint = Vector3i(2, 1, 2)
+
+[node name="DebugArea2D" parent="Actors/debug-3" index="1" unique_id=1907705465]
+color = Color(0.65, 0.35, 0.85, 0.9)
+
+[node name="GameEvent" type="Node" parent="Actors/debug-3" unique_id=295683734]
+script = ExtResource("17_game_event")
+document_path = "res://code/events/jrpg_demo/debug-3.event.json"
+
+[node name="Pushable" type="Node" parent="Actors/debug-3" unique_id=159956180]
+script = ExtResource("19_pw8xa")
+allow_diagonal_shoves = true
 
 [node name="Markers" type="Node2D" parent="." unique_id=900000104]
 
@@ -309,3 +384,6 @@ follow_target = &"player"
 [editable path="Actors/Npc_8_13"]
 [editable path="Actors/MapTransfer"]
 [editable path="Actors/wander"]
+[editable path="Actors/debug-2"]
+[editable path="Actors/debug-4"]
+[editable path="Actors/debug-3"]

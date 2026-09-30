@@ -1,0 +1,171 @@
+{
+	"format": 1,
+	"id": "",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {
+				"speed": 2.0
+			},
+			"art": {
+				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
+				"facing": "w",
+				"frame_row": 2.0,
+				"frame_col": 2.0
+			},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
+			"step_in_place": false,
+			"lock_animation": false,
+			"lock_player": false,
+			"route": [
+				{
+					"id": "",
+					"title": "start",
+					"position": {
+						"x": -440,
+						"y": -140
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n1"
+						}
+					]
+				},
+				{
+					"id": "n3",
+					"title": "wait",
+					"position": {
+						"x": 620,
+						"y": -160
+					},
+					"command": "wait",
+					"args": {
+						"seconds": 1.0
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n1"
+						}
+					]
+				},
+				{
+					"id": "n1",
+					"title": "move_by",
+					"position": {
+						"x": -300,
+						"y": -140
+					},
+					"command": "move_by",
+					"args": {
+						"cells": [
+							1.0,
+							0.0,
+							0.0
+						],
+						"count": 2.0
+					},
+					"outputs": [
+						{
+							"flow": "reached",
+							"target": "n2"
+						},
+						{
+							"flow": "immediate",
+							"target": ""
+						},
+						{
+							"flow": "blocked",
+							"target": "n2"
+						}
+					]
+				},
+				{
+					"id": "n2",
+					"title": "move_by",
+					"position": {
+						"x": 160,
+						"y": -140
+					},
+					"command": "move_by",
+					"args": {
+						"cells": [
+							-1.0,
+							0.0,
+							0.0
+						],
+						"count": 2.0
+					},
+					"outputs": [
+						{
+							"flow": "reached",
+							"target": "n3"
+						},
+						{
+							"flow": "immediate",
+							"target": ""
+						},
+						{
+							"flow": "blocked",
+							"target": "n3"
+						}
+					]
+				}
+			],
+			"graph": [
+				{
+					"id": "",
+					"title": "start",
+					"position": {
+						"x": -160,
+						"y": 80
+					},
+					"command": "start",
+					"args": {
+						"page_entry": true
+					},
+					"outputs": [
+						{
+							"flow": "player_touch",
+							"target": ""
+						},
+						{
+							"flow": "event_touch",
+							"target": ""
+						},
+						{
+							"flow": "action",
+							"target": ""
+						},
+						{
+							"flow": "auto",
+							"target": ""
+						},
+						{
+							"flow": "on_load",
+							"target": ""
+						},
+						{
+							"flow": "leave_cell",
+							"target": ""
+						},
+						{
+							"flow": "on_flag",
+							"target": ""
+						},
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				}
+			],
+			"animation_speed": 0.4
+		}
+	]
+}

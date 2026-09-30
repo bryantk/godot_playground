@@ -32,6 +32,10 @@ extends GraphNode
 
 signal changed
 
+## The "Pick" button beside a cell argument was pressed - the panel then waits for a click
+## in the scene viewport and answers with [method set_cell_arg].
+signal pick_cell_requested(node: EventGraphNode, key: String)
+
 const Doc := preload("res://addons/graph_editor/graph_document.gd")
 
 ## Name of the first row of a graph node - the one carrying the input port and the
@@ -49,6 +53,14 @@ const ARG_ROW_PREFIX := "Arg"
 ## Compass tokens a "dir" argument's dropdown offers - short form only, so it reads as
 ## a compass rather than a word list. Matches [constant EventCommand.DIRECTION_TOKENS].
 const _DIR_OPTIONS: PackedStringArray = ["n", "ne", "e", "se", "s", "sw", "w", "nw"]
+
+## What "move_by"'s own "cells" dropdown adds ahead of [constant _DIR_OPTIONS] -
+## matching [constant EventCommand.MOVE_DIR_TOKENS]. Each pairs with the distance spin
+## box beside it in [method _add_move_direction_control] as "token:N" - N one-cell legs,
+## with random/wander/forward rolled once and repeated.
+const _MOVE_DIR_OPTIONS: PackedStringArray = [
+	"forward", "towards_player", "away_from_player", "random", "wander",
+]
 
 ## What a "turn" argument's dropdown adds ahead of [constant _DIR_OPTIONS] - the three
 ## relative turns and "random", matching [constant EventCommand.TURN_TOKENS].
@@ -88,6 +100,38 @@ static func has_speed_preset(preset_name: String) -> bool:
 static func speed_preset_value(preset_name: String) -> float:
 	return _SPEED_PRESETS.get(preset_name, normal_speed())
 
+## Named paces an "animation_speed" argument's dropdown offers - a multiplier on
+## [member SpriteSheet.rate]/[member SpriteSheet3D.rate], not a speed in any world
+## unit, so this is its own preset table rather than reusing [constant _SPEED_PRESETS]
+## (whose numbers mean cells/units per second, a different axis entirely). "Normal"
+## is 1.0 - the sheet's own authored rate, untouched.
+const _ANIMATION_SPEED_PRESETS: Dictionary = {
+	"Slowest": 0.4,
+	"Slow": 0.7,
+	"Normal": 1.0,
+	"Fast": 1.5,
+	"Fastest": 2.25,
+}
+
+static func normal_animation_speed() -> float:
+	return _ANIMATION_SPEED_PRESETS["Normal"]
+
+## [constant _ANIMATION_SPEED_PRESETS]' own names, in order - what
+## [code]graph_editor_panel.gd[/code] builds the page inspector's own animation-speed
+## dropdown from, so a page's [code]animation_speed[/code] offers the identical named
+## set an "animation_speed" command argument's dropdown already does.
+static func animation_speed_preset_names() -> Array:
+	return _ANIMATION_SPEED_PRESETS.keys()
+
+static func has_animation_speed_preset(preset_name: String) -> bool:
+	return _ANIMATION_SPEED_PRESETS.has(preset_name)
+
+## [param preset_name]'s numeric value, or [method normal_animation_speed] for a name
+## this file does not recognise - the same "repair, never reject" fallback [method
+## speed_preset_value] already uses.
+static func animation_speed_preset_value(preset_name: String) -> float:
+	return _ANIMATION_SPEED_PRESETS.get(preset_name, normal_animation_speed())
+
 ## What a "location" argument's dropdown offers - [enum Dialogue.Location]'s own
 ## names, in its own order, so the index a choice writes into [code]args.location[/code]
 ## is the same int [method Dialogue.set_window_location] already expects.
@@ -123,7 +167,7 @@ const _COMMAND_CATEGORIES: Dictionary = {
 		"re_validate", "define_route"],
 
 	"movement": ["move_to", "move_by", "step", "face_direction", "face_to", "jump",
-		"follow", "set_speed", "teleport", "wait_settle"],
+		"follow", "set_speed", "teleport", "wait_settle", "move_route"],
 
 	"dialogue": ["say", "append_say", "close_window"],
 
@@ -131,7 +175,7 @@ const _COMMAND_CATEGORIES: Dictionary = {
 
 	"world": ["change_map", "change_map_marker", "fade", "fade_in", "fade_out", "shake",
 		"camera_to", "camera_follow", "play_anim", "play_sound", "play_music",
-		"set_visible", "start_battle", "open_menu"],
+		"set_visible", "set_color", "start_battle", "open_menu"],
 }
 
 ## Generated, or blank for the start node (question 47 follow-up) - what other nodes'
@@ -445,12 +489,22 @@ func _add_args_rows(node: Dictionary) -> void:
 ##
 ## - "move_by"'s [code]cells[/code] as a direction and a count, not a raw delta;
 ## - any "speed" as a named preset, not a bare number;
+## - any "animation_speed" as a named preset too, against its own separate table -
+##   see [constant _ANIMATION_SPEED_PRESETS]'s own doc for why it is not the same
+##   list "speed" offers;
 ## - any "location" as [enum Dialogue.Location]'s own names;
 ## - "say" and "append_say"'s [code]text[/code] as a text area, since a dialogue line
-##   is prose, not a single-line value like every other string argument.
+##   is prose, not a single-line value like every other string argument;
+## - any [constant EventCommand.T_CONDITION] argument, likewise - "if"'s own
+##   [code]condition[/code], and "variable"'s [code]expression[/code], are read
+##   left to right the way prose is, not typed in one sitting the way a cell or a
+##   direction is.
 func _add_arg_row(command: String, key: String, type: String, optional: bool,
 		value: Variant) -> void:
 	if (command == "say" or command == "append_say") and key == "text":
+		_add_text_area_row(key, value)
+		return
+	if type == EventCommand.T_CONDITION:
 		_add_text_area_row(key, value)
 		return
 
@@ -464,7 +518,7 @@ func _add_arg_row(command: String, key: String, type: String, optional: bool,
 	label.add_theme_color_override(&"font_color", _muted_color())
 	row.add_child(label)
 
-	if command == "move_by" and key == "cells":
+	if (command == "move_by" or command == "camera_move_by") and key == "cells":
 		_add_move_direction_control(row, key, value)
 	elif key == "speed" and type == EventCommand.T_FLOAT:
 		var speed_picker := _make_speed_control(value, optional)
@@ -472,6 +526,12 @@ func _add_arg_row(command: String, key: String, type: String, optional: bool,
 		speed_picker.tooltip_text = label.tooltip_text
 		_connect_speed_control(speed_picker, key)
 		row.add_child(speed_picker)
+	elif key == "animation_speed" and type == EventCommand.T_FLOAT:
+		var animation_speed_picker := _make_animation_speed_control(value, optional)
+		animation_speed_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		animation_speed_picker.tooltip_text = label.tooltip_text
+		_connect_animation_speed_control(animation_speed_picker, key)
+		row.add_child(animation_speed_picker)
 	elif key == "location" and type == EventCommand.T_INT:
 		var location_picker := _make_location_control(value, optional)
 		location_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -483,16 +543,28 @@ func _add_arg_row(command: String, key: String, type: String, optional: bool,
 		# at runtime (event_command.gd's docstring on COMMANDS) - showing that instead
 		# of blank is what "pre-fill the actor as itself" meant, and it costs nothing:
 		# the field stays untouched in args until an author edits it, same as every
-		# other optional field here.
+		# other optional field here. "count" (move_by/camera_move_by, both "repeat
+		# this leg this many times") reads the same way: the runtime default is 1, not
+		# the SpinBox's own bare-zero fallback, and a control sitting on 0 looks like
+		# "never" rather than "once."
 		var seed_value: Variant = value
 		if type == EventCommand.T_ACTOR and optional and value == null:
 			seed_value = "@self"
+		elif key == "count" and type == EventCommand.T_INT and value == null:
+			seed_value = 1
 
 		var control := _make_arg_control(type, seed_value)
 		control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		control.tooltip_text = label.tooltip_text
 		_connect_arg_control(control, type, optional, key)
 		row.add_child(control)
+
+		if type == EventCommand.T_CELL:
+			var pick := Button.new()
+			pick.text = "Pick"
+			pick.tooltip_text = "Then click a cell in the scene viewport to fill this in."
+			pick.pressed.connect(func() -> void: pick_cell_requested.emit(self, key))
+			row.add_child(pick)
 
 	add_child(row)
 
@@ -545,6 +617,14 @@ func _make_arg_control(type: String, value: Variant) -> Control:
 			check.button_pressed = value is bool and value
 			return check
 
+		EventCommand.T_COLOR:
+			var picker := ColorPickerButton.new()
+			picker.custom_minimum_size = Vector2(64, 0)
+			picker.edit_alpha = true
+			picker.color = Color.html(str(value)) if value is String and Color.html_is_valid(value) \
+				else Color.WHITE
+			return picker
+
 		EventCommand.T_DIR:
 			return _make_option_control(_DIR_OPTIONS, str(value) if value != null else "")
 
@@ -582,14 +662,20 @@ func _make_option_control(options: PackedStringArray, current: String) -> Option
 ## "move_by"'s [code]cells[/code] as the direction-and-count pair an author actually
 ## thinks in, rather than a raw [code][x, y, z][/code] delta - the same shape the
 ## "mov" terse alias expands from ([method EventCommand._expand_terse]), reassembled
-## here instead of shared with it since that method is private to its file.
+## here instead of shared with it since that method is private to its file. The
+## dropdown also offers [constant _MOVE_DIR_OPTIONS], written as the token string
+## ([code]"wander"[/code], or [code]"wander:3"[/code] for a distance above 1 - see
+## [method EventCommand.split_move_token]). The distance box shows for every choice.
 ##
 ## Two controls in [param row] rather than one, so this bypasses
 ## [method _make_arg_control]/[method _connect_arg_control] and wires itself.
 func _add_move_direction_control(row: HBoxContainer, key: String, value: Variant) -> void:
 	var decomposed := _direction_and_count(value)
 
-	var direction := _make_option_control(_DIR_OPTIONS, decomposed["direction"])
+	var options := PackedStringArray()
+	options.append_array(_MOVE_DIR_OPTIONS)
+	options.append_array(_DIR_OPTIONS)
+	var direction := _make_option_control(options, decomposed["direction"])
 	direction.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(direction)
 
@@ -605,8 +691,12 @@ func _add_move_direction_control(row: HBoxContainer, key: String, value: Variant
 		if direction.selected <= 0:
 			_clear_node_arg(key)
 			return
-		var dir := EventCommand.direction_of(direction.get_item_text(direction.selected))
+		var token := direction.get_item_text(direction.selected)
 		var n := int(count.value)
+		if _MOVE_DIR_OPTIONS.has(token):
+			_set_node_arg(key, token if n <= 1 else "%s:%d" % [token, n])
+			return
+		var dir := EventCommand.direction_of(token)
 		_set_node_arg(key, [dir.x * n, dir.y * n, dir.z * n])
 
 	direction.item_selected.connect(func(_index: int) -> void: commit.call())
@@ -616,8 +706,14 @@ func _add_move_direction_control(row: HBoxContainer, key: String, value: Variant
 ## the inverse of [code]direction * count[/code], which is how a "mov" alias or this
 ## same control built the cell to begin with. Empty and 0 when [param value] is not a
 ## clean multiple of one compass direction - a cell authored by hand as something an
-## eight-way compass cannot express.
+## eight-way compass cannot express. A [constant _MOVE_DIR_OPTIONS] string answers
+## directly instead, count always 0 (meaningless for one of these).
 func _direction_and_count(value: Variant) -> Dictionary:
+	if value is String:
+		var split := EventCommand.split_move_token(value)
+		if _MOVE_DIR_OPTIONS.has(split["token"]):
+			return {"direction": split["token"], "count": maxi(1, int(split["count"]))}
+
 	var cell := _as_cell_or_zero(value)
 	if cell == Vector3i.ZERO:
 		return {"direction": "", "count": 0}
@@ -690,6 +786,47 @@ func _connect_speed_control(picker: OptionButton, key: String) -> void:
 		# node already carries.
 	)
 
+## The identical shape [method _make_speed_control] already is, against [constant
+## _ANIMATION_SPEED_PRESETS] instead of [constant _SPEED_PRESETS] - kept as its own
+## copy rather than a shared parameterized helper, the same "not worth abstracting
+## two call sites" call this file already makes elsewhere. Always optional in
+## practice (every caller of this one is an unset-by-default argument or page field),
+## but takes [param optional] anyway to match [method _make_speed_control]'s own
+## signature.
+func _make_animation_speed_control(value: Variant, optional: bool) -> OptionButton:
+	var picker := OptionButton.new()
+	if optional:
+		picker.add_item("(unset)")
+
+	var labels: Array = _ANIMATION_SPEED_PRESETS.keys()
+	var authored := value is float or value is int
+	var matched := -1
+	for label in labels:
+		picker.add_item(str(label))
+		if authored and is_equal_approx(float(value), float(_ANIMATION_SPEED_PRESETS[label])):
+			matched = picker.item_count - 1
+
+	if authored and matched < 0:
+		picker.add_item("Custom (%s)" % str(value))
+		picker.select(picker.item_count - 1)
+	elif matched >= 0:
+		picker.select(matched)
+	elif optional:
+		picker.select(0)
+	else:
+		picker.select(labels.find("Normal") + (1 if optional else 0))
+
+	return picker
+
+func _connect_animation_speed_control(picker: OptionButton, key: String) -> void:
+	picker.item_selected.connect(func(index: int) -> void:
+		var text := picker.get_item_text(index)
+		if text == "(unset)":
+			_clear_node_arg(key)
+		elif _ANIMATION_SPEED_PRESETS.has(text):
+			_set_node_arg(key, _ANIMATION_SPEED_PRESETS[text])
+	)
+
 ## An [OptionButton] of [constant _DIALOGUE_LOCATIONS], matching
 ## [enum Dialogue.Location] by index rather than by name - the args value this reads
 ## and writes is the int [method Dialogue.set_window_location] takes.
@@ -731,6 +868,10 @@ func _connect_arg_control(control: Control, type: String, optional: bool, key: S
 		EventCommand.T_BOOL:
 			(control as CheckBox).toggled.connect(
 				func(pressed: bool) -> void: _set_node_arg(key, pressed))
+
+		EventCommand.T_COLOR:
+			(control as ColorPickerButton).color_changed.connect(
+				func(color: Color) -> void: _set_node_arg(key, color.to_html()))
 
 		EventCommand.T_DIR, EventCommand.T_TURN:
 			var picker := control as OptionButton
@@ -807,6 +948,17 @@ func _commit_cell_arg(key: String, field: LineEdit, optional: bool) -> void:
 
 ## Writes [param value] into this node's command args, creating the "args" dictionary
 ## on [member extra] if this is its first edited argument, and fires [signal changed].
+## Writes [param cell] into the cell argument [param key] and updates the field showing it
+## - what the viewport click answering [signal pick_cell_requested] ends in.
+func set_cell_arg(key: String, cell: Vector3i) -> void:
+	_set_node_arg(key, [cell.x, cell.y, cell.z])
+	var row := get_node_or_null(NodePath(ARG_ROW_PREFIX + key.to_pascal_case()))
+	if row == null:
+		return
+	for child in row.get_children():
+		if child is LineEdit:
+			(child as LineEdit).text = _cell_text(cell)
+
 func _set_node_arg(key: String, value: Variant) -> void:
 	var args: Dictionary = extra.get("args", {})
 	if not extra.has("args"):

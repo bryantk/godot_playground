@@ -1,0 +1,70 @@
+
+
+
+
+a* route compute + step towards (next, success, blocked)
+option to 'collapse' nodes to an in-name-out stub?
+?? Permit editing 'sub node' groups of anything?
+
+DONE:
+
+1 shake command to have wait/immidiate flows
+2 order existing flows: reached, blocked, immidiate
+3 move_route
+	helper to click to select the cell on the map scene
+	use to compute a path to the location
+		give best attempt, but give up if a* takes too long
+		save the computed route (as json move commands)
+		 persist the most recent through save/load
+	flows:
+		reached
+		blocked
+		immidiate
+		no_path_found
+	store path until another move_route command is called on that actor
+	use 'move_route_step' command to run the next step
+		flow: reached, blocked, immidiate	
+4 add input capture/replay to debug menu
+4 add text box to debug menu - behave like a terminal (up arrow for prior submittions, tab auto complete), pass game_state to it and EVAL
+6 debug drawing of movement routes - add to debug menu as well as editor
+	pick one, skip or assume all possibilites when random/branching
+
+color self modulate command - terget event name
+
+random event movement
+	push away via player
+
+right click on a node - context menu to delete or clone
+
+move_by to have: random direction (which reads from mover 4 vs 8 vs free for picking)
+	count 2+ in random or wander should repeat the same direction X times
+
+step amount should convert to X steps shorthand, with a blocked option
+
+input
+	caputre 'consumed' input and log it - rotate log files 1,2,3 for now.
+	should be able to replay input files deterministicaly
+
+
+debug - draw
+	areas
+	events
+	regions
+	?
+regions
+	data numbers via map? lookup mappings?
+		what If I want more than one on the same tile?
+
+remove 'arrange' button in graph, replace with 'goto start'
+show # of nodes in page
+
+
+Cammera controlls:
+	follow target
+		blocking or not
+		speed + instant
+		should return to player on map transfers
+	lock to
+		cell
+		new bounds
+	move by X

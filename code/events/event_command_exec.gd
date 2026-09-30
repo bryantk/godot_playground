@@ -63,7 +63,7 @@ func flow_port() -> String:
 ## already absolute ([code]move_to[/code]'s own cell, say) or that never reports [method
 ## was_blocked] true in the first place.
 ##
-## [b]A relative move overrides this[/b] ([code]move_by[/code]/[code]step[/code], events/
+## [b]A relative move overrides this[/b] ([code]move_by[/code], events/
 ## commands/actor_execs.gd) because [method start] re-reads its own authored delta
 ## against wherever the actor happens to be [i]right now[/i] - which, after a move that
 ## got partway there before being refused, is no longer where it started. Retrying via
@@ -119,16 +119,70 @@ func actor() -> Actor:
 	return ctx.resolve(str(args.get("actor", "@self")))
 
 
+## The [CameraRig] driving whatever map this graph is running on - events/commands/
+## camera_execs.gd's own shared lookup, the same "resolve through the live map, never a
+## concrete rig type" reasoning [method actor] already follows for [Actor]. Null with no
+## map bound (never in ordinary play) or no rig registered yet.
+func camera_rig() -> CameraRig:
+	if ctx == null or ctx.map == null:
+		return null
+	return ctx.map.camera_rig()
+
+
+# -- "reached/immediate" -----------------------------------------------------------
+#
+# Shared by every command with real travel time (move_to, move_by, jump - actor_execs.gd;
+# camera_to, camera_move_by - camera_execs.gd): two flow ports instead of the generic
+# per-node "blocking" override, which the graph editor has no toggle for yet
+# (event_graph_node.gd's own blocking indicator is read-only). Wiring [constant
+# EventCommand.FLOW_IMMEDIATE] takes the command out of the runner's way the instant it
+# starts; wiring only [constant EventCommand.FLOW_REACHED] (or neither) waits for it to
+# actually finish. A command using this only has to call [method own_key] to mint its
+## key, then use [method reached_immediate_tick]/[method reached_immediate_flow_port]
+## verbatim for its own [method tick]/[method flow_port].
+
+## Whether this node has wired [constant EventCommand.FLOW_IMMEDIATE] - checked fresh
+## each call rather than cached, since [member node] never changes after [method setup]
+## and the scan is a handful of entries at most.
+func immediate_wired() -> bool:
+	return EventCommandExec.flow_wired(node, EventCommand.FLOW_IMMEDIATE)
+
+
+## Common [method tick] for every "reached/immediate" command: DONE the instant
+## [method immediate_wired] is true (the graph chose not to wait), else DONE once
+## [method own_key] resolves through this run's [KeyLatch] - the same wait [method
+## MoveTo.tick] (events/commands/actor_execs.gd) always used, just factored out now that
+## more than one command needs it.
+func reached_immediate_tick(_delta: float = 0.0) -> int:
+	if immediate_wired():
+		return Status.DONE
+	var key := own_key()
+	return Status.DONE if key == "" or runner.latch.consume(key) else Status.RUNNING
+
+
+## Common [method flow_port] for every "reached/immediate" command.
+func reached_immediate_flow_port() -> String:
+	return EventCommand.FLOW_IMMEDIATE if immediate_wired() else EventCommand.FLOW_REACHED
+
+
 ## True the moment this command's own movement finished somewhere other than where it
 ## meant to land - a refused step, not merely one still in flight. [method
 ## EventRunner._resolve_finished_node] reads this only while a [code]define_route[/code]
 ## scope is active (event_runner.gd's own class doc); a command that never overrides
 ## this - almost all of them - can never trigger that path. [code]move_to[/code]/[code]
-## move_by[/code]/[code]step[/code] (events/commands/actor_execs.gd) are the three that
+## move_by[/code] (events/commands/actor_execs.gd) are the two that
 ## do, the same "compare the actor's real cell to where this meant to land" check
 ## [code]route_step[/code]/[code]route_move_to[/code]'s own [method flow_port] already
 ## makes for a compiled route (events/commands/route_execs.gd).
 func was_blocked() -> bool:
+	return false
+
+
+## True for a move command with a "blocked" flow port ([constant
+## EventCommand.FLOW_BLOCKED]) - [method EventRunner._resolve_finished_node] jumps to it
+## when [method was_blocked] and it is wired, and otherwise waits a frame and [method
+## retry]s the command, whether or not a [code]define_route[/code] is active.
+func supports_blocked_flow() -> bool:
 	return false
 
 
@@ -167,6 +221,34 @@ static func saved_cell_or(value: Variant, fallback: Vector3i) -> Vector3i:
 	return fallback
 
 
+## Whether [param node]'s own [code]outputs[/code] wires [param flow] to anywhere -
+## checked by name rather than only by count ([method EventCommand.validate_node]'s own
+## job). [code]camera_to[/code] (events/commands/camera_execs.gd) is what this is for:
+## a command with more than one flow port that needs to know which one an author
+## actually connected, not just how many are present.
+static func flow_wired(from_node: Dictionary, flow: String) -> bool:
+	for output: Variant in (from_node.get("outputs", []) as Array):
+		if typeof(output) == TYPE_DICTIONARY and str((output as Dictionary).get("flow", "")) == flow:
+			# Present but unconnected does not count - the same distinction [method
+			# EventCommand.start_wired] already draws for a start node's own ports.
+			return str((output as Dictionary).get("target", "")) != ""
+	return false
+
+
+## Distance-to-duration for a rate-based move - 0 or unset speed reads as instant.
+## Shared by every camera pan (events/commands/camera_execs.gd) the same way an actor's
+## own movement commands share [method saved_cell_or] above.
+##
+## Collapses to instant under [method DebugFlags.is_fast_forward] too, same as [Wait]'s
+## own [code]tick()[/code] - a camera pan is exactly the kind of real-time animation
+## fast-forward exists to skip, and every caller already treats 0 as "do not animate
+## this," so nothing downstream needs its own separate fast-forward check.
+static func seconds_for_speed(distance: float, speed: float) -> float:
+	if DebugFlags.is_fast_forward():
+		return 0.0
+	return 0.0 if speed <= 0.0 else distance / speed
+
+
 # -- Factory --------------------------------------------------------------------
 
 const _FlowExecs := preload("res://code/events/commands/flow_execs.gd")
@@ -178,6 +260,7 @@ const _PresentationExecs := preload("res://code/events/commands/presentation_exe
 const _RouteExecs := preload("res://code/events/commands/route_execs.gd")
 const _BattleExecs := preload("res://code/events/commands/battle_execs.gd")
 const _MenuExecs := preload("res://code/events/commands/menu_execs.gd")
+const _CameraExecs := preload("res://code/events/commands/camera_execs.gd")
 
 static var _table: Dictionary = {}
 
@@ -185,7 +268,8 @@ static func _ensure_table() -> void:
 	if not _table.is_empty():
 		return
 	for source: GDScript in [_FlowExecs, _ActorExecs, _DialogueExecs, _StateExecs,
-			_MapExecs, _PresentationExecs, _RouteExecs, _BattleExecs, _MenuExecs]:
+			_MapExecs, _PresentationExecs, _RouteExecs, _BattleExecs, _MenuExecs,
+			_CameraExecs]:
 		var part: Dictionary = source.table()
 		for key: Variant in part:
 			_table[key] = part[key]

@@ -10,6 +10,7 @@
 			"through": false,
 			"through_terrain": false,
 			"step_in_place": false,
+			"lock_animation": false,
 			"lock_player": false,
 			"route": [
 				{
@@ -161,8 +162,12 @@
 					"blocking": true,
 					"outputs": [
 						{
-							"flow": "next",
+							"flow": "reached",
 							"target": "n4"
+						},
+						{
+							"flow": "immediate",
+							"target": ""
 						}
 					]
 				}

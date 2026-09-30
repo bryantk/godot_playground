@@ -1,11 +1,11 @@
 [gd_resource type="Resource" script_class="GameProfile" format=3]
 
-[ext_resource type="Script" path="res://world/camera/ortho_pixel_rig.gd" id="1_6kwjx"]
+[ext_resource type="Script" uid="uid://bywa73wc0217k" path="res://code/world/camera/ortho_pixel_rig.gd" id="1_6kwjx"]
 [ext_resource type="Resource" path="res://games/isoish/isoish_input.tres" id="2_h03vw"]
-[ext_resource type="Script" path="res://actors/motion/free_motion.gd" id="3_g5sx0"]
-[ext_resource type="Script" path="res://world/game_profile.gd" id="4_xtrlx"]
-[ext_resource type="Script" path="res://world/space_3d.gd" id="5_y1r3h"]
-[ext_resource type="Script" path="res://actors/views/sprite_view_3d.gd" id="6_s3wfk"]
+[ext_resource type="Script" uid="uid://1yqlneyvdt51" path="res://code/actors/motion/free_motion.gd" id="3_g5sx0"]
+[ext_resource type="Script" uid="uid://vrns685412ak" path="res://code/world/game_profile.gd" id="4_xtrlx"]
+[ext_resource type="Script" uid="uid://bacy8dt1kqrae" path="res://code/world/space_3d.gd" id="5_y1r3h"]
+[ext_resource type="Script" uid="uid://dyccud21n2l51" path="res://code/actors/views/sprite_view_3d.gd" id="6_s3wfk"]
 
 [resource]
 script = ExtResource("4_xtrlx")

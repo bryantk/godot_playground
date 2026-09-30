@@ -19,6 +19,7 @@
 			"through": false,
 			"through_terrain": false,
 			"step_in_place": false,
+			"lock_animation": false,
 			"lock_player": false,
 			"route": {
 				"mode": "waypoints",
@@ -119,6 +120,7 @@
 			"through": false,
 			"through_terrain": false,
 			"step_in_place": false,
+			"lock_animation": false,
 			"lock_player": false,
 			"route": {
 				"mode": "toward",
@@ -206,6 +208,7 @@
 			"through": false,
 			"through_terrain": false,
 			"step_in_place": false,
+			"lock_animation": false,
 			"lock_player": false,
 			"route": {
 				"mode": "fixed"

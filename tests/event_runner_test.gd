@@ -28,10 +28,22 @@ func _ready() -> void:
 	_test_goto_cycle_trips_budget()
 	_test_nonblocking_key_joined_by_wait_for()
 	_test_print_debug_runs_and_continues()
+	_test_wait_between_rolls_a_duration_in_range()
+	_test_set_fast_forward_forces_the_flag_and_stays_until_something_else_changes_it()
 	_test_define_route_retries_when_blocked()
 	_test_define_route_retry_targets_original_cell_not_recomputed()
 	_test_define_route_jumps_to_blocked_target()
+	_test_move_blocked_flow_per_node()
 	_test_move_by_restore_keeps_original_target_not_current_position()
+	_test_move_by_count_chains_legs_until_done_or_blocked()
+	_test_move_by_forward_uses_the_actors_own_facing()
+	_test_move_by_towards_and_away_from_player()
+	_test_move_by_random_lands_one_cell_away_on_one_axis()
+	await _test_move_by_wander_can_stand_still_or_take_one_step()
+	_test_camera_move_by_blocked_by_bounds()
+	_test_move_route_paths_around_obstacles_and_remembers()
+	await _test_shake_offsets_then_restores_camera()
+	_test_eval_var_substitutes_own_name_and_commits_the_result()
 
 	print("")
 	print("  %d passed, %d failed" % [_passed, _failed])
@@ -206,7 +218,7 @@ func _test_nonblocking_key_joined_by_wait_for() -> void:
 			"outputs": [{"flow": "next", "target": "mv"}]},
 		{"id": "mv", "command": "move_by", "args": {"cells": [2, 0, 0]}, "key": "mv",
 			"blocking": false,
-			"outputs": [{"flow": "next", "target": "join"}]},
+			"outputs": [{"flow": "reached", "target": ""}, {"flow": "immediate", "target": "join"}]},
 		{"id": "join", "command": "wait_for", "args": {"key": "mv"},
 			"outputs": [{"flow": "next", "target": ""}]},
 	]
@@ -242,6 +254,80 @@ func _test_print_debug_runs_and_continues() -> void:
 	GameState.clear()
 
 
+# -- wait_between: a random duration between "min" and "max", rolled once -------------
+
+func _test_wait_between_rolls_a_duration_in_range() -> void:
+	_section("WaitBetween -- rolls a duration between \"min\" and \"max\", once, at start()")
+	GameState.clear()
+
+	var ctx := EventContext.for_event(null, &"test_map", &"wait_between_test", null)
+	var runner := EventRunner.new(ctx)
+
+	var ex: EventCommandExec = EventCommandExec.create("wait_between")
+	ex.setup({}, {"min": 1.0, "max": 2.0}, ctx, runner)
+	ex.start()
+	_ok(ex.tick(0.5) == EventCommandExec.Status.RUNNING,
+		"still running - even the shortest possible roll (1s) can't be done after only 0.5s")
+
+	var left := float(ex.capture().get("left", -1.0))
+	_ok(left >= 0.49 and left < 1.51,
+		"the roll minus the 0.5s already ticked lands in [0.5, 1.5) (got %s)" % left)
+
+	_ok(ex.tick(10.0) == EventCommandExec.Status.DONE,
+		"finishes once comfortably more time has passed than any roll could need")
+
+	# Authored backwards - start() swaps them rather than rolling outside [min, max].
+	var swapped: EventCommandExec = EventCommandExec.create("wait_between")
+	swapped.setup({}, {"min": 3.0, "max": 1.0}, ctx, runner)
+	swapped.start()
+	var swapped_left := float(swapped.capture().get("left", -1.0))
+	_ok(swapped_left >= 1.0 and swapped_left <= 3.0,
+		"min/max authored backwards still rolls inside [1, 3] (got %s)" % swapped_left)
+
+	# Fast-forward collapses it instantly, whatever the roll - the same escape hatch
+	# [Wait] itself already has (question 48).
+	var was_forced := DebugFlags.force_fast_forward
+	DebugFlags.force_fast_forward = true
+	var ff: EventCommandExec = EventCommandExec.create("wait_between")
+	ff.setup({}, {"min": 5.0, "max": 10.0}, ctx, runner)
+	ff.start()
+	_ok(ff.tick(0.0) == EventCommandExec.Status.DONE,
+		"collapses to done on the very first tick under fast-forward")
+	DebugFlags.force_fast_forward = was_forced
+
+	GameState.clear()
+
+
+## [code]set_fast_forward[/code] (events/commands/state_execs.gd's own
+## [code]SetFastForward[/code]) - a graph's own hold on [member
+## DebugFlags.force_fast_forward], left set until something else changes it (unlike
+## key 0's own hold, which [method DebugFlags._process] clears on release).
+func _test_set_fast_forward_forces_the_flag_and_stays_until_something_else_changes_it() -> void:
+	_section("EventRunner -- set_fast_forward forces DebugFlags.force_fast_forward, no args means on")
+	var was_forced := DebugFlags.force_fast_forward
+	DebugFlags.force_fast_forward = false
+
+	var nodes: Array[Dictionary] = [
+		{"id": "start", "command": "start", "args": {},
+			"outputs": [{"flow": "next", "target": "n1"}]},
+		{"id": "n1", "command": "set_fast_forward", "args": {},
+			"outputs": [{"flow": "next", "target": "n2"}]},
+		{"id": "n2", "command": "set_flag", "args": {"flag": "after_set_fast_forward"}, "outputs": []},
+	]
+
+	var ctx := EventContext.for_event(null, &"test_map", &"set_fast_forward_test", null)
+	var runner := EventRunner.new(ctx)
+	runner.begin(nodes)
+
+	_ok(runner.finished, "an all-synchronous chain finishes inside begin() alone")
+	_eq(runner.error, "", "with no error - set_fast_forward has an executor, not the generic fallback")
+	_ok(DebugFlags.force_fast_forward, "no \"enabled\" arg means turn it on, same as set_flag's own default")
+	_ok(GameState.flag(&"after_set_fast_forward"), "and control reached the node after it")
+
+	DebugFlags.force_fast_forward = was_forced
+	GameState.clear()
+
+
 # -- define_route ----------------------------------------------------------------------
 
 ## The exact shape that used to trip the node budget: a hand-wired back-and-forth of
@@ -268,7 +354,7 @@ func _test_define_route_retries_when_blocked() -> void:
 		{"id": "dr", "command": "define_route", "args": {},
 			"outputs": [{"flow": "next", "target": "mv"}]},
 		{"id": "mv", "command": "move_by", "args": {"cells": [1, 0, 0]},
-			"outputs": [{"flow": "next", "target": "done"}]},
+			"outputs": [{"flow": "reached", "target": "done"}, {"flow": "immediate", "target": ""}]},
 		{"id": "done", "command": "set_flag", "args": {"flag": "route_done"}, "outputs": []},
 	]
 
@@ -310,7 +396,7 @@ func _test_define_route_retry_targets_original_cell_not_recomputed() -> void:
 		{"id": "dr", "command": "define_route", "args": {},
 			"outputs": [{"flow": "next", "target": "mv"}]},
 		{"id": "mv", "command": "move_by", "args": {"cells": [3, 0, 0]},
-			"outputs": [{"flow": "next", "target": "done"}]},
+			"outputs": [{"flow": "reached", "target": "done"}, {"flow": "immediate", "target": ""}]},
 		{"id": "done", "command": "set_flag", "args": {"flag": "route_done"}, "outputs": []},
 	]
 
@@ -354,7 +440,7 @@ func _test_define_route_jumps_to_blocked_target() -> void:
 				{"flow": "blocked", "target": "gave_up"},
 			]},
 		{"id": "mv", "command": "move_by", "args": {"cells": [1, 0, 0]},
-			"outputs": [{"flow": "next", "target": "should_not_run"}]},
+			"outputs": [{"flow": "reached", "target": "should_not_run"}, {"flow": "immediate", "target": ""}]},
 		{"id": "should_not_run", "command": "set_flag",
 			"args": {"flag": "should_not_run"}, "outputs": []},
 		{"id": "gave_up", "command": "set_flag",
@@ -369,6 +455,61 @@ func _test_define_route_jumps_to_blocked_target() -> void:
 	_ok(GameState.flag(&"reached_blocked_target"), "and jumped straight to \"blocked\"'s target")
 	_ok(not GameState.flag(&"should_not_run"), "skipping the move's own \"next\" entirely")
 	_eq(guard.cell(), Vector3i.ZERO, "the guard never actually moved")
+	GameState.clear()
+
+
+## A move command's own "blocked" flow, no define_route anywhere: wired, the refused
+## move counts as completed and the graph flows on from "blocked"; unwired, the command
+## waits a frame and retries - so a looped path awaiting "reached" resumes the same
+## loop once the obstruction clears.
+func _test_move_blocked_flow_per_node() -> void:
+	_section("EventRunner -- a move's own \"blocked\" flow: wired skips on, unwired waits and retries")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var guard: Actor = rig["guard"]
+	var map: MapContext = rig["ctx"]
+	map.occupancy.place(&"blocker", Vector3i(1, 0, 0))
+	var ctx := EventContext.for_event(map, &"test_map", &"blocked_flow_test", guard)
+
+	var wired: Array[Dictionary] = [
+		{"id": "start", "command": "start", "args": {},
+			"outputs": [{"flow": "next", "target": "mv"}]},
+		{"id": "mv", "command": "move_by", "args": {"cells": [1, 0, 0]},
+			"outputs": [{"flow": "reached", "target": "should_not_run"},
+				{"flow": "immediate", "target": ""}, {"flow": "blocked", "target": "gave_up"}]},
+		{"id": "should_not_run", "command": "set_flag",
+			"args": {"flag": "should_not_run"}, "outputs": []},
+		{"id": "gave_up", "command": "set_flag",
+			"args": {"flag": "took_blocked"}, "outputs": []},
+	]
+	var runner := EventRunner.new(ctx)
+	runner.begin(wired)
+	_ok(runner.finished, "wired: the run finishes instead of retrying")
+	_ok(GameState.flag(&"took_blocked"), "wired: flowed on from \"blocked\"")
+	_ok(not GameState.flag(&"should_not_run"), "wired: \"reached\" never fired")
+
+	GameState.clear()
+	var unwired: Array[Dictionary] = [
+		{"id": "start", "command": "start", "args": {},
+			"outputs": [{"flow": "next", "target": "mv"}]},
+		{"id": "mv", "command": "move_by", "args": {"cells": [1, 0, 0]},
+			"outputs": [{"flow": "reached", "target": "done"}, {"flow": "immediate", "target": ""}]},
+		{"id": "done", "command": "set_flag", "args": {"flag": "moved_on"}, "outputs": []},
+	]
+	var runner2 := EventRunner.new(ctx)
+	runner2.begin(unwired)
+	for i in 5:
+		runner2.tick(1.0 / 60.0)
+	_ok(not runner2.finished, "unwired: still waiting while the cell stays blocked")
+	_eq(runner2.error, "", "unwired: no node-budget error")
+
+	map.occupancy.release_actor(&"blocker")
+	runner2.tick(1.0 / 60.0)
+	runner2.tick(1.0 / 60.0)
+	_ok(runner2.finished, "unwired: finishes once the blocker leaves")
+	_eq(guard.cell(), Vector3i(1, 0, 0), "unwired: the move was retried and landed")
+	_ok(GameState.flag(&"moved_on"), "unwired: \"reached\" fired after the retry")
 	GameState.clear()
 
 
@@ -410,6 +551,311 @@ func _test_move_by_restore_keeps_original_target_not_current_position() -> void:
 	_ok(not resumed.was_blocked(),
 		"was_blocked() reads false - the original target survived, not one recomputed " +
 		"another 2 cells past the resumed position")
+	GameState.clear()
+
+
+func _test_move_by_count_chains_legs_until_done_or_blocked() -> void:
+	_section("MoveBy -- \"token:N\" walks N one-cell legs, stopping early if a leg blocks")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var guard: Actor = rig["guard"]
+	guard.set_facing(Vector3i(1, 0, 0))
+	var ctx := EventContext.for_event(rig["ctx"], &"test_map", &"count_test", guard)
+	var runner := EventRunner.new(ctx)
+
+	var ex: EventCommandExec = EventCommandExec.create("move_by")
+	ex.setup({"key": "mv"}, {"cells": "forward:3"}, ctx, runner)
+	ex.start()
+	_ok(ex.own_key() != "", "own_key() is already the chain's key right after start()")
+	_ok(ex.tick(0.0) == EventCommandExec.Status.DONE,
+		"three unobstructed legs still settle synchronously")
+	_eq(guard.cell(), Vector3i(3, 0, 0), "landed 3 cells over - one full \"cells\" delta per count")
+	_ok(not ex.was_blocked(), "and reads as unblocked")
+
+	# Guard is at (3, 0, 0) now. A blocker two cells further over: the chain gets one
+	# leg in (to (4, 0, 0)), then the second comes up blocked at (5, 0, 0) - it must
+	# stop there rather than skipping past the blocker onto the third.
+	(rig["ctx"] as MapContext).occupancy.place(&"blocker", Vector3i(5, 0, 0))
+	var ex2: EventCommandExec = EventCommandExec.create("move_by")
+	ex2.setup({}, {"cells": "forward:3"}, ctx, runner)
+	ex2.start()
+	_ok(ex2.tick(0.0) == EventCommandExec.Status.DONE, "the chain still settles, just short")
+	_eq(guard.cell(), Vector3i(4, 0, 0), "one more leg landed before the blocker refused the next")
+	_ok(ex2.was_blocked(), "and reads as blocked - the chain stopped rather than finishing count")
+
+	GameState.clear()
+
+
+## [constant EventCommand.MOVE_DIR_TOKENS]'s "forward" - [method _build_rig]'s own
+## guard starts facing whatever [Actor]'s own default is, so this sets a facing by hand
+## first to make sure "forward" is reading it, not coincidentally matching a default.
+func _test_move_by_forward_uses_the_actors_own_facing() -> void:
+	_section("MoveBy -- \"forward\" moves one cell in whatever direction the actor already faces")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var guard: Actor = rig["guard"]
+	guard.set_facing(Vector3i(0, 0, 1))
+	var ctx := EventContext.for_event(rig["ctx"], &"test_map", &"forward_test", guard)
+	var runner := EventRunner.new(ctx)
+
+	var ex: EventCommandExec = EventCommandExec.create("move_by")
+	ex.setup({}, {"cells": "forward"}, ctx, runner)
+	ex.start()
+	_ok(ex.tick(0.0) == EventCommandExec.Status.DONE, "settles synchronously, same as a literal delta")
+	_eq(guard.cell(), Vector3i(0, 0, 1), "moved one cell the way the actor was already facing")
+
+	GameState.clear()
+
+
+## [constant EventCommand.MOVE_DIR_TOKENS]' "towards_player"/"away_from_player" -
+## [method _build_rig]'s own player sits at (2, 0, 0), guard at (0, 0, 0): one cardinal
+## step along the only axis that differs.
+func _test_move_by_towards_and_away_from_player() -> void:
+	_section("MoveBy -- \"towards_player\"/\"away_from_player\" take one step along the player's own axis")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var guard: Actor = rig["guard"]
+	var ctx := EventContext.for_event(rig["ctx"], &"test_map", &"towards_test", guard)
+	var runner := EventRunner.new(ctx)
+
+	var towards: EventCommandExec = EventCommandExec.create("move_by")
+	towards.setup({}, {"cells": "towards_player"}, ctx, runner)
+	towards.start()
+	_ok(towards.tick(0.0) == EventCommandExec.Status.DONE, "settles synchronously")
+	_eq(guard.cell(), Vector3i(1, 0, 0), "one cell closer to the player at (2, 0, 0)")
+
+	var away: EventCommandExec = EventCommandExec.create("move_by")
+	away.setup({}, {"cells": "away_from_player"}, ctx, runner)
+	away.start()
+	_ok(away.tick(0.0) == EventCommandExec.Status.DONE, "settles synchronously")
+	_eq(guard.cell(), Vector3i(0, 0, 0), "one cell back the way it came, away from the player")
+
+	GameState.clear()
+
+
+## [constant EventCommand.MOVE_DIR_TOKENS]' "random" - not which cardinal direction (
+## that is [method EventCommand._random_cardinal]'s own business, not this command's),
+## only that it lands exactly one cell away on one axis, the way any of the four could.
+func _test_move_by_random_lands_one_cell_away_on_one_axis() -> void:
+	_section("MoveBy -- \"random\" moves exactly one cell, along one axis")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var guard: Actor = rig["guard"]
+	var ctx := EventContext.for_event(rig["ctx"], &"test_map", &"random_test", guard)
+	var runner := EventRunner.new(ctx)
+
+	var ex: EventCommandExec = EventCommandExec.create("move_by")
+	ex.setup({}, {"cells": "random"}, ctx, runner)
+	ex.start()
+	_ok(ex.tick(0.0) == EventCommandExec.Status.DONE, "settles synchronously")
+
+	var delta := guard.cell() - Vector3i.ZERO
+	_ok(absi(delta.x) + absi(delta.y) + absi(delta.z) == 1,
+		"landed exactly one cell away (got %s)" % guard.cell())
+
+
+## [constant EventCommand.MOVE_DIR_TOKENS]' "wander" - [method
+## EventCommand._random_cardinal_or_stay]'s own five equally-likely outcomes, so 60
+## legs run the odds of never once landing on "stand still" (or never once moving)
+## down to about 1 in 10^4 - unlucky enough to treat a failure here as a real bug, not
+## a fluke.
+##
+## [b]A "stand still" leg does not settle inside its own [method
+## EventCommandExec.tick] the way every other leg here does[/b] - unlike everywhere
+## else in this file's own class doc ("every actor here is deliberately viewless...
+## which is what makes a grid move settle synchronously"), [method
+## GridMotion.move_to] given the cell the actor is already on resolves its key through
+## a deferred [signal EventBus.command_finished] instead (see that method's own
+## comment on why - a caller has not connected to the key yet at the point the call
+## returns it). This is the one test in the file that has to actually wait a real
+## frame for that, rather than assuming synchronous settlement like every other move.
+func _test_move_by_wander_can_stand_still_or_take_one_step() -> void:
+	_section("MoveBy -- \"wander\" is \"random\" plus a fifth outcome: stand still")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var guard: Actor = rig["guard"]
+	var ctx := EventContext.for_event(rig["ctx"], &"test_map", &"wander_test", guard)
+	var runner := EventRunner.new(ctx)
+
+	var saw_stay := false
+	var saw_move := false
+	for i in 60:
+		var before := guard.cell()
+		var ex: EventCommandExec = EventCommandExec.create("move_by")
+		ex.setup({}, {"cells": "wander"}, ctx, runner)
+		ex.start()
+
+		var status := ex.tick(0.0)
+		var frames := 0
+		while status != EventCommandExec.Status.DONE and frames < 5:
+			await get_tree().process_frame
+			status = ex.tick(0.0)
+			frames += 1
+		_ok(status == EventCommandExec.Status.DONE, "settles within a few frames at most")
+
+		var step := guard.cell() - before
+		var distance := absi(step.x) + absi(step.y) + absi(step.z)
+		_ok(distance == 0 or distance == 1,
+			"every leg is either a stand-still or exactly one cell (got delta %s)" % step)
+		if distance == 0:
+			saw_stay = true
+		else:
+			saw_move = true
+
+	_ok(saw_stay, "stood still at least once across 60 legs")
+	_ok(saw_move, "and moved at least once across 60 legs")
+
+	GameState.clear()
+
+
+## No actors involved - a camera command's only "rig" is a MapContext and a RoomCamera2D,
+## the same sibling-under-one-root shape [method _build_rig] gives an actor.
+func _test_move_route_paths_around_obstacles_and_remembers() -> void:
+	_section("MoveRoute -- A* around a blocker, stores JSON move commands, no_path_found when walled in")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var guard: Actor = rig["guard"]
+	var map: MapContext = rig["ctx"]
+	map.occupancy.place(&"blocker", Vector3i(1, 0, 0))
+	var ctx := EventContext.for_event(map, &"test_map", &"route_test", guard)
+	var runner := EventRunner.new(ctx)
+
+	var ex: EventCommandExec = EventCommandExec.create("move_route")
+	ex.setup({}, {"cell": Vector3i(2, 0, 1)}, ctx, runner)
+	ex.start()
+	_ok(ex.tick(0.0) == EventCommandExec.Status.DONE, "a clear route settles synchronously")
+	_eq(guard.cell(), Vector3i(2, 0, 1), "walked around the blocker to the target")
+	_eq(ex.flow_port(), EventCommand.FLOW_REACHED, "and leaves by \"reached\"")
+	_ok(not ex.was_blocked(), "unblocked")
+	_eq(guard.move_route.size(), 3, "the route is stored as one JSON move command per step")
+	_eq((guard.move_route[0] as Dictionary)["command"], "move_to", "each is a move_to")
+
+	var saved := guard.to_save()
+	guard.move_route = []
+	guard.from_save(saved)
+	_eq(guard.move_route.size(), 3, "the most recent route survives save/load")
+
+	# The debug view draws what is left of the stored route: put the guard back at the
+	# start and all three steps are ahead of it again; at the end, none are.
+	_eq(DebugRouteView.route_lines(map).size(), 0, "debug route view: nothing left once the route is walked")
+	guard.motion().move_to(Vector3i.ZERO, {"path": "raw"})
+	var lines := DebugRouteView.route_lines(map)
+	_eq(lines.size(), 1, "debug route view: one route drawn for the actor that has one")
+	_eq(lines[0].size() if lines.size() == 1 else -1, 4, "from its own cell through all three steps")
+
+	# Walled in: every neighbour of (6, 0, 6) is held, so it cannot be reached. A tight
+	# node cap keeps the search short; the actor walks the best attempt, then reports it.
+	for d in Passability.STEPS:
+		map.occupancy.place(StringName("wall%d_%d" % [d.x, d.z]), Vector3i(6, 0, 6) + d)
+	var ex2: EventCommandExec = EventCommandExec.create("move_route")
+	ex2.setup({}, {"cell": Vector3i(6, 0, 6), "max_nodes": 150}, ctx, runner)
+	ex2.start()
+	_ok(ex2.tick(0.0) == EventCommandExec.Status.DONE, "the walled-in search finishes")
+	_eq(ex2.flow_port(), EventCommand.FLOW_NO_PATH_FOUND, "and leaves by \"no_path_found\"")
+	_ok(guard.cell() != Vector3i(6, 0, 6), "without reaching the walled-in target")
+
+	GameState.clear()
+
+
+func _test_shake_offsets_then_restores_camera() -> void:
+	_section("Shake -- the camera is offset while shaking and back exactly at rest afterwards")
+	GameState.clear()
+
+	var root := Node2D.new()
+	add_child(root)
+	var ctx := MapContext.new()
+	ctx.map_id = &"shake_test_map"
+	root.add_child(ctx)
+	var camera := Camera2D.new()
+	root.add_child(camera)
+	var rig := RoomCamera2D.new()
+	camera.add_child(rig)
+
+	var ectx := EventContext.for_event(ctx, &"shake_test_map", &"shake_test")
+	var runner := EventRunner.new(ectx)
+	var ex: EventCommandExec = EventCommandExec.create("shake")
+	ex.setup({"key": "sh"}, {"strength": 20.0, "seconds": 0.2}, ectx, runner)
+	ex.start()
+	_ok(ex.own_key() != "", "shake mints a key")
+	_ok(ex.tick(0.0) == EventCommandExec.Status.RUNNING, "and is still running right after start")
+
+	var moved := false
+	for i in 6:
+		await get_tree().process_frame
+		if camera.offset != Vector2.ZERO:
+			moved = true
+	_ok(moved, "the camera was offset at some point during the shake")
+
+	await get_tree().create_timer(0.4).timeout
+	_ok(ex.tick(0.0) == EventCommandExec.Status.DONE, "finished after its seconds elapsed")
+	_eq(camera.offset, Vector2.ZERO, "camera offset is exactly zero again afterwards")
+	_eq(ex.flow_port(), EventCommand.FLOW_REACHED, "and it leaves by \"reached\"")
+
+	root.free()
+	GameState.clear()
+
+
+func _test_camera_move_by_blocked_by_bounds() -> void:
+	_section("CameraMoveBy -- a leg outside camera_bounds stops the chain, the camera's own \"blocked\"")
+	GameState.clear()
+
+	var root := Node2D.new()
+	add_child(root)
+
+	var ctx := MapContext.new()
+	ctx.map_id = &"cam_test_map"
+	ctx.cell_size = Vector3.ONE * 16.0
+	root.add_child(ctx)
+
+	var camera := Camera2D.new()
+	root.add_child(camera)
+	var rig := RoomCamera2D.new()
+	# Three cells wide at 16px each - room for two legs east of the origin cell before
+	# a third would land outside it.
+	rig.bounds = Rect2(Vector2.ZERO, Vector2(48, 48))
+	camera.add_child(rig)
+
+	var ectx := EventContext.for_event(ctx, &"cam_test_map", &"cam_test")
+	var runner := EventRunner.new(ectx)
+
+	var ex: EventCommandExec = EventCommandExec.create("camera_move_by")
+	ex.setup({}, {"cells": "random:5"}, ectx, runner)
+	ex.start()
+	_ok(ex.tick(0.0) == EventCommandExec.Status.DONE,
+		"the chain settles instantly - nothing here waits on a real tween")
+	_ok(ex.was_blocked(),
+		"and reads as blocked - it left the bounds before it ran out of count")
+
+	root.free()
+	GameState.clear()
+
+
+func _test_eval_var_substitutes_own_name_and_commits_the_result() -> void:
+	_section("EvalVar -- \"{v}\" substitutes \"var\"'s own name, and the boolean result commits back to it")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var ctx := EventContext.for_event(rig["ctx"], &"test_map", &"eval_var_test")
+	var runner := EventRunner.new(ctx)
+
+	GameState.var_set(&"chapter", 5.0)
+	var ex: EventCommandExec = EventCommandExec.create("eval_var")
+	ex.setup({}, {"var": "chapter", "expression": "{v} >= 5"}, ctx, runner)
+	ex.start()
+	_ok(GameState.var_get(&"chapter") == true, "chapter >= 5 held, so chapter now reads true")
+
+	GameState.var_set(&"chapter", 5.0)
+	var ex2: EventCommandExec = EventCommandExec.create("eval_var")
+	ex2.setup({}, {"var": "chapter", "expression": "{v} >= 10"}, ctx, runner)
+	ex2.start()
+	_ok(GameState.var_get(&"chapter") == false, "chapter >= 10 did not, so chapter now reads false")
+
 	GameState.clear()
 
 

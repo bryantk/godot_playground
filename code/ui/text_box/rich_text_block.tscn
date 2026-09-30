@@ -1,0 +1,42 @@
+[gd_scene format=3 uid="uid://ct51ydliwmoql"]
+
+[ext_resource type="Script" uid="uid://u2t1v0x2a0ka" path="res://code/ui/text_box/bbc_data.gd" id="1_766ow"]
+[ext_resource type="Script" uid="uid://dpu2bmmnmj8mg" path="res://code/ui/text_box/rich_text_block.gd" id="2_4sobq"]
+[ext_resource type="Script" uid="uid://bjd6ag5f4c353" path="res://code/ui/text_box/rich_text_sound.gd" id="3_r0brw"]
+[ext_resource type="AudioStream" uid="uid://b77ccihc1whun" path="res://code/ui/text_box/dbz_yesBeep.wav" id="4_d61ow"]
+[ext_resource type="Script" uid="uid://bp7177p7sfqs0" path="res://code/ui/text_box/text_voice.gd" id="5_b5n0r"]
+
+[sub_resource type="RichTextEffect" id="RichTextEffect_8y8sn"]
+script = ExtResource("1_766ow")
+
+[node name="RichTextBox" type="RichTextLabel" unique_id=200836293]
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+bbcode_enabled = true
+text = "NEED TO support colating multiple pages into one
+I want to animate IN and OUT of the text box
+Wire in display and possition (seperate)
+A way to mock text for editing display
+line 4
+line 7__"
+scroll_active = false
+shortcut_keys_enabled = false
+custom_effects = [SubResource("RichTextEffect_8y8sn")]
+visible_characters_behavior = 1
+script = ExtResource("2_4sobq")
+characters_per_second = 10.0
+scroll_speed = 400.0
+speedup_rate = 4.0
+
+[node name="RichTextSound" type="AudioStreamPlayer" parent="." unique_id=188126060]
+volume_db = -8.0
+script = ExtResource("3_r0brw")
+sound = ExtResource("4_d61ow")
+pitch_expression = "({c}.to_lower().unicode_at(0) - 97) / 26.0 / 2.0 + 0.75"
+metadata/_custom_type_script = "uid://bjd6ag5f4c353"
+
+[node name="Voice" type="Node" parent="RichTextSound" unique_id=1457399002]
+script = ExtResource("5_b5n0r")
+voice = 3

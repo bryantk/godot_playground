@@ -240,50 +240,53 @@ modulate = Color(0, 0, 0, 0.55)
 [node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Player" unique_id=1651868529 node_paths=PackedStringArray("target")]
 script = ExtResource("26_debug_area")
 target = NodePath("../Collision")
+type = 4
 area_size = Vector3(0.6, 1.2, 0.6)
 
-[node name="Event__1" parent="Upscale/World/Map/Actors" unique_id=926035196 instance=ExtResource("4_4yn8y")]
+[node name="Event_1" parent="Upscale/World/Map/Actors" unique_id=926035196 instance=ExtResource("4_4yn8y")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.5, 0, 7.5)
 
-[node name="Sprite" parent="Upscale/World/Map/Actors/Event__1" index="2"]
+[node name="Sprite" parent="Upscale/World/Map/Actors/Event_1" index="2"]
 modulate = Color(0.65, 0.8, 1, 1)
 frame = 1
 
-[node name="Shadow" parent="Upscale/World/Map/Actors/Event__1" index="3"]
+[node name="Shadow" parent="Upscale/World/Map/Actors/Event_1" index="3"]
 process_priority = 100
 size = Vector3(0.7, 0.4, 0.7)
 texture_albedo = SubResource("ImageTexture_12pxd")
 modulate = Color(0, 0, 0, 0.55)
 
-[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Event__1" unique_id=926035197]
+[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Event_1" unique_id=926035197]
 script = ExtResource("25_game_event")
 document_path = "res://code/events/isoish_grid_demo/event_1_greeting.event.json"
 
-[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Event__1" unique_id=73596369 node_paths=PackedStringArray("target")]
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Event_1" unique_id=73596369 node_paths=PackedStringArray("target")]
 script = ExtResource("26_debug_area")
 target = NodePath("../Collision")
+type = 1
 area_size = Vector3(0.6, 1.2, 0.6)
 
-[node name="Event__2" parent="Upscale/World/Map/Actors" unique_id=784194929 instance=ExtResource("4_4yn8y")]
+[node name="Event_2" parent="Upscale/World/Map/Actors" unique_id=784194929 instance=ExtResource("4_4yn8y")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 4.5)
 
-[node name="Sprite" parent="Upscale/World/Map/Actors/Event__2" index="2"]
+[node name="Sprite" parent="Upscale/World/Map/Actors/Event_2" index="2"]
 modulate = Color(0.65, 0.8, 1, 1)
 frame = 1
 
-[node name="Shadow" parent="Upscale/World/Map/Actors/Event__2" index="3"]
+[node name="Shadow" parent="Upscale/World/Map/Actors/Event_2" index="3"]
 process_priority = 100
 size = Vector3(0.7, 0.4, 0.7)
 texture_albedo = SubResource("ImageTexture_yqpgd")
 modulate = Color(0, 0, 0, 0.55)
 
-[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Event__2" unique_id=1247669565]
+[node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Event_2" unique_id=1247669565]
 script = ExtResource("25_game_event")
 document_path = "res://code/events/isoish_grid_demo/event_2_patrol.event.json"
 
-[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Event__2" unique_id=835807651 node_paths=PackedStringArray("target")]
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Event_2" unique_id=835807651 node_paths=PackedStringArray("target")]
 script = ExtResource("26_debug_area")
 target = NodePath("../Collision")
+type = 1
 area_size = Vector3(0.6, 1.2, 0.6)
 
 [node name="MapTransfer" type="Node3D" parent="Upscale/World/Map/Actors" unique_id=900000201]
@@ -295,6 +298,7 @@ document_path = "res://code/events/isoish_grid_demo/map_transfer.event.json"
 
 [node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/MapTransfer" unique_id=900000203]
 script = ExtResource("26_debug_area")
+type = 3
 
 [node name="Markers" type="Node3D" parent="Upscale/World/Map" unique_id=900000204]
 
@@ -302,6 +306,14 @@ script = ExtResource("26_debug_area")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 7.5)
 script = ExtResource("27_map_marker")
 marker_name = &"arrival"
+
+[node name="DebugArea_2" type="Node3D" parent="Upscale/World/Map/Markers/Arrival" unique_id=659327668 node_paths=PackedStringArray("target")]
+script = ExtResource("26_debug_area")
+target = NodePath("..")
+type = 3
+area_size = Vector3(0.6, 1.2, 0.6)
+color = Color(0.95, 0.55, 0.15, 0.9)
+fill = true
 
 [node name="Camera" type="Camera3D" parent="Upscale/World/Map" unique_id=629880923]
 
@@ -311,5 +323,5 @@ upscale_path = NodePath("../../../..")
 follow_target = &"player"
 
 [editable path="Upscale/World/Map/Actors/Player"]
-[editable path="Upscale/World/Map/Actors/Event__1"]
-[editable path="Upscale/World/Map/Actors/Event__2"]
+[editable path="Upscale/World/Map/Actors/Event_1"]
+[editable path="Upscale/World/Map/Actors/Event_2"]

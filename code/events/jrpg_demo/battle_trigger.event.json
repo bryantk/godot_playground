@@ -1,0 +1,89 @@
+{
+	"format": 1,
+	"id": "battle_trigger",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {},
+			"art": {
+				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
+				"facing": "n"
+			},
+			"lock_facing": true,
+			"through": true,
+			"through_terrain": false,
+			"step_in_place": true,
+			"lock_player": false,
+			"route": [],
+			"graph": [
+				{
+					"id": "start",
+					"title": "start",
+					"position": {
+						"x": -180,
+						"y": 0
+					},
+					"command": "start",
+					"args": {
+						"page_entry": true
+					},
+					"outputs": [
+						{
+							"flow": "player_touch",
+							"target": ""
+						},
+						{
+							"flow": "event_touch",
+							"target": ""
+						},
+						{
+							"flow": "action",
+							"target": "n1"
+						},
+						{
+							"flow": "auto",
+							"target": ""
+						},
+						{
+							"flow": "on_load",
+							"target": ""
+						},
+						{
+							"flow": "leave_cell",
+							"target": ""
+						},
+						{
+							"flow": "on_flag",
+							"target": ""
+						},
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				},
+				{
+					"id": "n1",
+					"title": "start_battle",
+					"position": {
+						"x": 100,
+						"y": 0
+					},
+					"command": "start_battle",
+					"args": {
+						"troop": "slime_pair",
+						"fade_out": 0.4,
+						"fade_in": 0.4,
+						"allow_defeat": true
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				}
+			]
+		}
+	]
+}

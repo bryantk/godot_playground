@@ -1,11 +1,11 @@
 [gd_resource type="Resource" script_class="GameProfile" format=3]
 
-[ext_resource type="Script" path="res://world/camera/room_camera_2d.gd" id="1_8gua1"]
-[ext_resource type="Resource" path="res://games/jrpg/jrpg_input.tres" id="2_hr6id"]
-[ext_resource type="Script" path="res://actors/motion/grid_motion.gd" id="3_yrq86"]
-[ext_resource type="Script" path="res://world/game_profile.gd" id="4_i1a0b"]
-[ext_resource type="Script" path="res://world/space_2d.gd" id="5_od3if"]
-[ext_resource type="Script" path="res://actors/views/sprite_view_2d.gd" id="6_ryqaw"]
+[ext_resource type="Script" uid="uid://dbqof4tvekdto" path="res://code/world/camera/room_camera_2d.gd" id="1_8gua1"]
+[ext_resource type="Resource" uid="uid://ddc0auvy6xbyo" path="res://games/jrpg/jrpg_input.tres" id="2_hr6id"]
+[ext_resource type="Script" uid="uid://cus4es2u403ny" path="res://code/actors/motion/grid_motion.gd" id="3_yrq86"]
+[ext_resource type="Script" uid="uid://vrns685412ak" path="res://code/world/game_profile.gd" id="4_i1a0b"]
+[ext_resource type="Script" uid="uid://cljpl00rh1er7" path="res://code/world/space_2d.gd" id="5_od3if"]
+[ext_resource type="Script" uid="uid://4wfq1bjv0ggw" path="res://code/actors/views/sprite_view_2d.gd" id="6_ryqaw"]
 
 [resource]
 script = ExtResource("4_i1a0b")

@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://b77bly5ro1ph0"]
 
-[ext_resource type="Script" path="res://tools/make_block_variants.gd" id="1_mk"]
+[ext_resource type="Script" uid="uid://c5ty6id3y7gmp" path="res://tools/make_block_variants.gd" id="1_mk"]
 
-[node name="MakeBlockVariants" type="Node"]
+[node name="MakeBlockVariants" type="Node" unique_id=1353429893]
 script = ExtResource("1_mk")

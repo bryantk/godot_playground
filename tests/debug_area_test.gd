@@ -1,7 +1,7 @@
 extends Node
 
 ## Headless assertions over [DebugArea2D] and [DebugArea3D]: draws an outline/wireframe,
-## nothing else, and follows [method DebugFlags.show_debug_view] at runtime while
+## nothing else, and follows [method DebugFlags.is_box_type_visible] at runtime while
 ## always showing in the editor.
 ##
 ##     godot --headless --path . res://tests/debug_area_test.tscn
@@ -16,6 +16,8 @@ func _ready() -> void:
 	print("")
 
 	_test_2d_hidden_then_shown_by_the_debug_flag()
+	_test_2d_hidden_regardless_of_category_while_the_menu_is_closed()
+	_test_2d_none_type_follows_the_catch_all_not_always_on()
 	_test_2d_sizes_itself_from_the_sibling_actors_footprint()
 	_test_2d_keeps_the_authored_size_with_no_actor_beside_it()
 	_test_2d_sizes_itself_from_a_sibling_collider()
@@ -38,25 +40,87 @@ func _ready() -> void:
 
 
 func _test_2d_hidden_then_shown_by_the_debug_flag() -> void:
-	_section("DebugArea2D -- follows DebugFlags.show_debug_view at runtime")
+	_section("DebugArea2D -- follows DebugFlags.is_box_type_visible at runtime")
 
-	var was_on := DebugFlags.show_debug_view()
-	DebugFlags._show_debug_view = false
+	var was_menu_open := DebugFlags._menu_open
+	DebugFlags._menu_open = true
+	var was_on := DebugFlags.is_category_visible(&"event")
+	DebugFlags._category_visible[&"event"] = false
+
+	var area := DebugArea2D.new()
+	area.type = DebugFlags.BoxType.EVENT
+	add_child(area)
+
+	_ok(not area.visible, "hidden while its own category starts off")
+
+	DebugFlags._category_visible[&"event"] = true
+	area._process(0.0)
+	_ok(area.visible, "shown the moment its own category is switched on")
+
+	DebugFlags._category_visible[&"event"] = false
+	area._process(0.0)
+	_ok(not area.visible, "and hidden again when it's switched back off")
+
+	DebugFlags._category_visible[&"event"] = was_on
+	DebugFlags._menu_open = was_menu_open
+	area.free()
+
+
+## Nothing draws while the menu itself is closed, whatever a category's own on/off
+## says - [method DebugFlags.is_category_visible]'s own guard, the actual fix for "debug
+## boxes visible even with the ~ window closed."
+func _test_2d_hidden_regardless_of_category_while_the_menu_is_closed() -> void:
+	_section("DebugArea2D -- hidden while the debug menu is closed, category on or not")
+
+	var was_menu_open := DebugFlags._menu_open
+	var was_on := DebugFlags.is_category_visible(&"event")
+	DebugFlags._menu_open = false
+	DebugFlags._category_visible[&"event"] = true
+
+	var area := DebugArea2D.new()
+	area.type = DebugFlags.BoxType.EVENT
+	add_child(area)
+	area._process(0.0)
+
+	_ok(not area.visible, "hidden with its own category on, since the menu itself is closed")
+
+	DebugFlags._menu_open = true
+	area._process(0.0)
+	_ok(area.visible, "and shown the moment the menu opens, same category state untouched")
+
+	DebugFlags._category_visible[&"event"] = was_on
+	DebugFlags._menu_open = was_menu_open
+	area.free()
+
+
+## [constant DebugFlags.BoxType.NONE] has no category of its own to key off - see
+## [method DebugFlags.is_box_type_visible] - so it instead follows the same catch-all
+## [method DebugFlags.show_debug_view] every other category-less overlay does: hidden
+## while every category is off (not "always on", which would make the whole menu look
+## broken against every box nobody has re-categorized yet), shown the moment any one
+## category is switched on.
+func _test_2d_none_type_follows_the_catch_all_not_always_on() -> void:
+	_section("DebugArea2D -- BoxType.NONE follows show_debug_view(), not unconditionally on")
+
+	var was_menu_open := DebugFlags._menu_open
+	DebugFlags._menu_open = true
+	var saved := DebugFlags._category_visible.duplicate()
+	for category in DebugFlags.CATEGORIES:
+		DebugFlags._category_visible[category] = false
 
 	var area := DebugArea2D.new()
 	add_child(area)
 
-	_ok(not area.visible, "hidden while the debug view starts off")
-
-	DebugFlags._show_debug_view = true
+	_eq(area.type, 0, "NONE is the default type")
 	area._process(0.0)
-	_ok(area.visible, "shown the moment it is switched on")
+	_ok(not area.visible, "hidden while every category is off")
 
-	DebugFlags._show_debug_view = false
+	DebugFlags._category_visible[&"actor"] = true
 	area._process(0.0)
-	_ok(not area.visible, "and hidden again when it's switched back off")
+	_ok(area.visible, "shown once any category at all is switched on")
 
-	DebugFlags._show_debug_view = was_on
+	DebugFlags._category_visible = saved
+	DebugFlags._menu_open = was_menu_open
 	area.free()
 
 

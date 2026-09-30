@@ -104,6 +104,16 @@ var _step_over_terrain: bool = false
 ## expressions are the same one.
 var _rest: Vector3 = Vector3.ZERO
 
+## A jump in flight - see [method jump_to]. Distinct from an ordinary step's [member
+## _step_back]/[member _step_left]: the body already committed to the destination the
+## instant the jump started, and this only shapes the sprite's own catch-up into an arc
+## instead of the straight line an ordinary step eases back through.
+var _jumping: bool = false
+var _jump_back: Vector3 = Vector3.ZERO
+var _jump_height: float = 0.0
+var _jump_left: float = 0.0
+var _jump_key: String = ""
+
 ## Cells still to fall, paid out one step at a time from [method _settle]
 ## (open-questions 37). The depth was measured before the step that started the fall
 ## committed, so this only ever counts down.
@@ -126,7 +136,7 @@ func _ready() -> void:
 ## round would close mid-drop and a brain could steer an actor through the air, which is
 ## neither what a round means nor what falling looks like.
 func is_busy() -> bool:
-	return _moving or _falling > 0 or _fall_wait > 0.0 or not _queue.is_empty()
+	return _moving or _jumping or _falling > 0 or _fall_wait > 0.0 or not _queue.is_empty()
 
 
 ## The direction to take the instant the current step settles, or ZERO for none.
@@ -264,6 +274,118 @@ func _shift_cells(cells: Array[Vector3i], delta: Vector3i) -> Array[Vector3i]:
 	return out
 
 
+## Where a step from [param from] in [param dir] would land, or null if it would be
+## refused - [method step]'s own checks (terrain, occupancy, footprint, restrictors)
+## without committing anything or turning the actor. [param from] need not be where the
+## actor stands: the footprint is shifted to it, so this can be asked of every cell of a
+## hypothetical path. Cardinal only, which is all [method find_path] walks.
+func plan_step(from: Vector3i, dir: Vector3i) -> Variant:
+	var ctx := context()
+	if _actor == null or ctx == null or dir == Vector3i.ZERO:
+		return null
+
+	var plan: Dictionary
+	if _actor.through_terrain:
+		plan = {"ok": true, "cell": from + dir, "fall": 0, "on_ladder": false}
+	else:
+		plan = Terrain.resolve_step(ctx, from, dir, ctx.max_fall_cells)
+	if not plan["ok"]:
+		return null
+
+	var to: Vector3i = plan["cell"]
+	var from_cells := _shift_cells(_actor.footprint_cells(), from - _actor.cell())
+	var to_cells := _shift_cells(from_cells, to - from)
+	if not Passability.can_enter_footprint(ctx, from_cells, to_cells, _actor) \
+			or not step_allowed(to_cells):
+		return null
+	return to
+
+
+## A* from the actor's cell toward [param target] over [method plan_step], four
+## directions. Gives up after expanding [param max_nodes] cells, so a walled-off or
+## far-off target costs a bounded amount rather than flooding the map.
+##
+## Returns [code]{path: Array[Vector3i], complete: bool}[/code]: [code]path[/code] is the
+## cells to walk in order (start excluded), [code]complete[/code] whether it ends on
+## [param target]. When the search exhausts or hits the cap without reaching it, the
+## path is the best attempt - the way to whichever explored cell was closest to the
+## target - and [code]complete[/code] is false. Deterministic: ties break by insertion
+## order, so the same map and the same call always give the same route.
+func find_path(target: Vector3i, max_nodes: int = 2000) -> Dictionary:
+	var out := {"path": [] as Array[Vector3i], "complete": false}
+	if _actor == null or context() == null:
+		return out
+
+	var start := _actor.cell()
+	if start == target:
+		out["complete"] = true
+		return out
+
+	# Open set as a binary-free list scanned for its minimum: maps here are small and the
+	# cap bounds it, so the simple structure keeps tie-breaking (first inserted wins)
+	# obvious. f = g + manhattan distance on the ground plane.
+	var g_cost := {start: 0}
+	var came_from := {}
+	var open: Array[Vector3i] = [start]
+	var closed := {}
+	var best := start
+	var best_h := _path_heuristic(start, target)
+	var expanded := 0
+
+	while not open.is_empty() and expanded < max_nodes:
+		var at_index := 0
+		var at_f := int(g_cost[open[0]]) + _path_heuristic(open[0], target)
+		for i in range(1, open.size()):
+			var f := int(g_cost[open[i]]) + _path_heuristic(open[i], target)
+			if f < at_f:
+				at_f = f
+				at_index = i
+		var at: Vector3i = open[at_index]
+		open.remove_at(at_index)
+		closed[at] = true
+		expanded += 1
+
+		if at == target:
+			out["path"] = _path_to(came_from, at)
+			out["complete"] = true
+			return out
+
+		var h := _path_heuristic(at, target)
+		if h < best_h:
+			best = at
+			best_h = h
+
+		for dir in Passability.STEPS:
+			var landed: Variant = plan_step(at, dir)
+			if landed == null:
+				continue
+			var next: Vector3i = landed
+			if closed.has(next):
+				continue
+			var tentative := int(g_cost[at]) + 1
+			if not g_cost.has(next) or tentative < int(g_cost[next]):
+				g_cost[next] = tentative
+				came_from[next] = at
+				if not open.has(next):
+					open.append(next)
+
+	out["path"] = _path_to(came_from, best)
+	return out
+
+
+static func _path_heuristic(a: Vector3i, b: Vector3i) -> int:
+	return absi(a.x - b.x) + absi(a.z - b.z) + absi(a.y - b.y)
+
+
+static func _path_to(came_from: Dictionary, end: Vector3i) -> Array[Vector3i]:
+	var cells: Array[Vector3i] = []
+	var at := end
+	while came_from.has(at):
+		cells.push_front(at)
+		at = came_from[at]
+	return cells
+
+
 ## Like [method step], but returns the key for the step just taken instead of a bare
 ## bool - "" if it was refused. What makes a stepped route joinable: [method step]'s own
 ## key is unobtainable once a viewless actor has already settled synchronously inside
@@ -331,6 +453,12 @@ func cancel() -> void:
 	_falling = 0
 	_fall_wait = 0.0
 	_fall_begun = false
+	if _jumping:
+		_jumping = false
+		if _jump_key != "":
+			var jkey := _jump_key
+			_jump_key = ""
+			EventBus.command_finished.emit(jkey)
 	_cancel_visual()
 	if _route_key != "":
 		var key := _route_key
@@ -353,8 +481,11 @@ func cancel() -> void:
 ## (open-questions 38). The actor lets go and falls the whole way,
 ## [member MapContext.max_fall_cells] notwithstanding - the limit is there so a player
 ## does not walk off a lethal ledge by accident, and letting go of a ladder is the
-## opposite of an accident.
-func jump(_strength: float) -> String:
+## opposite of an accident. [param _strength] is unused - a grid release has only one
+## speed - and kept only so this matches [method MotionController.jump]'s own signature.
+## The graph-authored [code]jump[/code] command wants [method jump_to] instead, an aimed
+## toss at a cell rather than a button press with no target.
+func jump(_strength: float = -1.0) -> String:
 	var ctx := context()
 	if ctx != null and _actor != null and not is_busy() \
 			and Terrain.has_ladder(ctx, _actor.cell()):
@@ -376,6 +507,39 @@ func jump(_strength: float) -> String:
 
 	push_warning("GridMotion('%s'): jump needs free motion." % _actor.actor_id if _actor != null else "?")
 	return ""
+
+
+## Jumps in a straight line to [param cell], however many cells away, landing exactly on
+## it - unlike an ordinary [method step]/[method move_to], passability is never consulted
+## (a jump's whole point is clearing whatever lies between) and the body commits to the
+## destination the instant this is called, the same "authoritative the moment it commits"
+## contract every other grid move already keeps (see this class's own doc). [param height]
+## shapes the sprite's own catch-up into an arc instead of the straight line-back-to-rest
+## an ordinary step eases through - characterisation, like [member fall_delay], not real
+## physics: [FreeMotion]'s own [method FreeMotion.jump_to] is the one that actually
+## simulates gravity.
+func jump_to(cell: Vector3i, height: float) -> String:
+	if _actor == null or is_busy():
+		return ""
+	var ctx := context()
+	if ctx == null or cell == _actor.cell():
+		return ""
+
+	var from_world := adapter().world_position()
+	ctx.occupancy.place(_actor.actor_id, cell)
+	var to_world := ctx.cell_centre(cell)
+	adapter().set_world_position(to_world)
+	var dir := Space.flatten(to_world - from_world)
+	if dir.length_squared() > 0.0001:
+		face(Space.quantise(dir, direction_count))
+
+	_jump_back = from_world - to_world
+	_jump_height = maxf(0.0, height)
+	_jump_left = 1.0
+	_jump_key = _next_key("jump")
+	_jumping = true
+	set_process(true)
+	return _jump_key
 
 
 # -- Save/restore (segment 5b, question 39: mid-command resume) ---------------
@@ -715,6 +879,10 @@ func _process(delta: float) -> void:
 		_fall_one(falling_ctx)
 		return
 
+	if _jumping:
+		_process_jump(delta)
+		return
+
 	if not _moving:
 		set_process(false)
 		return
@@ -755,6 +923,49 @@ func _process(delta: float) -> void:
 	if view != null:
 		var offset := _rest + _step_back * _step_left
 		offset.y += _ground_clearance()
+		view.set_step_offset(offset)
+
+
+## Advances a jump in flight - see [method jump_to]. Paced by [member speed] the same
+## way an ordinary step is (flattened, depth-compensated), but against the jump's own
+## straight-line distance instead of one cell, since a jump may cross several.
+func _process_jump(delta: float) -> void:
+	var flat := Space.flatten(_jump_back)
+	var rate := maxf(0.0, speed) * speed_scale(flat)
+	if flat.length_squared() > 0.0:
+		rate *= compensate(flat).length() / flat.length()
+	if rate <= 0.0:
+		return
+
+	var total := maxf(0.0001, _jump_back.length())
+	_jump_left -= (rate * delta) / total
+	var view := _actor.view() if _actor != null else null
+
+	if _jump_left <= 0.0:
+		_jump_left = 0.0
+		_jumping = false
+		if view != null:
+			view.cancel_step_offset()
+			var ctx := context()
+			if ctx != null and _actor != null:
+				var cell := _actor.cell()
+				_rest = Vector3(0.0, Terrain.surface_offset(ctx, cell), 0.0)
+				view.set_step_offset(_rest + Terrain.stance_offset(ctx, cell))
+		set_process(false)
+		if _actor != null:
+			_actor.update_areas(AreaZone.zones_at(_actor, _actor.cell()))
+		var key := _jump_key
+		_jump_key = ""
+		if key != "":
+			EventBus.command_finished.emit(key)
+		return
+
+	if view != null:
+		var offset := _jump_back * _jump_left
+		# A parabola in [param _jump_left] - zero at both ends (0 and 1), peaking at
+		# [member _jump_height] halfway - laid on top of the straight-line ease-back so
+		# a multi-cell jump still visually clears whatever lies between start and landing.
+		offset.y += 4.0 * _jump_height * (1.0 - _jump_left) * _jump_left
 		view.set_step_offset(offset)
 
 

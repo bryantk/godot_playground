@@ -169,6 +169,13 @@ var _has_pre_facing := false
 ## because the page that started a run can switch under it (question 23's deferred
 ## switch aside, a flag change mid-run still cannot retarget which run this pop belongs
 ## to) before that run's own pop is due.
+##
+## [b]Only ever true for a parallel (background) run.[/b] A non-parallel run already
+## gets its own [constant ModeStack.Mode.CUTSCENE] from [method
+## EventScheduler.run_exclusive] regardless of [code]lock_player[/code], and that one's
+## pop does not depend on this node - pushing a second one here for the same run left
+## two on the stack with only one guaranteed way back off, which a [code]change_map[/code]
+## graph could (and did) strand by freeing this node before its own pop ran.
 var _locked_player := false
 
 
@@ -464,23 +471,35 @@ func _apply_art() -> void:
 
 
 ## Applies a page's [code]lock_facing[/code]/[code]through[/code]/[code]through_terrain[/code]/
-## [code]step_in_place[/code] to the actor GameEvent owns, on activation - siblings of
-## [code]art[/code], applied the same way. [method EventDocument.parse] always writes all
-## four explicitly (an omitted key normalizes to [code]false[/code]), so this reads them
-## the same way it always has - see the [member through_actors] group's own doc for what
-## that means for [member facing_locked]/[member through_actors]/[member through_terrain]
-## instead. [code]through[/code] also updates [Occupancy]'s own phasing table directly,
-## not just the export property: [method Actor._claim_spawn_cell] only ever reads
-## [member Actor.through_actors] once, at spawn, so a page switch has to push the change
-## to where pathing actually looks for it. [code]step_in_place[/code] is the odd one of
-## the four - a view property, not an actor one - see [member ActorView.step_in_place]'s
-## own doc.
+## [code]step_in_place[/code]/[code]lock_animation[/code] to the actor GameEvent owns, on
+## activation - siblings of [code]art[/code], applied the same way. [method
+## EventDocument.parse] always writes all five explicitly (an omitted key normalizes to
+## [code]false[/code]), so this reads them the same way it always has - see the [member
+## through_actors] group's own doc for what that means for [member facing_locked]/[member
+## through_actors]/[member through_terrain] instead. [code]through[/code] also updates
+## [Occupancy]'s own phasing table directly, not just the export property: [method
+## Actor._claim_spawn_cell] only ever reads [member Actor.through_actors] once, at spawn,
+## so a page switch has to push the change to where pathing actually looks for it.
+## [code]step_in_place[/code]/[code]lock_animation[/code] are view properties, not actor
+## ones - see [member ActorView.step_in_place]/[member ActorView.lock_animation]'s own
+## doc. [code]animation_speed[/code] is the odd one out of the whole group: unlike every
+## flag above, an omitted [code]animation_speed[/code] is not normalized to anything - see
+## [method EventDocument._read_page]'s own note - so this only ever touches it when the
+## active page actually authored one, leaving whatever pace an earlier page (or a
+## mid-graph [code]set_animation_speed[/code]/move command) already set alone otherwise.
 func _apply_actor_flags() -> void:
 	if _actor == null or _active_page < 0:
 		return
 	var page: Dictionary = _pages()[_active_page]
 	_actor.facing_locked = bool(page.get("lock_facing", false))
 	_actor.through_terrain = bool(page.get("through_terrain", false))
+
+	# The page's settings.speed is how fast this actor moves while the page is active -
+	# the pace a move with no speed argument of its own plays at. Without this the field
+	# was authored and saved but never reached the motion controller.
+	var page_settings: Dictionary = page.get("settings", {})
+	if page_settings.has("speed") and _actor.motion() != null:
+		_actor.motion().speed = float(page_settings["speed"])
 
 	var through := bool(page.get("through", false))
 	_actor.through_actors = through
@@ -489,6 +508,11 @@ func _apply_actor_flags() -> void:
 
 	if _view != null:
 		_view.set_step_in_place(bool(page.get("step_in_place", false)))
+		_view.set_lock_animation(bool(page.get("lock_animation", false)))
+		if page.has("animation_speed"):
+			_view.set_animation_speed_scale(float(page["animation_speed"]))
+		if page.has("color"):
+			_view.set_color(Color.html(str(page["color"])))
 
 
 func _settings() -> Dictionary:
@@ -810,17 +834,25 @@ func _maybe_fire(trigger_name: StringName) -> void:
 		_has_pre_facing = true
 		_face_interactor(trigger_name)
 
+	var parallel := trigger_name == &"auto" and bool(settings.get("parallel", false))
+
 	# Armed alongside facing, for the same reason: a synchronous run below can finish
 	# before this function returns, and poll() must already see the flag it is about
-	# to release.
-	_locked_player = bool(page.get("lock_player", false))
+	# to release. Only pushed for a parallel (background) run: run_exclusive() below
+	# already pushes its own CUTSCENE for every non-parallel run regardless of
+	# lock_player, and popping that one never depends on this node - unlike this
+	# node's own push, which a change_map partway through the graph can strand
+	# forever by freeing this very node before poll()/_exit_tree() gets to pop it
+	# (the exclusive runner is deliberately kept alive past that by EventScheduler,
+	# but this node is not). Double-pushing for the same run was the bug: two
+	# CUTSCENEs went on, but only the scheduler's own ever came back off.
+	_locked_player = parallel and bool(page.get("lock_player", false))
 	if _locked_player:
 		ModeStack.push(ModeStack.Mode.CUTSCENE)
 
 	# The actor's own brain is EventRunner.begin()'s business, not this file's - see the
 	# class doc. Its in-flight route was already handed off above, by
 	# _suspend_route_for_lease().
-	var parallel := trigger_name == &"auto" and bool(settings.get("parallel", false))
 	if parallel:
 		EventScheduler.run_background(runner, graph, document_path, _active_page, str(trigger_name))
 	else:

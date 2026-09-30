@@ -12,10 +12,10 @@ extends RefCounted
 ## dance first.
 ##
 ## [b]Neither [Actor] nor [GameEvent] is a [Node2D]/[Node3D] of its own[/b] - both are
-## plain [Node]s, the same reason [DebugArea2D]/[DebugArea3D] walk up past their own
-## parent to find something with a transform to track. [method _anchor_of] does the
-## identical walk, one level shallower (the selected node itself, not a debug node's own
-## parent), so it lands on the same placement root either debug node already anchors to.
+## plain [Node]s parented under the real placement root ([DebugArea2D]/[DebugArea3D]'s
+## own sibling spot - see either class's doc for why a debug box lives there and
+## nowhere deeper). [method _anchor_of] walks up from the selected node to find that
+## root, landing on the same [Node2D]/[Node3D] either debug node already sits beside.
 ##
 ## [b]Sized like [DebugArea2D]/[DebugArea3D], without depending on either existing.[/b]
 ## A placement with no [DebugArea2D]/[DebugArea3D] child at all (most of them, day to
@@ -35,6 +35,17 @@ extends RefCounted
 ## single-viewport 3D editor, but a highlight drawn in a quad-view pane other than the
 ## first will project against the wrong camera. Not worth the bookkeeping a fully
 ## per-pane-correct version would need until someone actually edits in quad view.
+##
+## [b]The 2D half reads [member Viewport.global_canvas_transform] off [method
+## EditorInterface.get_editor_viewport_2d] directly[/b] - the 2D editor's own pan/zoom,
+## not anything derived from the selected node. Both [method
+## CanvasItem.get_viewport_transform] and [method CanvasItem.get_canvas_transform] on the
+## anchor were tried first and both drew the highlight off from the actual item (in
+## opposite directions from each other) - the points being transformed ([member
+## Actor.footprint]'s rect corners, [member Node2D.global_position]) are already global,
+## so a transform pulled off the anchor itself is the wrong tool no matter which of the
+## two is picked; the editor viewport's own transform is what actually matches what's on
+## screen.
 
 const HIGHLIGHT_COLOR := Color(1.0, 0.85, 0.1, 0.95)
 const LINE_WIDTH := 2.0
@@ -65,9 +76,9 @@ static func _targets() -> Array[Node]:
 	return out
 
 
-## The nearest [Node2D]/[Node3D] ancestor - [method DebugArea2D._find_anchor]'s own
-## walk, one level shallower since this starts on the selected node itself rather than
-## on a debug node's own parent.
+## The nearest [Node2D]/[Node3D] ancestor - walks up from the selected node itself to
+## the placement root [DebugArea2D]/[DebugArea3D] already sit beside as a direct child
+## of the same root.
 static func _anchor_of(node: Node) -> Node:
 	var n: Node = node
 	while n != null:
@@ -77,7 +88,7 @@ static func _anchor_of(node: Node) -> Node:
 	return null
 
 
-## The [Actor] beside [param anchor], if any - [method DebugArea2D._find_actor]'s own
+## The [Actor] beside [param anchor], if any - [method DebugArea2D._sync_target]'s own
 ## search, read straight off the placement root rather than a debug node's cached one.
 static func _actor_under(anchor: Node) -> Actor:
 	for child in anchor.get_children():
@@ -89,14 +100,18 @@ static func _actor_under(anchor: Node) -> Actor:
 # -- 2D ------------------------------------------------------------------------------
 
 static func draw_2d(overlay: Control) -> void:
+	var viewport := EditorInterface.get_editor_viewport_2d()
+	if viewport == null:
+		return
+	var xform := viewport.global_canvas_transform
+
 	for node in _targets():
 		var anchor := _anchor_of(node)
 		if anchor is Node2D:
-			_draw_2d_for(overlay, anchor as Node2D)
+			_draw_2d_for(overlay, xform, anchor as Node2D)
 
 
-static func _draw_2d_for(overlay: Control, anchor: Node2D) -> void:
-	var xform := anchor.get_viewport_transform()
+static func _draw_2d_for(overlay: Control, xform: Transform2D, anchor: Node2D) -> void:
 	var rect: Variant = _footprint_rect_2d(anchor)
 	if rect == null:
 		_draw_marker(overlay, xform * anchor.global_position)

@@ -45,10 +45,10 @@ func _test_registry() -> void:
 
 	var types := [
 		EventCommand.T_CELL, EventCommand.T_DIR, EventCommand.T_TURN,
-		EventCommand.T_ACTOR, EventCommand.T_FLOAT, EventCommand.T_INT,
+		EventCommand.T_MOVE_DIR, EventCommand.T_ACTOR, EventCommand.T_FLOAT, EventCommand.T_INT,
 		EventCommand.T_BOOL, EventCommand.T_STRING, EventCommand.T_SECONDS,
 		EventCommand.T_CONDITION, EventCommand.T_FLAG, EventCommand.T_VAR,
-		EventCommand.T_KEY, EventCommand.T_CHOICES,
+		EventCommand.T_KEY, EventCommand.T_CHOICES, EventCommand.T_COLOR,
 	]
 	var resumes := [EventCommand.RESUME_RESTART, EventCommand.RESUME_STATE]
 	var spaces := [EventCommand.SPACE_ANY, EventCommand.SPACE_GRID, EventCommand.SPACE_FREE]
@@ -308,7 +308,7 @@ func _test_validation() -> void:
 	var joined: Array = [
 		{"id": "n1", "command": "camera_to", "args": {"cell": [1, 0, 1]},
 			"blocking": false, "key": "cam",
-			"outputs": [{"flow": "next", "target": "n2"}]},
+			"outputs": [{"flow": "reached", "target": "n2"}, {"flow": "immediate", "target": ""}]},
 		{"id": "n2", "command": "wait_for", "args": {"key": "cam"},
 			"outputs": [{"flow": "next", "target": ""}]},
 	]

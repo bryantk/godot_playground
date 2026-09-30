@@ -28,7 +28,9 @@ EventScheduler="*res://code/world/event_scheduler.gd"
 GameUI="*res://code/world/game_ui.gd"
 DebugPassabilityView="*res://code/world/debug_passability_view.gd"
 DebugInteractView="*res://code/world/debug_interact_view.gd"
+DebugRouteView="*res://code/world/debug_route_view.gd"
 SaveGame="*res://code/world/save_game.gd"
+InputReplay="*res://code/world/input_replay.gd"
 Party="*res://code/party/party.gd"
 BattleTransfer="*res://code/battle/battle_transfer.gd"
 AudioMaster="*res://code/world/audio_master.gd"
@@ -135,6 +137,26 @@ toggle_b={
 toggle_c={
 "deadzone": 0.2,
 "events": Array[InputEvent]([Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":51,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
+])
+}
+toggle_d={
+"deadzone": 0.2,
+"events": Array[InputEvent]([Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":52,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
+])
+}
+toggle_e={
+"deadzone": 0.2,
+"events": Array[InputEvent]([Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":53,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
+])
+}
+toggle_f={
+"deadzone": 0.2,
+"events": Array[InputEvent]([Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":54,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
+])
+}
+toggle_g={
+"deadzone": 0.2,
+"events": Array[InputEvent]([Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":55,"key_label":0,"unicode":0,"location":0,"echo":false,"script":null)
 ])
 }
 back={

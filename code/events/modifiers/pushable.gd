@@ -24,6 +24,11 @@ class_name Pushable extends GameEventModifier
 ## never produces a diagonal [code]to - from[/code] in the first place.
 @export var allow_diagonal_shoves: bool = false
 
+## Whether a shove plays its sound - "push" when it moves, "push_blocked" when the
+## shove itself is refused. Off makes this silent, for a prop that should not announce
+## being moved.
+@export var play_sound: bool = true
+
 var _pushes_used: int = 0
 
 
@@ -62,9 +67,11 @@ func _on_actor_blocked(blocked_id: StringName, from: Vector3i, to: Vector3i) -> 
 
 	if my_actor.motion().step(direction):
 		_pushes_used += 1
-		AudioMaster.play_sound_effect(&"push", 80.0)
+		if play_sound:
+			AudioMaster.play_sound_effect(&"push", 80.0)
 	else:
-		AudioMaster.play_sound_effect(&"push_blocked", 80.0)
+		if play_sound:
+			AudioMaster.play_sound_effect(&"push_blocked", 80.0)
 		_bump_blocker(blocker)
 
 

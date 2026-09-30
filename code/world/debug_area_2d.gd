@@ -55,14 +55,32 @@ class_name DebugArea2D extends Node2D
 ## [Actor] beside it) keeps [member area_size] exactly as authored, centred on
 ## [member offset] as it always was.
 ##
-## [b]Always visible while editing.[/b] [b]At runtime, only while [method
-## DebugFlags.show_debug_view] is on[/b] - the same flag [DebugPassabilityView] reads,
-## so every debug overlay in the game turns on and off together.
+## [b]While editing[/b], [method _sync_visibility] leaves [member Node2D.visible]
+## alone - toggling a box off with the Scene dock's own eye icon sticks, instead of
+## snapping back on every frame. [b]At runtime, [member Node2D.visible] instead
+## follows [method DebugFlags.is_box_type_visible][/b] for [member type] - one of six
+## categories the debug menu ([code]~[/code], then keys 1-6) toggles independently,
+## rather than every debug overlay in the game sharing a single on/off flag.
 
 ## The sibling this sizes itself from - a [CollisionShape2D], a [CollisionPolygon2D]
 ## or an [Actor]. Set by hand to resolve a conflict, or by [method _sync_target] the
 ## first time this node with none picks one automatically.
 @export var target: Node = null
+
+## What this box is marking, purely to pick a starting [member color] from [constant
+## DebugFlags.BOX_TYPE_COLORS] - nothing else reads it. Changing it overwrites [member
+## color]; changing [member color] afterward (by hand, or a second [member type]
+## change) is what wins from then on, the same one-shot-default relationship [member
+## area_size]'s own setter note describes for the mesh. Also which of [DebugFlags]'s
+## six debug-menu categories [method _sync_visibility] follows at runtime.
+##
+## A plain [code]@export_enum[/code] int, not [enum DebugFlags.BoxType] by static type
+## - see that enum's own doc for why - kept in the exact same order by hand: None,
+## Event, Area, Transfer Marker, Actor.
+@export_enum("None", "Event", "Area", "Transfer Marker", "Actor") var type: int = 0:
+	set(value):
+		type = value
+		color = DebugFlags.BOX_TYPE_COLORS[value]
 
 @export var area_size: Vector2 = Vector2(16, 16)
 @export var offset: Vector2 = Vector2.ZERO
@@ -233,8 +251,15 @@ func _size_from_collider(collider: CollisionShape2D) -> Variant:
 	return null
 
 
+## Leaves [member Node2D.visible] alone while editing - the Scene dock's own eye icon
+## (or the Inspector's "Visible" checkbox) is the only thing that should touch it
+## there, so toggling a box off sticks instead of snapping back on next frame/[method
+## refresh]. At runtime, [member Node2D.visible] never was hand-authored, so this
+## drives it from [method DebugFlags.is_box_type_visible] for [member type] instead.
 func _sync_visibility() -> void:
-	visible = true if Engine.is_editor_hint() else DebugFlags.show_debug_view()
+	if Engine.is_editor_hint():
+		return
+	visible = DebugFlags.is_box_type_visible(type)
 
 
 func _draw() -> void:

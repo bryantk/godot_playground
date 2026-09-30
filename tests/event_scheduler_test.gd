@@ -29,10 +29,14 @@ func _ready() -> void:
 	await _test_trigger_event_touch_blocked_by_player()
 	_test_trigger_leave_cell()
 	_test_trigger_action()
+	_test_trigger_action_through_requires_overlap_for_free_motion()
 	_test_trigger_on_flag()
 	await _test_trigger_auto_parallel()
 
 	_test_page_defers_until_graph_completes_and_art_changes()
+	_test_hold_frame_picks_a_pose_without_locking_the_animation()
+	_test_lock_animation_freezes_independent_of_hold_frame()
+	_test_animation_speed_scale_multiplies_the_sheets_own_rate()
 
 	_test_facing_restored_when_untouched()
 	_test_facing_kept_when_graph_turns_it()
@@ -333,6 +337,51 @@ func _test_trigger_action() -> void:
 	EventScheduler.reset()
 
 
+## Regression: [method GameEvent._in_range_free] (a reach check, no facing involved)
+## used to apply to a through event exactly like any other for a free-motion player -
+## which meant a through event could fire from merely being nearby, not standing on
+## it, the one thing [member GameEvent.through_actors]'s own doc says a through event
+## requires. A grid player's own through check already demanded a true cell overlap
+## ([method Actor.footprint_cells]); this proves a free player gets the same demand,
+## quantised to a cell the same way [method Actor.cell] always has.
+func _test_trigger_action_through_requires_overlap_for_free_motion() -> void:
+	_section("GameEvent -- a through event needs real overlap, even for a free-motion player")
+	EventScheduler.reset()
+	GameState.clear()
+
+	var world := _build_world()
+	var root: Node = world["root"]
+	var ctx: MapContext = world["ctx"]
+
+	var body := Node3D.new()
+	body.name = "player"
+	# Within _in_range_free's own 1.25-cell reach of "ev" (at cell (0,0,0)) but
+	# quantising to cell (1,0,0) - nearby, not overlapping.
+	body.position = ctx.cell_centre(Vector3i(1, 0, 0)) - Vector3(0.2, 0, 0)
+
+	var player := Actor.new()
+	player.name = "Actor"
+	player.actor_id = &"player"
+	body.add_child(player)
+	player.add_child(Space3D.new())
+	player.add_child(FreeMotion.new())
+	root.add_child(body)
+
+	_build_event(world, &"ev", Vector3i(0, 0, 0), FIXTURES + "sched_action_through.event.json")
+
+	EventBus.player_interacted.emit()
+	_ok(not GameState.flag(&"fired_action_through"),
+		"within reach but not overlapping the event's own cell does not fire")
+
+	body.position = ctx.cell_centre(Vector3i(0, 0, 0))
+	EventBus.player_interacted.emit()
+	_ok(GameState.flag(&"fired_action_through"), "standing directly on it now fires")
+
+	world["root"].free()
+	EventScheduler.reset()
+	GameState.clear()
+
+
 func _test_trigger_on_flag() -> void:
 	_section("GameEvent -- on_flag fires when GameState changes, not on a page switch")
 	EventScheduler.reset()
@@ -398,6 +447,101 @@ func _test_page_defers_until_graph_completes_and_art_changes() -> void:
 	world["root"].free()
 	EventScheduler.reset()
 	GameState.clear()
+
+
+## A page's own [code]frame_row[/code]/[code]frame_col[/code] ([method
+## SpriteView2D.apply_art] -> [method SpriteView2D.hold_frame]) picks a starting pose,
+## nothing more - it must never touch [member SpriteSheet.paused] (the "wrongly the
+## same flag" bug [ActorView.lock_animation]'s own doc describes). [member
+## SpriteSheet.running] going false is what holds the pose instead, and the ordinary
+## walk-cycle hookup ([code]who.is_travelling()[/code]) sets it straight back to true
+## - and resumes the cycle - the moment the actor next moves.
+func _test_hold_frame_picks_a_pose_without_locking_the_animation() -> void:
+	_section("SpriteView2D.apply_art -- frame_row/frame_col picks a pose, does not lock the animation")
+
+	# A body + sibling Sprite/View, the same shape every real placement uses ([method
+	# ActorView._warn_if_detached]'s own doc) - not two children of this test node
+	# directly, which would warn about exactly the detached-visual trap that doc means.
+	var body := Node2D.new()
+	add_child(body)
+
+	var sheet := SpriteSheet.new()
+	sheet.hframes = 3  # Matches actor_jrpg.tscn's own sheet - enough frames that
+	# hold_frame(0, 0)/the idle walk-cycle frame it reads before that never index
+	# past what a 1x1 default Sprite2D would offer.
+	body.add_child(sheet)
+
+	var view := SpriteView2D.new()
+	body.add_child(view)
+	view.bind_visual(sheet)
+
+	view.apply_art({
+		"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
+		"frame_row": 0, "frame_col": 0,
+	})
+	_ok(not sheet.paused, "frame_row/frame_col never touches paused - it is not a lock")
+	_ok(not sheet.running, "the pose holds through running=false instead, same as standing still")
+
+	sheet.animating(true)  # the walk-cycle hookup's own "the actor just started moving"
+	_ok(sheet.running, "and the ordinary walk-cycle hookup resumes it on its own")
+
+	body.free()
+
+
+## [ActorView.lock_animation] (a page's own [code]lock_animation[/code], or
+## [code]set_lock_animation[/code] mid-graph) is the actual freeze, independent of
+## [method ActorView.hold_frame] entirely - forwarded straight to [member
+## SpriteSheet.paused], which the walk-cycle hookup cannot override the way it can
+## [member SpriteSheet.running].
+func _test_lock_animation_freezes_independent_of_hold_frame() -> void:
+	_section("ActorView.lock_animation -- freezes the walk cycle outright, independent of hold_frame")
+
+	var body := Node2D.new()
+	add_child(body)
+
+	var sheet := SpriteSheet.new()
+	sheet.hframes = 3
+	body.add_child(sheet)
+
+	var view := SpriteView2D.new()
+	body.add_child(view)
+	view.bind_visual(sheet)
+
+	view.set_lock_animation(true)
+	_ok(sheet.paused, "set_lock_animation(true) freezes the sheet")
+
+	sheet.animating(true)
+	_ok(sheet.paused, "still frozen even though the actor is walking - lock_animation wins")
+
+	view.set_lock_animation(false)
+	_ok(not sheet.paused, "and set_lock_animation(false) releases it again")
+
+	body.free()
+
+
+## [ActorView.animation_speed_scale] multiplies into [member SpriteSheet.rate] - 1.0
+## ("Normal") leaves it untouched, anything else speeds the cycle up or slows it down.
+func _test_animation_speed_scale_multiplies_the_sheets_own_rate() -> void:
+	_section("ActorView.animation_speed_scale -- scales the sheet's own rate")
+
+	var body := Node2D.new()
+	add_child(body)
+
+	var sheet := SpriteSheet.new()
+	sheet.hframes = 3
+	sheet.rate = 0.2
+	body.add_child(sheet)
+
+	var view := SpriteView2D.new()
+	body.add_child(view)
+	view.bind_visual(sheet)
+
+	_eq(sheet.animation_speed_scale, 1.0, "starts at Normal (1.0x), untouched")
+
+	view.set_animation_speed_scale(2.0)
+	_eq(sheet.animation_speed_scale, 2.0, "set_animation_speed_scale forwards straight to the sheet")
+
+	body.free()
 
 
 # -- Facing memory: captured before an interaction, restored after unless the graph

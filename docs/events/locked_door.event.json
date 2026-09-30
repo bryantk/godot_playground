@@ -10,6 +10,7 @@
 			"through": false,
 			"through_terrain": false,
 			"step_in_place": false,
+			"lock_animation": false,
 			"lock_player": false,
 			"route": [],
 			"graph": [

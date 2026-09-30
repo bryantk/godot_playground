@@ -196,9 +196,23 @@ func face(dir: Vector3i) -> void:
 		_actor.set_facing(dir)
 
 
-## Free motion only. [GridMotion] warns rather than silently doing nothing, which is
-## also what the [code]height[/code] capability tag catches at authoring time.
-func jump(_strength: float) -> String:
+## The player's own jump button - straight up (or [param strength] worth of it) with
+## whatever horizontal momentum is already carrying, no target. [PlayerController]'s own
+## caller; the graph-authored [code]jump[/code] command wants [method jump_to] instead,
+## an aimed toss rather than a press of a button. Free motion only, the same "height
+## capability" gate [method jump_to] documents.
+func jump(_strength: float = -1.0) -> String:
+	push_warning("MotionController: jump is not available to this actor's motion.")
+	return ""
+
+
+## Jumps to [param cell], arcing [param height] above it - [FreeMotion] computes a real
+## projectile trajectory (it already simulates gravity for falling); [GridMotion] commits
+## to the destination immediately, the same as every other grid move, and only shapes the
+## sprite's own catch-up into an arc. The base implementation is neither: a motion with no
+## height capability at all warns rather than silently doing nothing, which is also what
+## the [code]height[/code] capability tag catches at authoring time.
+func jump_to(_cell: Vector3i, _height: float) -> String:
 	push_warning("MotionController: jump is not available to this actor's motion.")
 	return ""
 
