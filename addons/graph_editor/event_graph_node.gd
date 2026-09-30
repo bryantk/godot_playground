@@ -154,6 +154,7 @@ const _CATEGORY_COLORS: Dictionary = {
 	"dialogue": Color(1.0, 0.85, 0.55),
 	"state": Color(0.82, 0.68, 1.0),
 	"world": Color(0.6, 0.82, 0.95),
+	"battle": Color(0.98, 0.62, 0.6),
 }
 
 ## [constant _CATEGORY_COLORS]'s five buckets, each an array of the [EventCommand]
@@ -173,9 +174,12 @@ const _COMMAND_CATEGORIES: Dictionary = {
 
 	"state": ["set_flag", "set_self_flag", "set_var", "add_var"],
 
+	"battle": ["start_battle", "if_round", "if_stat", "if_status", "if_count", "if_random",
+		"choose_target", "use_ability"],
+
 	"world": ["change_map", "change_map_marker", "fade", "fade_in", "fade_out", "shake",
 		"camera_to", "camera_follow", "play_anim", "play_sound", "play_music",
-		"set_visible", "set_color", "start_battle", "open_menu"],
+		"set_visible", "set_color", "follow_add", "follow_remove", "follow_show", "follow_group", "open_menu"],
 }
 
 ## Generated, or blank for the start node (question 47 follow-up) - what other nodes'

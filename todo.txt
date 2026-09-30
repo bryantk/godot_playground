@@ -6,7 +6,49 @@ a* route compute + step towards (next, success, blocked)
 option to 'collapse' nodes to an in-name-out stub?
 ?? Permit editing 'sub node' groups of anything?
 
+
 DONE:
+
+eval shorthand helpers
+	@actor.
+		at(cell)
+			bool
+		near(cell, distance)
+			bool
+		near_event(@actor2, distance)
+			bool
+		flag(flag_name)
+			setter and getter
+
+player follow event (party catipillar)
+	event to show/hide
+	event to group up
+		wait for flow
+		immidiate flow
+	event to add/remove follow event
+
+JRPG framework
+	heroes
+		stats
+			can be increased/decreased by temporary effects
+		list of abilities they can use
+	enemies
+		same base as heroes
+		ai logic
+			simple node event flows
+				conditions
+					round number
+					target 'stat' at/below/above X
+					etc. anything you suggest
+				skill to use
+				Target to hit
+					most hp, first, etc
+	resources + editor for:
+		heroes
+		enemies
+		enemy troops
+		items
+		abilities
 
 1 shake command to have wait/immidiate flows
 2 order existing flows: reached, blocked, immidiate

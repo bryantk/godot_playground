@@ -433,7 +433,11 @@ func _pages() -> Array:
 
 
 func _condition_ctx() -> Dictionary:
-	return {"map": _map.map_id if _map != null else &"", "event": event_id()}
+	return {
+		"map": _map.map_id if _map != null else &"",
+		"event": event_id(),
+		"actor": func(term: String) -> Actor: return EventContext.resolve_in(_map, _actor, term),
+	}
 
 
 func _refresh_active_page() -> void:

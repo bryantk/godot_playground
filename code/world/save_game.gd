@@ -59,6 +59,8 @@ func save() -> bool:
 	var ctx: MapContext = get_tree().get_first_node_in_group(&"map_context")
 	if ctx != null:
 		for a in ctx.actors():
+			if a.has_meta(&"party_follower"):
+				continue  # rebuilt from Party + FollowerChain on load, not restored by id
 			actors[str(a.actor_id)] = a.to_save()
 
 	var envelope := {
@@ -68,6 +70,7 @@ func save() -> bool:
 		"scheduler": scheduler_state,
 		"actors": actors,
 		"party": Party.to_save(),
+		"followers": FollowerChain.to_save(),
 	}
 
 	var f := FileAccess.open(SLOT_PATH, FileAccess.WRITE)
@@ -110,6 +113,7 @@ func load() -> bool:
 
 	GameState.from_save(data.get("game_state", {}))
 	Party.from_save(data.get("party", {}))
+	FollowerChain.from_save(data.get("followers", {}))
 
 	var actor_states: Dictionary = data.get("actors", {})
 	for a in ctx.actors():

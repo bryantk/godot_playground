@@ -47,6 +47,11 @@ const LEAVES := {
 	"var": "name",
 	"item": "name",
 	"party_has": "name",
+	# The @actor. shorthand - see ActorQueries. Each names the actor term it asks about.
+	"actor_at": "actor",
+	"actor_near": "actor",
+	"actor_near_event": "actor",
+	"actor_flag": "actor",
 }
 
 ## Branch kinds, mapped to whether they take a list or a single child.
@@ -148,7 +153,47 @@ static func _test_leaf(node: Dictionary, ctx: Dictionary) -> bool:
 	if node.has("party_has"):
 		return _ask(ctx, "party_has", str(node["party_has"])) == _expected(node)
 
+	if node.has("actor_at"):
+		var who := _actor(ctx, str(node["actor_at"]))
+		return ActorQueries.at(who, _cell_of(node.get("cell"))) == _expected(node)
+
+	if node.has("actor_near"):
+		var who := _actor(ctx, str(node["actor_near"]))
+		return ActorQueries.near(who, _cell_of(node.get("cell")),
+			int(node.get("distance", 0))) == _expected(node)
+
+	if node.has("actor_near_event"):
+		var who := _actor(ctx, str(node["actor_near_event"]))
+		var other := _actor(ctx, str(node.get("event", "")))
+		return ActorQueries.near_event(who, other, int(node.get("distance", 0))) == _expected(node)
+
+	if node.has("actor_flag"):
+		var who := _actor(ctx, str(node["actor_flag"]))
+		return (who != null and ActorQueries.flag(who, StringName(node.get("name", "")))) == _expected(node)
+
 	return false
+
+
+## The actor [param term] ("@guard", "@self", "@player") names, through the context's
+## [code]actor[/code] resolver. Null - and a warning, since the condition then reads false
+## with nothing else to say why - when there is no resolver or no such actor.
+static func _actor(ctx: Dictionary, term: String) -> Actor:
+	var resolver: Variant = ctx.get("actor")
+	if resolver is Callable and (resolver as Callable).is_valid():
+		var found: Variant = (resolver as Callable).call(term)
+		if found is Actor:
+			return found as Actor
+	push_warning("EventCondition: '%s' did not resolve to an actor, so its test reads false." % term)
+	return null
+
+
+static func _cell_of(value: Variant) -> Vector3i:
+	if value is Vector3i:
+		return value
+	if value is Array and (value as Array).size() >= 3:
+		var a: Array = value
+		return Vector3i(int(a[0]), int(a[1]), int(a[2]))
+	return Vector3i.ZERO
 
 
 ## The [code]is[/code] field: a leaf may be negated in place rather than wrapped in a
@@ -265,7 +310,10 @@ static func _gather_keys(tree: Variant, map_id: StringName, event_id: StringName
 
 	# item and party_has deliberately contribute nothing: neither system emits a change
 	# signal yet, so a subscription naming one would never fire and would read as a
-	# working subscription that simply never woke up.
+	# working subscription that simply never woke up. The same goes for the @actor.
+	# shorthand: a position emits no GameState signal, and which event an actor's flag
+	# belongs to is not known until run time - so a page whose conditions use one is only
+	# re-checked when something else it names changes, not when the actor moves.
 
 
 # -- Validating ----------------------------------------------------------------
@@ -326,6 +374,18 @@ static func _validate_node(tree: Variant, manifest: Dictionary, where: String,
 			% [where, ", ".join(LEAVES.keys())])
 		return
 
+	if kind == "actor_at" or kind == "actor_near":
+		var cell: Variant = node.get("cell")
+		if not (cell is Array and (cell as Array).size() >= 3):
+			problems.append("%s: \"%s\" needs a \"cell\" [x, y, z]." % [where, kind])
+	if kind == "actor_near" or kind == "actor_near_event":
+		if not node.has("distance"):
+			problems.append("%s: \"%s\" needs a \"distance\"." % [where, kind])
+	if kind == "actor_near_event" and not node.has("event"):
+		problems.append("%s: \"actor_near_event\" needs an \"event\" actor to measure to." % where)
+	if kind == "actor_flag" and not node.has("name"):
+		problems.append("%s: \"actor_flag\" needs a flag \"name\"." % where)
+
 	if kind == "var":
 		var op := str(node.get("op", "=="))
 		if not OPERATORS.has(op):
@@ -372,8 +432,9 @@ static func _did_you_mean(name: String, manifest: Dictionary) -> String:
 #   negation   := "not" negation | primary
 #   primary    := "(" expression ")" | comparison | predicate
 #   comparison := operand ( "==" | "!=" | "<" | "<=" | ">" | ">=" ) operand
-#   predicate  := identifier | "self" "." identifier | call
+#   predicate  := identifier | "self" "." identifier | call | actor_call
 #   call       := identifier "(" string ")"
+#   actor_call := "@"name "." ( at(x,y,z) | near(x,y,z,d) | near_event(@other,d) | flag("name") )
 #   operand    := number | string | true | false | identifier
 #
 # Two conveniences worth naming, because they are where the two surfaces meet:
@@ -449,9 +510,23 @@ static func _tokenise(text: String, problems: Array[String]) -> Array:
 			problems.append("Single \"=\" at character %d is an assignment, not a test - use \"==\"." % i)
 			return tokens
 
-		if c == "(" or c == ")" or c == ".":
+		if c == "(" or c == ")" or c == "." or c == ",":
 			tokens.append({"kind": c, "text": c, "at": i})
 			i += 1
+			continue
+
+		# @guard, @player, @debug-3 - an actor term. A hyphen belongs to the name only when
+		# a name character follows it, so "@a-1" is one actor and a trailing "-" is not.
+		if c == "@":
+			var start := i
+			i += 1
+			while i < text.length() and (_is_name_body(text[i])
+					or (text[i] == "-" and i + 1 < text.length() and _is_name_body(text[i + 1]))):
+				i += 1
+			if i - start == 1:
+				problems.append("\"@\" at character %d needs an actor name after it." % start)
+				return tokens
+			tokens.append({"kind": "actor", "text": text.substr(start, i - start), "at": start})
 			continue
 
 		if c == "\"" or c == "'":
@@ -577,6 +652,10 @@ static func _parse_primary(cursor: Dictionary, problems: Array[String]) -> Dicti
 		_take(cursor)
 		return _maybe_compare({"self_flag": flag["text"]}, "self_flag", cursor, problems)
 
+	# @guard.near(3, 0, 4, 2)
+	if token["kind"] == "actor":
+		return _parse_actor_call(cursor, problems)
+
 	# has_item("brass_key")
 	if token["kind"] == "name" and CALLS.has(str(token["text"]).to_lower()):
 		return _parse_call(cursor, problems)
@@ -648,6 +727,93 @@ static func _parse_operand(cursor: Dictionary, problems: Array[String]) -> Varia
 	problems.append("Expected a value at character %d, found \"%s\"."
 		% [token["at"], token["text"]])
 	return 0
+
+
+## [code]@actor.method(args)[/code] - the shorthand [ActorQueries] describes. Each method
+## has a fixed argument shape; anything else is reported against the call, not guessed at.
+static func _parse_actor_call(cursor: Dictionary, problems: Array[String]) -> Dictionary:
+	var actor := _take(cursor)
+	var ref := str(actor["text"])
+
+	if _peek(cursor).get("kind", "") != ".":
+		problems.append("\"%s\" at character %d needs a method after it, as %s.near(...)."
+			% [ref, actor["at"], ref])
+		return {}
+	_take(cursor)
+
+	var method := _peek(cursor)
+	if method.get("kind", "") != "name":
+		problems.append("Expected a method name after \"%s.\" at character %d." % [ref, actor["at"]])
+		return {}
+	_take(cursor)
+	var name := str(method["text"]).to_lower()
+
+	if _peek(cursor).get("kind", "") != "(":
+		problems.append("\"%s.%s\" at character %d needs its arguments in brackets."
+			% [ref, name, method["at"]])
+		return {}
+	_take(cursor)
+
+	var values: Array = []
+	if _peek(cursor).get("kind", "") != ")":
+		while true:
+			var argument := _take(cursor)
+			match argument.get("kind", ""):
+				"number":
+					var text := str(argument["text"])
+					values.append(int(text) if not text.contains(".") else float(text))
+				"string", "actor":
+					values.append(str(argument["text"]))
+				_:
+					problems.append("Unexpected \"%s\" in the arguments of \"%s.%s\" at character %d."
+						% [argument.get("text", ""), ref, name, argument.get("at", 0)])
+					return {}
+			if _peek(cursor).get("kind", "") == ",":
+				_take(cursor)
+				continue
+			break
+
+	if _peek(cursor).get("kind", "") != ")":
+		problems.append("Unclosed \"(\" in \"%s.%s\" at character %d." % [ref, name, method["at"]])
+		return {}
+	_take(cursor)
+
+	var numbers := func(list: Array) -> bool:
+		for v: Variant in list:
+			if not (v is int or v is float):
+				return false
+		return true
+
+	match name:
+		"at":
+			if values.size() != 3 or not numbers.call(values):
+				problems.append("\"%s.at\" takes a cell: at(x, y, z)." % ref)
+				return {}
+			return {"actor_at": ref, "cell": [int(values[0]), int(values[1]), int(values[2])]}
+		"near":
+			if values.size() != 4 or not numbers.call(values):
+				problems.append("\"%s.near\" takes a cell and a distance: near(x, y, z, distance)." % ref)
+				return {}
+			return {"actor_near": ref,
+				"cell": [int(values[0]), int(values[1]), int(values[2])],
+				"distance": int(values[3])}
+		"near_event":
+			if values.size() != 2 or not str(values[0]).begins_with("@") \
+					or not numbers.call([values[1]]):
+				problems.append("\"%s.near_event\" takes another actor and a distance: near_event(@other, distance)." % ref)
+				return {}
+			return {"actor_near_event": ref, "event": str(values[0]), "distance": int(values[1])}
+		"flag":
+			if values.size() == 2:
+				problems.append("\"%s.flag\" with a value writes the flag, which a condition cannot do - use flag(\"name\") to read it." % ref)
+				return {}
+			if values.size() != 1 or not (values[0] is String) or str(values[0]).begins_with("@"):
+				problems.append("\"%s.flag\" takes a quoted flag name: flag(\"name\")." % ref)
+				return {}
+			return {"actor_flag": ref, "name": str(values[0])}
+
+	problems.append("\"%s\" has no method \"%s\". Expected at, near, near_event or flag." % [ref, name])
+	return {}
 
 
 static func _parse_call(cursor: Dictionary, problems: Array[String]) -> Dictionary:

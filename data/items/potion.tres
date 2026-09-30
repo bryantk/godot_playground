@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="Item" format=3]
+
+[ext_resource type="Script" path="res://code/party/status_effect.gd" id="1_0bv3h"]
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="2_3v7vl"]
+[ext_resource type="Script" path="res://code/party/item.gd" id="3_53lbm"]
+
+[sub_resource type="Resource" id="Resource_3oiyh"]
+script = ExtResource("2_3v7vl")
+id = &"potion"
+display_name = "Potion"
+kind = 2
+target = 2
+power = 15.0
+item_id = &"potion"
+
+[resource]
+script = ExtResource("3_53lbm")
+id = &"potion"
+display_name = "Potion"
+description = "Restores 15 HP."
+price = 10
+action = SubResource("Resource_3oiyh")

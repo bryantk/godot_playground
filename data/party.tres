@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PartySetup" format=3]
+
+[ext_resource type="Script" path="res://code/party/party_member.gd" id="1_7sm73"]
+[ext_resource type="Resource" path="res://data/heroes/hero.tres" id="2_csix7"]
+[ext_resource type="Resource" path="res://data/heroes/mage.tres" id="3_qm2cw"]
+[ext_resource type="Script" path="res://code/party/equipment.gd" id="4_tkd87"]
+[ext_resource type="Script" path="res://code/party/party_setup.gd" id="5_3wry0"]
+
+[resource]
+script = ExtResource("5_3wry0")
+active = Array[ExtResource("1_7sm73")]([ExtResource("2_csix7"), ExtResource("3_qm2cw")])
+gold = 50
+items = Dictionary[StringName, int]({
+&"potion": 3
+})

@@ -36,7 +36,7 @@ func _test_formula() -> void:
 
 	var attacker := _stats(0, 0, 10, 0, 0, 0)
 	var defender := _stats(0, 0, 0, 4, 0, 0)
-	var action := BattleAction.new()
+	var action := Ability.new()
 	action.power = 1.0
 
 	_eq(BattleFormula.damage(attacker, defender, action), 6, "atk - def, no element involved")
@@ -54,7 +54,7 @@ func _test_formula() -> void:
 	defender.elements = {&"fire": -1.0}
 	_ok(BattleFormula.damage(attacker, defender, action) < 0, "absorbing reads as negative (heals)")
 
-	var weak_hit := BattleAction.new()
+	var weak_hit := Ability.new()
 	weak_hit.power = 0.1
 	defender.elements = {}
 	_eq(BattleFormula.damage(attacker, defender, weak_hit), 1, "a hit that rounds to <=0 still lands for 1")
@@ -69,21 +69,21 @@ func _test_battle_state_round() -> void:
 	hero.id = &"test_hero"
 	hero.display_name = "Hero"
 	hero.base_stats = _stats(20, 0, 10, 2, 0, 20)
-	var attack := BattleAction.new()
+	var attack := Ability.new()
 	attack.display_name = "Attack"
-	attack.target = BattleAction.Target.SINGLE_ENEMY
+	attack.target = Ability.Target.SINGLE_ENEMY
 	attack.power = 1.0
-	hero.actions = [attack]
+	hero.abilities = [attack]
 
 	var slime := EnemyDef.new()
 	slime.id = &"test_slime"
 	slime.display_name = "Slime"
 	slime.stats = _stats(8, 0, 1, 0, 0, 1)
-	var struggle := BattleAction.new()
+	var struggle := Ability.new()
 	struggle.display_name = "Struggle"
-	struggle.target = BattleAction.Target.SINGLE_ENEMY
+	struggle.target = Ability.Target.SINGLE_ENEMY
 	struggle.power = 0.5
-	slime.actions = [struggle]
+	slime.abilities = [struggle]
 
 	var troop := Troop.new()
 	troop.id = &"test_troop"

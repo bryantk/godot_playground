@@ -287,15 +287,20 @@ func _on_terminal_submitted(text: String) -> void:
 
 ## Runs [param line] as a GDScript expression with [GameState] as its base instance - so
 ## its methods read as bare calls ([code]flag("x")[/code], [code]var_set("n", 3)[/code] - plain strings, since Expression has no &"" literal) -
-## and also as the input [code]game_state[/code]. Returns the text to show: the result,
-## or what went wrong.
+## and also as the input [code]game_state[/code]. The [code]@actor.[/code] shorthand
+## ([ActorQueries]) works the same as in a condition: [code]@guard[/code] is rewritten to
+## [code]actors["guard"][/code], so [code]@guard.near(3,0,4,2)[/code] and
+## [code]@guard.flag("alerted", true)[/code] both run. Returns the text to show: the
+## result, or what went wrong.
 func _evaluate(line: String) -> String:
+	var map := get_tree().get_first_node_in_group(&"map_context") as MapContext
 	var expression := Expression.new()
-	var error := expression.parse(line, ["game_state"])
+	var error := expression.parse(_expand_actor_terms(line), ["game_state", "actors"])
 	if error != OK:
 		return "parse error: %s" % expression.get_error_text()
 
-	var result: Variant = expression.execute([GameState], GameState, true)
+	var result: Variant = expression.execute(
+		[GameState, ActorQueries.ActorsProxy.new(map)], GameState, true)
 	if expression.has_execute_failed():
 		return "error: %s" % expression.get_error_text()
 	if result == null:
@@ -303,6 +308,14 @@ func _evaluate(line: String) -> String:
 	if result is Object:
 		return str(result)
 	return var_to_str(result)
+
+
+## Every [code]@name[/code] (a hyphen joins name parts, as in [code]@debug-3[/code]) as
+## [code]actors["name"][/code] - Expression cannot parse an "@" term itself.
+static func _expand_actor_terms(line: String) -> String:
+	var term := RegEx.new()
+	term.compile("@([A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*)")
+	return term.sub(line, "actors[\"$1\"]", true)
 
 
 func _print_terminal(text: String) -> void:

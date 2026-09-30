@@ -15,12 +15,31 @@ enum Side { PLAYER, ENEMY }
 ## enum is an int underneath.
 var side: int = Side.PLAYER
 var display_name: String
-var stats: Stats
-var actions: Array[BattleAction]
+var abilities: Array[Ability]
 var hp: int
 var mp: int
 
-## Set for exactly one turn by the [constant BattleAction.Kind.GUARD] action -
+## What this battler fights with right now: its base (set by assigning, as the factories do)
+## with every running [member effects] applied. Recomputed whenever they change, so anything
+## reading [code]battler.stats[/code] - the damage formula, turn order, the scene's labels -
+## sees a buff or debuff without knowing one exists.
+var stats: Stats:
+	get:
+		if _effective == null:
+			refresh_stats()
+		return _effective
+	set(value):
+		_base = value
+		refresh_stats()
+
+var _base: Stats = null
+var _effective: Stats = null
+
+## Running [StatusEffect]s. A hero's are copied in from [member PartyMember.effects] and
+## written back by [method sync_to_member]; an enemy's live only for the fight.
+var effects: Array[ActiveEffect] = []
+
+## Set for exactly one turn by the [constant Ability.Kind.GUARD] action -
 ## [method BattleState._resolve_action] halves incoming damage while it is true, then
 ## clears it the next time this battler acts (see [method BattleState._begin_round]).
 var guarding: bool = false
@@ -43,22 +62,34 @@ static func for_member(a_member: PartyMember) -> Battler:
 	b.side = Side.PLAYER
 	b.member = a_member
 	b.display_name = a_member.display_name
-	b.stats = a_member.effective_stats()
-	b.actions = a_member.actions
+	b.abilities = a_member.abilities
+	for active in a_member.effects:
+		var copy := ActiveEffect.new(active.effect)
+		copy.stacks = active.stacks
+		copy.remaining = active.remaining
+		b.effects.append(copy)
+	b.stats = a_member.gear_stats()
 	b.hp = a_member.current_hp if a_member.current_hp >= 0 else b.stats.max_hp
 	b.mp = a_member.current_mp if a_member.current_mp >= 0 else b.stats.max_mp
 	return b
 
 
-## Writes this fight's ending hp/mp back onto [member member] - a no-op for an enemy
-## [Battler]. Called once per player [Battler] when [method BattleState.is_over]
-## becomes true, so a party that survives carries its wounds into the next fight and one
-## that does not is left exactly as it fell (nothing here revives anyone).
+## Writes this fight's ending hp/mp and effects back onto [member member] - a no-op for an
+## enemy [Battler]. Called once per player [Battler] when [method BattleState.is_over]
+## becomes true, so a party that survives carries its wounds (and what is still on it) into
+## the next fight and one that does not is left exactly as it fell (nothing here revives
+## anyone).
 func sync_to_member() -> void:
 	if member == null:
 		return
 	member.current_hp = hp
 	member.current_mp = mp
+	member.effects.clear()
+	for active in effects:
+		var copy := ActiveEffect.new(active.effect)
+		copy.stacks = active.stacks
+		copy.remaining = active.remaining
+		member.effects.append(copy)
 
 
 static func for_enemy(a_enemy: EnemyDef, distinguish: int = 0) -> Battler:
@@ -68,7 +99,7 @@ static func for_enemy(a_enemy: EnemyDef, distinguish: int = 0) -> Battler:
 	b.display_name = a_enemy.display_name if distinguish == 0 \
 		else "%s %d" % [a_enemy.display_name, distinguish + 1]
 	b.stats = a_enemy.stats
-	b.actions = a_enemy.actions
+	b.abilities = a_enemy.abilities
 	b.hp = b.stats.max_hp
 	b.mp = b.stats.max_mp
 	return b
@@ -76,6 +107,38 @@ static func for_enemy(a_enemy: EnemyDef, distinguish: int = 0) -> Battler:
 
 func is_alive() -> bool:
 	return hp > 0
+
+
+# -- Effects -------------------------------------------------------------------------
+
+## Puts [param effect] on this battler and refreshes [member stats]. Returns false when its
+## stacking rule ignored it.
+func add_effect(effect: StatusEffect) -> bool:
+	var applied := EffectList.add(effects, effect) != null
+	refresh_stats()
+	return applied
+
+
+func has_effect(effect_id: StringName) -> bool:
+	return EffectList.has(effects, effect_id)
+
+
+## End of a battle round: counts every ROUNDS effect down. Returns what wore off.
+func tick_round() -> Array[StatusEffect]:
+	var expired := EffectList.tick(effects, StatusEffect.Unit.ROUNDS)
+	refresh_stats()
+	return expired
+
+
+## Rebuilds [member stats] from the base and the running effects, keeping hp/mp inside the
+## new maximums (a debuff that lowers max hp can leave a battler at less than it had, never
+## above the cap).
+func refresh_stats() -> void:
+	if _base == null:
+		return
+	_effective = EffectList.effective(_base, effects)
+	hp = mini(hp, _effective.max_hp)
+	mp = mini(mp, _effective.max_mp)
 
 
 ## [param amount] positive damages, negative heals - [BattleFormula.damage]'s own

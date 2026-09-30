@@ -79,7 +79,7 @@ static func resolve(route: Dictionary) -> Dictionary:
 		return route
 
 	var route_name := str(route["use"])
-	var path := "res://code/events/routes/%s.route.json" % route_name
+	var path := "res://events/routes/%s.route.json" % route_name
 	if not FileAccess.file_exists(path):
 		push_error("EventRoute: shared route '%s' not found at %s." % [route_name, path])
 		return {"mode": "fixed"}

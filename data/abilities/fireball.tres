@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Ability" format=3]
+
+[ext_resource type="Script" path="res://code/party/status_effect.gd" id="1_ndx10"]
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="2_wyeop"]
+
+[resource]
+script = ExtResource("2_wyeop")
+id = &"fireball"
+display_name = "Fireball"
+kind = 1
+power = 1.4
+uses_magic = true
+element = &"fire"
+mp_cost = 4

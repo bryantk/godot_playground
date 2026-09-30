@@ -1,3 +1,4 @@
+@tool
 class_name Troop extends Resource
 
 ## What [code]start_battle[/code]'s own [code]troop[/code] argument names (events/

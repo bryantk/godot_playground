@@ -107,9 +107,8 @@ func _show_action_menu(actor: Battler) -> void:
 	_clear(_action_menu)
 
 	_add_header(_action_menu, "%s's turn" % actor.display_name)
-	for action in actor.actions:
+	for action in actor.abilities:
 		_add_button(_action_menu, action.display_name, _choose_action.bind(actor, action))
-	_add_button(_action_menu, "Guard", _choose_action.bind(actor, _guard_action()))
 	if not Party.items.is_empty():
 		_add_button(_action_menu, "Item", _show_item_menu.bind(actor))
 
@@ -124,48 +123,41 @@ func _show_item_menu(actor: Battler) -> void:
 	_add_button(_action_menu, "Back", _show_action_menu.bind(actor))
 
 
-func _guard_action() -> BattleAction:
-	var action := BattleAction.new()
-	action.display_name = "Guard"
-	action.kind = BattleAction.Kind.GUARD
-	return action
-
-
 ## A generic "restore 15 HP" item action - loose on purpose, same as everything else
 ## here: honing in on real per-item potency is picking numbers per [member
-## BattleAction.item_id], once there is more than one kind of item to tell apart.
-func _item_action(item_id: StringName) -> BattleAction:
-	var action := BattleAction.new()
+## Ability.item_id], once there is more than one kind of item to tell apart.
+func _item_action(item_id: StringName) -> Ability:
+	var action := Ability.new()
 	action.display_name = str(item_id)
-	action.kind = BattleAction.Kind.ITEM
+	action.kind = Ability.Kind.ITEM
 	action.item_id = item_id
-	action.target = BattleAction.Target.SINGLE_ALLY
+	action.target = Ability.Target.SINGLE_ALLY
 	action.power = 15.0
 	return action
 
 
-func _choose_action(actor: Battler, action: BattleAction) -> void:
-	if action.target == BattleAction.Target.SINGLE_ENEMY \
-			or action.target == BattleAction.Target.SINGLE_ALLY:
+func _choose_action(actor: Battler, action: Ability) -> void:
+	if action.target == Ability.Target.SINGLE_ENEMY \
+			or action.target == Ability.Target.SINGLE_ALLY:
 		_show_target_menu(actor, action)
 	else:
 		_commit_command(actor, action, null)
 
 
-func _show_target_menu(actor: Battler, action: BattleAction) -> void:
+func _show_target_menu(actor: Battler, action: Ability) -> void:
 	_action_menu.hide()
 	_target_menu.show()
 	_clear(_target_menu)
 
 	_add_header(_target_menu, "Choose a target")
-	var pool := _state.alive_enemies() if action.target == BattleAction.Target.SINGLE_ENEMY \
+	var pool := _state.alive_enemies() if action.target == Ability.Target.SINGLE_ENEMY \
 		else _state.alive_allies()
 	for target in pool:
 		_add_button(_target_menu, target.display_name, _commit_command.bind(actor, action, target))
 	_add_button(_target_menu, "Back", _show_action_menu.bind(actor))
 
 
-func _commit_command(actor: Battler, action: BattleAction, target: Battler) -> void:
+func _commit_command(actor: Battler, action: Ability, target: Battler) -> void:
 	_commands.append({"battler": actor, "action": action, "target": target})
 	_turn_index += 1
 	_prompt_next_command()

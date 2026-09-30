@@ -36,6 +36,9 @@ var _enemy_catalogue: Dictionary = {}
 
 func _ready() -> void:
 	_seed_demo_troops()
+	# Authored data under res://data/ (heroes, enemies, troops, items) joins the catalogues
+	# the demo data above already filled - Party is loaded before this, so its half is ready.
+	BattleData.apply_to_game()
 
 
 func register_troop(troop: Troop) -> void:
@@ -69,8 +72,8 @@ func enemy_catalogue() -> Array[EnemyDef]:
 
 
 ## A small default bestiary, matching the troop ids docs/events/slime_a.event.json's
-## own worked example already calls [code]start_battle[/code] with - see [Party]'s own
-## [method Party._seed_demo_data] for why a loose system seeds something playable by
+## own worked example already calls [code]start_battle[/code] with. A loose system seeds
+## something playable by
 ## default rather than starting empty.
 func _seed_demo_troops() -> void:
 	_troop_catalogue.clear()
@@ -81,11 +84,11 @@ func _seed_demo_troops() -> void:
 	slime.display_name = "Slime"
 	slime.stats = _stats(10, 0, 3, 2, 1, 3)
 	slime.stats.elements = {&"fire": 2.0}
-	var slime_attack := BattleAction.new()
+	var slime_attack := Ability.new()
 	slime_attack.id = &"tackle"
 	slime_attack.display_name = "Tackle"
 	slime_attack.power = 0.8
-	slime.actions = [slime_attack]
+	slime.abilities = [slime_attack]
 	slime.gold_reward = 8
 	register_enemy(slime)
 
@@ -99,7 +102,7 @@ func _seed_demo_troops() -> void:
 	awakened.display_name = "Awakened Slime"
 	awakened.stats = _stats(22, 0, 5, 3, 2, 4)
 	awakened.stats.elements = {&"fire": 2.0}
-	awakened.actions = [slime_attack]
+	awakened.abilities = [slime_attack]
 	awakened.gold_reward = 20
 	register_enemy(awakened)
 

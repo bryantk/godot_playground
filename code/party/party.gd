@@ -4,10 +4,10 @@ extends Node
 ## flags, which is why this is its own autoload rather than another entry in
 ## [GameState]'s manifest. Autoloaded as [code]Party[/code].
 ##
-## Seeded with a small starter roster/inventory on [method _ready] so there is
-## something to open a menu or a battle onto immediately - swap [method _seed_demo_data]
-## for real authored [PartyMember]/[Equipment] [code].tres[/code] resources once the
-## loose numbers here have been played with enough to hone in on.
+## Populated on [method _ready] from a [PartySetup] resource ([constant SETUP_PATH]) - who is
+## in the party, the gold and the bags are all edited in the inspector, not written in
+## code. A member is a [PartyMember] resource, so the starting party is an ordinary .tres
+## edit. Saves remember members by id and look them up in the catalogue built here.
 
 signal changed()
 
@@ -19,8 +19,8 @@ var active: Array[PartyMember] = []
 var reserve: Array[PartyMember] = []
 var gold: int = 0
 
-## item id -> count. Anything with an entry here and no matching [BattleAction] of
-## [constant BattleAction.Kind.ITEM] is just an inventory curiosity - unused, not
+## item id -> count. Anything with an entry here and no matching [Ability] of
+## [constant Ability.Kind.ITEM] is just an inventory curiosity - unused, not
 ## invalid, since a shop may sell items no battle action reads yet.
 var items: Dictionary = {}
 
@@ -31,14 +31,55 @@ var owned_equipment: Dictionary = {}
 
 ## id -> resource, for every [PartyMember]/[Equipment] this run knows about - what
 ## [method from_save] resolves a saved id back through, and what a shop/equipment menu
-## lists from. Registering is additive; [method _seed_demo_data] is the one caller
+## lists from. Registering is additive; [method apply_setup] is the main caller
 ## today.
 var _member_catalogue: Dictionary = {}
 var _equipment_catalogue: Dictionary = {}
 
 
 func _ready() -> void:
-	_seed_demo_data()
+	load_setup()
+	# A player step counts down every STEPS effect on the roster - the field half of
+	# StatusEffect durations (a battle round is BattleState's).
+	EventBus.player_stepped.connect(func(_from: Vector3i, _to: Vector3i) -> void: tick_field_steps())
+
+
+## Registers [param item] so [method use_item_in_field] and the battle scene can find it by
+## [member Item.id].
+func register_item(item: Item) -> void:
+	BattleData.register(BattleData.ITEMS, item)
+
+
+## One step walked: counts down the STEPS effects on every member, active or reserve.
+func tick_field_steps() -> void:
+	for member in active + reserve:
+		member.tick_steps()
+
+
+## Uses one [param item_id] on [param member] from the menu or an event, outside a fight:
+## flat healing from the item's action [member Ability.power], and any
+## [member Ability.effects] put on the member. Returns what happened as a line of
+## text, or "" when it could not be used (unknown item, not usable in the field, none
+## left).
+func use_item_in_field(item_id: StringName, member: PartyMember) -> String:
+	var item := BattleData.item(item_id)
+	if item == null or item.action == null or member == null or not item.usable_in_field:
+		return ""
+	if not consume_item(item_id):
+		return ""
+
+	var stats := member.effective_stats()
+	var text := "%s uses %s." % [member.display_name, item.display_name]
+	var heal := roundi(item.action.power)
+	if heal > 0:
+		var current := member.current_hp if member.current_hp >= 0 else stats.max_hp
+		member.current_hp = mini(current + heal, stats.max_hp)
+		text += " %s recovers %d HP." % [member.display_name, member.current_hp - current]
+	for effect in item.action.effects:
+		if effect != null and member.add_effect(effect):
+			text += " %s gains %s." % [member.display_name, effect.display_name]
+	changed.emit()
+	return text
 
 
 func register_member(member: PartyMember) -> void:
@@ -200,77 +241,68 @@ func clear() -> void:
 	gold = 0
 	items.clear()
 	owned_equipment.clear()
-	_seed_demo_data()
+	load_setup()
+
+## Where the starting party is authored - a [PartySetup] resource, edited in the inspector
+## (the Battle Data dock's "Party setup" button opens it).
+const SETUP_PATH := "res://data/party.tres"
 
 
-## A tiny starter roster so a fresh run has party members to look at, equip and fight
-## with before any real content is authored - see the class doc.
-func _seed_demo_data() -> void:
+## Builds the party from [constant SETUP_PATH]. With no such file the party is simply empty
+## (and says so), rather than quietly inventing one.
+func load_setup() -> void:
 	_member_catalogue.clear()
 	_equipment_catalogue.clear()
 	active.clear()
 	reserve.clear()
+	gold = 0
+	items.clear()
+	owned_equipment.clear()
 
-	var sword := Equipment.new()
-	sword.id = &"rusty_sword"
-	sword.display_name = "Rusty Sword"
-	sword.slot = Equipment.Slot.WEAPON
-	sword.bonus = _stats(0, 0, 3, 0, 0, 0)
-	sword.price = 20
-	register_equipment(sword)
-
-	var robe := Equipment.new()
-	robe.id = &"cloth_robe"
-	robe.display_name = "Cloth Robe"
-	robe.slot = Equipment.Slot.ARMOR
-	robe.bonus = _stats(0, 0, 0, 2, 1, 0)
-	robe.price = 15
-	register_equipment(robe)
-
-	var attack := BattleAction.new()
-	attack.id = &"attack"
-	attack.display_name = "Attack"
-	attack.kind = BattleAction.Kind.ATTACK
-	attack.target = BattleAction.Target.SINGLE_ENEMY
-	attack.power = 1.0
-
-	var fireball := BattleAction.new()
-	fireball.id = &"fireball"
-	fireball.display_name = "Fireball"
-	fireball.kind = BattleAction.Kind.SKILL
-	fireball.target = BattleAction.Target.SINGLE_ENEMY
-	fireball.power = 1.4
-	fireball.uses_magic = true
-	fireball.element = &"fire"
-	fireball.mp_cost = 4
-
-	var hero := PartyMember.new()
-	hero.id = &"hero"
-	hero.display_name = "Hero"
-	hero.base_stats = _stats(28, 8, 7, 5, 4, 6)
-	hero.actions = [attack, fireball]
-	register_member(hero)
-	active.append(hero)
-
-	var mage := PartyMember.new()
-	mage.id = &"mage"
-	mage.display_name = "Mage"
-	mage.base_stats = _stats(18, 16, 3, 3, 8, 5)
-	mage.actions = [attack, fireball]
-	register_member(mage)
-	active.append(mage)
-
-	gold = 50
-	items = {&"potion": 3}
-	owned_equipment = {}
+	if not ResourceLoader.exists(SETUP_PATH):
+		push_warning("Party: no party setup at %s - starting with an empty party." % SETUP_PATH)
+		return
+	var setup := load(SETUP_PATH) as PartySetup
+	if setup == null:
+		push_warning("Party: %s is not a PartySetup." % SETUP_PATH)
+		return
+	apply_setup(setup)
+	BattleData.register_loaded()
 
 
-static func _stats(hp: int, mp: int, atk: int, def: int, mag: int, spd: int) -> Stats:
-	var s := Stats.new()
-	s.max_hp = hp
-	s.max_mp = mp
-	s.atk = atk
-	s.def = def
-	s.mag = mag
-	s.spd = spd
-	return s
+## Makes [param setup] the party. Each listed member is registered as a template and the
+## running party gets a copy, so nothing that happens during play writes back into the
+## resource.
+func apply_setup(setup: PartySetup) -> void:
+	for piece in setup.equipment:
+		if piece != null:
+			register_equipment(piece)
+
+	for member in setup.active:
+		if member != null:
+			register_member(member)
+			_register_gear_of(member)
+			active.append(member.duplicate(true))
+	for member in setup.reserve:
+		if member != null:
+			register_member(member)
+			_register_gear_of(member)
+			reserve.append(member.duplicate(true))
+
+	gold = setup.gold
+	for id in setup.items:
+		items[id] = setup.items[id]
+	for id in setup.owned_equipment:
+		owned_equipment[id] = setup.owned_equipment[id]
+	changed.emit()
+
+
+## Gear a member arrives wearing must be in the catalogue too, or a saved game could not
+## resolve its id.
+func _register_gear_of(member: PartyMember) -> void:
+	for slot: Variant in member.equipped:
+		var piece: Equipment = member.equipped[slot]
+		if piece != null:
+			register_equipment(piece)
+
+

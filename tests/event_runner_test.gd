@@ -41,6 +41,7 @@ func _ready() -> void:
 	_test_move_by_random_lands_one_cell_away_on_one_axis()
 	await _test_move_by_wander_can_stand_still_or_take_one_step()
 	_test_camera_move_by_blocked_by_bounds()
+	_test_actor_shorthand_in_conditions()
 	_test_move_route_paths_around_obstacles_and_remembers()
 	await _test_shake_offsets_then_restores_camera()
 	_test_eval_var_substitutes_own_name_and_commits_the_result()
@@ -716,7 +717,7 @@ func _test_move_by_wander_can_stand_still_or_take_one_step() -> void:
 ## No actors involved - a camera command's only "rig" is a MapContext and a RoomCamera2D,
 ## the same sibling-under-one-root shape [method _build_rig] gives an actor.
 func _test_move_route_paths_around_obstacles_and_remembers() -> void:
-	_section("MoveRoute -- A* around a blocker, stores JSON move commands, no_path_found when walled in")
+	_section("MoveRoute -- A* around a blocker, stores JSON move commands, no_path_found (no movement) when walled in")
 	GameState.clear()
 
 	var rig := _build_rig()
@@ -750,16 +751,65 @@ func _test_move_route_paths_around_obstacles_and_remembers() -> void:
 	_eq(lines[0].size() if lines.size() == 1 else -1, 4, "from its own cell through all three steps")
 
 	# Walled in: every neighbour of (6, 0, 6) is held, so it cannot be reached. A tight
-	# node cap keeps the search short; the actor walks the best attempt, then reports it.
+	# node cap keeps the search short; the actor stays put and reports it.
 	for d in Passability.STEPS:
 		map.occupancy.place(StringName("wall%d_%d" % [d.x, d.z]), Vector3i(6, 0, 6) + d)
+	var cell_before := guard.cell()
 	var ex2: EventCommandExec = EventCommandExec.create("move_route")
 	ex2.setup({}, {"cell": Vector3i(6, 0, 6), "max_nodes": 150}, ctx, runner)
 	ex2.start()
-	_ok(ex2.tick(0.0) == EventCommandExec.Status.DONE, "the walled-in search finishes")
+	_ok(ex2.tick(0.0) == EventCommandExec.Status.DONE, "the walled-in search finishes at once")
 	_eq(ex2.flow_port(), EventCommand.FLOW_NO_PATH_FOUND, "and leaves by \"no_path_found\"")
-	_ok(guard.cell() != Vector3i(6, 0, 6), "without reaching the walled-in target")
+	_eq(guard.cell(), cell_before, "and the actor did not move at all")
+	_eq(guard.move_route.size(), 0, "with no stale route left stored")
 
+	GameState.clear()
+
+
+func _test_actor_shorthand_in_conditions() -> void:
+	_section("EventCondition -- the @actor. shorthand: at, near, near_event, flag")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var guard: Actor = rig["guard"]
+	var ctx := EventContext.for_event(rig["ctx"], &"test_map", &"shorthand_test", guard)
+	var cctx := ctx.condition_ctx()
+
+	var holds := func(text: String) -> bool:
+		var parsed := EventCondition.parse_expression(text)
+		_ok((parsed["problems"] as Array).is_empty(), "\"%s\" parses" % text)
+		return EventCondition.evaluate(parsed["tree"], cctx)
+
+	_ok(holds.call("@self.at(0, 0, 0)"), "at: the guard is on its own cell")
+	_ok(not holds.call("@self.at(1, 0, 0)"), "at: and not on the next one")
+	_ok(holds.call("@guard.at(0,0,0)"), "an actor is named by id as well as @self")
+	_ok(holds.call("@player.at(2, 0, 0)"), "@player resolves")
+	_ok(holds.call("@self.near(2, 0, 0, 2)"), "near: two cells away is within 2")
+	_ok(not holds.call("@self.near(2, 0, 0, 1)"), "near: but not within 1")
+	_ok(holds.call("@self.near(1, 0, 1, 2)"), "near: Manhattan - the diagonal is 2 away")
+	_ok(not holds.call("@self.near(1, 0, 1, 1)"), "near: so a diagonal is outside 1")
+	_ok(holds.call("@self.near_event(@player, 2)"), "near_event: the player is 2 cells off")
+	_ok(not holds.call("@self.near_event(@player, 1)"), "near_event: not within 1")
+	_ok(holds.call("not @self.at(5, 0, 5) and @self.near(0, 0, 0, 0)"), "they combine with and / not")
+	_ok(not holds.call("@self.flag(\"alerted\")"), "flag: reads false with no event holding it")
+
+	var bad := EventCondition.parse_expression("@self.flag(\"alerted\", true)")
+	_ok(not (bad["problems"] as Array).is_empty(), "a write is refused in a condition")
+	_ok(not (EventCondition.parse_expression("@self.teleport(1)")["problems"] as Array).is_empty(),
+		"an unknown method is reported")
+	_ok(not (EventCondition.parse_expression("@self.at(1, 2)")["problems"] as Array).is_empty(),
+		"a wrong argument count is reported")
+
+	var tree: Dictionary = EventCondition.parse_expression("@self.near(2, 0, 0, 2)")["tree"]
+	_ok((EventCondition.validate(tree) as Array).is_empty(), "the tree validates")
+
+	# The terminal's half: the same questions through Expression, via the actors proxy.
+	var proxy := ActorQueries.ActorsProxy.new(rig["ctx"])
+	var expression := Expression.new()
+	expression.parse("actors[\"guard\"].near(2, 0, 0, 2) and actors[\"player\"].at(2, 0, 0) "
+		+ "and actors[\"guard\"].near_event(actors[\"player\"], 2)", ["actors"])
+	_ok(expression.execute([proxy], null, true) == true and not expression.has_execute_failed(),
+		"terminal: actors[...] answers at / near / near_event through Expression")
 	GameState.clear()
 
 

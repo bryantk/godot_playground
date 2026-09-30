@@ -29,6 +29,10 @@ func _ready() -> void:
 	_ok(menu._evaluate("1 +").begins_with("parse error"), "a malformed line reports a parse error")
 	_ok(menu._evaluate("nope()").begins_with("error"), "an unknown call reports an error")
 
+	_section("terminal -- the @actor. shorthand is rewritten to actors[...]")
+	_eq(DebugMenu._expand_actor_terms("@guard.near(1,2,3,4)"), "actors[\"guard\"].near(1,2,3,4)", "a plain name")
+	_eq(DebugMenu._expand_actor_terms("@debug-3.at(0,0,0) and @player.flag(\"x\")"), "actors[\"debug-3\"].at(0,0,0) and actors[\"player\"].flag(\"x\")", "hyphenated names and several terms")
+
 	_section("terminal -- history walks back with Up and forward with Down")
 	menu._terminal_input.text_submitted.emit("1 + 1")
 	menu._terminal_input.text_submitted.emit("2 + 2")

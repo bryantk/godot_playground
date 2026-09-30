@@ -2770,7 +2770,7 @@ static func _first_game_event_under(node: Node) -> GameEvent:
 func _map_event_dir(map_root: Node) -> String:
 	var scene_path := map_root.scene_file_path if map_root != null else ""
 	var map_id := scene_path.get_file().get_basename() if scene_path != "" else "map"
-	return "res://code/events/%s" % map_id
+	return "res://events/%s" % map_id
 
 ## Where a newly-linked actor's or event's file goes, under [method _map_event_dir].
 ## [param event_id] names the file - [member Actor.actor_id] (falling back to the node

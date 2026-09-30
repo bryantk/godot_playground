@@ -32,6 +32,7 @@ DebugRouteView="*res://code/world/debug_route_view.gd"
 SaveGame="*res://code/world/save_game.gd"
 InputReplay="*res://code/world/input_replay.gd"
 Party="*res://code/party/party.gd"
+FollowerChain="*res://code/party/follower_chain.gd"
 BattleTransfer="*res://code/battle/battle_transfer.gd"
 AudioMaster="*res://code/world/audio_master.gd"
 
@@ -48,7 +49,7 @@ naming/node_name_num_separator=2
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/event_editor/plugin.cfg", "res://addons/graph_editor/plugin.cfg")
+enabled=PackedStringArray("res://addons/event_editor/plugin.cfg", "res://addons/graph_editor/plugin.cfg", "res://addons/battle_data/plugin.cfg")
 
 [input]
 

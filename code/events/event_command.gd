@@ -66,7 +66,7 @@ const FLOW_IMMEDIATE := "immediate"
 ## path awaiting "reached" resumes the same loop once whatever blocked it moves away.
 const FLOW_BLOCKED := "blocked"
 ## move_route only: the search could not reach the target (walled off, or over its node
-## cap). The actor has walked as far as the best attempt got before this fires.
+## cap). Fires straight away: the actor does not move.
 const FLOW_NO_PATH_FOUND := "no_path_found"
 
 # -- Resume buckets ------------------------------------------------------------
@@ -296,6 +296,34 @@ const COMMANDS: Dictionary = {
 		"resume": RESUME_RESTART,
 		"requires": [GameProfile.Capability.HEIGHT],
 		"blurb": "Have an actor jump to a cell, arcing a height above it.",
+	},
+	# -- The party caterpillar (FollowerChain) ------------------------------------------
+	"follow_add": {
+		# Give "member" (a party member's id - back into the automatic chain) or "actor"
+		# (an ordinary actor on the map, who then trails the party). See follower_execs.gd.
+		"args": {"member": T_STRING + "?", "actor": T_ACTOR + "?"},
+		"flows": ["next"], "blocking": false, "space": SPACE_GRID,
+		"resume": RESUME_RESTART,
+		"blurb": "Make a party member, or another actor, follow the player in the party line.",
+	},
+	"follow_remove": {
+		"args": {"member": T_STRING + "?", "actor": T_ACTOR + "?"},
+		"flows": ["next"], "blocking": false, "space": SPACE_GRID,
+		"resume": RESUME_RESTART,
+		"blurb": "Stop a party member, or another actor, following the player.",
+	},
+	"follow_show": {
+		# "actor" left out means every follower.
+		"args": {"visible": T_BOOL, "actor": T_ACTOR + "?"},
+		"flows": ["next"], "blocking": false, "space": SPACE_GRID,
+		"resume": RESUME_RESTART,
+		"blurb": "Show or hide the followers (all of them, or just \"actor\").",
+	},
+	"follow_group": {
+		"args": {},
+		"flows": [FLOW_REACHED, FLOW_IMMEDIATE], "blocking": true, "space": SPACE_GRID,
+		"resume": RESUME_RESTART,
+		"blurb": "Walk every follower to its place right behind the player.",
 	},
 	"follow": {
 		"args": {"actor": T_ACTOR + "?", "target": T_ACTOR, "distance": T_INT + "?"},
@@ -645,6 +673,66 @@ const COMMANDS: Dictionary = {
 		"resume": RESUME_RESTART,
 		"requires": [GameProfile.Capability.BATTLE_SCENE],
 		"blurb": "Start a battle against a troop.",
+	},
+
+	# -- Battle AI (enemy graphs, run by BattleAI - see events/commands/ai_execs.gd) ------
+	"if_round": {
+		# "op" is one of == != < <= > >= (default >=); "every" replaces op/value with
+		# "every Nth round".
+		"args": {"op": T_STRING + "?", "value": T_INT + "?", "every": T_INT + "?"},
+		"flows": ["true", "false"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"requires": [GameProfile.Capability.BATTLE_SCENE],
+		"blurb": "AI: branch on the battle round number (or every Nth round).",
+	},
+	"if_stat": {
+		# "who" is self or target; "stat" is hp, mp, max_hp, max_mp, atk, def, mag or spd;
+		# "percent" makes hp/mp a percentage of their maximum.
+		"args": {"who": T_STRING + "?", "stat": T_STRING, "op": T_STRING, "value": T_FLOAT,
+			"percent": T_BOOL + "?"},
+		"flows": ["true", "false"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"requires": [GameProfile.Capability.BATTLE_SCENE],
+		"blurb": "AI: branch on a stat of self or the chosen target (at/below/above a value).",
+	},
+	"if_status": {
+		"args": {"who": T_STRING + "?", "status": T_STRING},
+		"flows": ["true", "false"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"requires": [GameProfile.Capability.BATTLE_SCENE],
+		"blurb": "AI: branch on whether self or the chosen target has a status effect.",
+	},
+	"if_count": {
+		# "side" is allies (own side, self included) or enemies (the other side).
+		"args": {"side": T_STRING, "op": T_STRING, "value": T_INT},
+		"flows": ["true", "false"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"requires": [GameProfile.Capability.BATTLE_SCENE],
+		"blurb": "AI: branch on how many are still standing on a side.",
+	},
+	"if_random": {
+		"args": {"chance": T_FLOAT},
+		"flows": ["true", "false"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"requires": [GameProfile.Capability.BATTLE_SCENE],
+		"blurb": "AI: branch by chance - \"true\" that percent of the time.",
+	},
+	"choose_target": {
+		# "rule": first, random, self, lowest_hp, most_hp, lowest_hp_percent, highest_atk,
+		# highest_def, highest_mag, highest_spd, lowest_spd, lowest_def. "side": enemies
+		# (default) or allies.
+		"args": {"rule": T_STRING, "side": T_STRING + "?"},
+		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"requires": [GameProfile.Capability.BATTLE_SCENE],
+		"blurb": "AI: choose who the next ability will hit (most hp, lowest hp, first, random...).",
+	},
+	"use_ability": {
+		"args": {"ability": T_STRING},
+		"flows": [], "blocking": false, "space": SPACE_ANY,
+		"resume": RESUME_RESTART,
+		"requires": [GameProfile.Capability.BATTLE_SCENE],
+		"blurb": "AI: use an ability on the chosen target - ends the decision.",
 	},
 }
 

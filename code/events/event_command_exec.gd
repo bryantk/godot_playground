@@ -261,6 +261,8 @@ const _RouteExecs := preload("res://code/events/commands/route_execs.gd")
 const _BattleExecs := preload("res://code/events/commands/battle_execs.gd")
 const _MenuExecs := preload("res://code/events/commands/menu_execs.gd")
 const _CameraExecs := preload("res://code/events/commands/camera_execs.gd")
+const _FollowerExecs := preload("res://code/events/commands/follower_execs.gd")
+const _AiExecs := preload("res://code/events/commands/ai_execs.gd")
 
 static var _table: Dictionary = {}
 
@@ -269,7 +271,7 @@ static func _ensure_table() -> void:
 		return
 	for source: GDScript in [_FlowExecs, _ActorExecs, _DialogueExecs, _StateExecs,
 			_MapExecs, _PresentationExecs, _RouteExecs, _BattleExecs, _MenuExecs,
-			_CameraExecs]:
+			_CameraExecs, _FollowerExecs, _AiExecs]:
 		var part: Dictionary = source.table()
 		for key: Variant in part:
 			_table[key] = part[key]

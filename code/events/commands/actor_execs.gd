@@ -504,9 +504,10 @@ class EraseEvent extends EventCommandExec:
 ## it is taken and the route is abandoned; unwired, the runner waits a frame and retries,
 ## which re-plans from wherever the actor stopped - see [method
 ## EventCommandExec.supports_blocked_flow]); "immediate" the moment it starts (wired, the
-## graph does not wait); "no_path_found" once the actor has walked as far as the best
-## attempt got, when the search could not reach the target (walled off, or over
-## [code]max_nodes[/code]). A target already under the actor is simply reached.
+## graph does not wait); "no_path_found" straight away, without moving at all, when the
+## search cannot reach the target (walled off, or over [code]max_nodes[/code]) - the
+## actor's stored route is cleared so a stale one is not left behind. A target already
+## under the actor is simply reached.
 ##
 ## Grid actors only - a free-motion actor has no cells to plan over, so it reads as no
 ## path found.
@@ -546,8 +547,12 @@ class MoveRoute extends EventCommandExec:
 
 		var found: Dictionary = (m as GridMotion).find_path(
 			Vector3i(args.get("cell", Vector3i.ZERO)), maxi(1, int(args.get("max_nodes", 2000))))
+		if not bool(found["complete"]):
+			_no_path = true
+			a.move_route = []
+			_finish_chain()
+			return
 		_cells.assign(found["path"])
-		_no_path = not bool(found["complete"])
 		a.move_route = _route_json(_cells)
 		_begin_leg()
 

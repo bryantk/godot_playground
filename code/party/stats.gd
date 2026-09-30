@@ -1,3 +1,4 @@
+@tool
 class_name Stats extends Resource
 
 ## The numbers a formula (battle/battle_formula.gd) actually reads - shared by a

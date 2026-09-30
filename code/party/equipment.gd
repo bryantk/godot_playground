@@ -1,3 +1,4 @@
+@tool
 class_name Equipment extends Resource
 
 ## One piece of gear - a plain stat bonus added on top of a [PartyMember]'s base

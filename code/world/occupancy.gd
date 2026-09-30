@@ -28,6 +28,42 @@ var _cells: Dictionary[Vector3i, Array] = {}
 ## one flag, both directions, so there is no ghost that others can still bump into.
 var _phasing: Dictionary[StringName, bool] = {}
 
+## Party followers (the caterpillar) and the actor they follow - see [method set_follower].
+## Neither set blocks anyone by itself; they only say who may share a cell with whom.
+var _followers: Dictionary[StringName, bool] = {}
+var _leaders: Dictionary[StringName, bool] = {}
+
+
+## Marks [param actor_id] as a follower: it and its leader, and other followers, pass
+## through one another ([method passes]), while every other actor still blocks it and is
+## blocked by it like any solid. Asymmetric with [method set_phasing], which makes an
+## actor ignore [i]everyone[/i].
+func set_follower(actor_id: StringName, follower: bool) -> void:
+	if follower:
+		_followers[actor_id] = true
+	else:
+		_followers.erase(actor_id)
+
+
+## Marks [param actor_id] as the one followers trail (the player).
+func set_leader(actor_id: StringName, leader: bool) -> void:
+	if leader:
+		_leaders[actor_id] = true
+	else:
+		_leaders.erase(actor_id)
+
+
+## Whether [param mover] may step onto a cell [param occupant] holds: a follower passes
+## other followers and the leader, and the leader passes followers - nobody else passes
+## anyone. So the player is never stopped by its party, a chain never jams on itself, and
+## an NPC still bumps into a follower.
+func passes(mover: StringName, occupant: StringName) -> bool:
+	if _followers.has(mover):
+		return _followers.has(occupant) or _leaders.has(occupant)
+	if _leaders.has(mover):
+		return _followers.has(occupant)
+	return false
+
 
 ## Declare whether [param actor_id] phases through other actors. Called once by [Actor]
 ## when it registers; an actor never named here blocks, which is what keeps a bare
@@ -81,7 +117,7 @@ func is_free_for(cell: Vector3i, actor_id: StringName) -> bool:
 	if phases(actor_id):
 		return true
 	for id: StringName in blockers_at(cell):
-		if id != actor_id:
+		if id != actor_id and not passes(actor_id, id):
 			return false
 	return true
 
@@ -93,7 +129,7 @@ func is_free_for_cells(cells: Array[Vector3i], actor_id: StringName) -> bool:
 		return true
 	for cell: Vector3i in cells:
 		for id: StringName in blockers_at(cell):
-			if id != actor_id:
+			if id != actor_id and not passes(actor_id, id):
 				return false
 	return true
 
@@ -138,7 +174,7 @@ func commit(changes: Dictionary[Vector3i, StringName]) -> bool:
 		if claimant == &"" or phases(claimant):
 			continue
 		for holder: StringName in blockers_at(cell):
-			if holder == claimant or movers.has(holder):
+			if holder == claimant or movers.has(holder) or passes(claimant, holder):
 				continue
 			return false
 
@@ -212,11 +248,15 @@ func place_many(actor_id: StringName, cells: Array[Vector3i]) -> void:
 func release_actor(actor_id: StringName) -> void:
 	_lift(actor_id)
 	_phasing.erase(actor_id)
+	_followers.erase(actor_id)
+	_leaders.erase(actor_id)
 
 
 func clear() -> void:
 	_cells.clear()
 	_phasing.clear()
+	_followers.clear()
+	_leaders.clear()
 
 
 ## How many cells have anyone standing on them. Not a count of actors - one cell holding

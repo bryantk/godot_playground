@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="Equipment" format=3]
+
+[ext_resource type="Script" path="res://code/party/stats.gd" id="1_v0rvi"]
+[ext_resource type="Script" path="res://code/party/equipment.gd" id="2_pvq5c"]
+
+[sub_resource type="Resource" id="Resource_vwtpt"]
+script = ExtResource("1_v0rvi")
+max_hp = 0
+max_mp = 0
+atk = 0
+def = 2
+mag = 1
+spd = 0
+
+[resource]
+script = ExtResource("2_pvq5c")
+id = &"cloth_robe"
+display_name = "Cloth Robe"
+slot = 1
+bonus = SubResource("Resource_vwtpt")
+price = 15

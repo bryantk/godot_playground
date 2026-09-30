@@ -83,7 +83,7 @@ func _test_registry() -> void:
 	# A handful of commands deliberately end a path rather than continuing one, and the
 	# rest must have somewhere to go: a linear command with no port is a graph that
 	# stops dead.
-	var enders := ["end", "exit_call", "ask", "erase_event"]
+	var enders := ["end", "exit_call", "ask", "erase_event", "use_ability"]
 	var portless: Array[String] = []
 	for name: Variant in defs:
 		if (defs[name]["flows"] as Array).is_empty() and not enders.has(name):

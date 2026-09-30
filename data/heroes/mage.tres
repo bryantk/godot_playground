@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="PartyMember" format=3]
+
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="1_pgojp"]
+[ext_resource type="Resource" path="res://data/abilities/attack.tres" id="2_t2s1d"]
+[ext_resource type="Resource" path="res://data/abilities/guard.tres" id="3_65wfw"]
+[ext_resource type="Resource" path="res://data/abilities/fireball.tres" id="4_oi40l"]
+[ext_resource type="Script" path="res://code/party/stats.gd" id="5_ij7mj"]
+[ext_resource type="Script" path="res://code/party/party_member.gd" id="6_duldw"]
+
+[sub_resource type="Resource" id="Resource_byjel"]
+script = ExtResource("5_ij7mj")
+max_hp = 18
+max_mp = 16
+atk = 3
+def = 3
+mag = 8
+
+[resource]
+script = ExtResource("6_duldw")
+id = &"mage"
+display_name = "Mage"
+base_stats = SubResource("Resource_byjel")
+abilities = Array[ExtResource("1_pgojp")]([ExtResource("2_t2s1d"), ExtResource("3_65wfw"), ExtResource("4_oi40l")])

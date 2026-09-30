@@ -258,7 +258,7 @@ modulate = Color(0, 0, 0, 0.55)
 
 [node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Event_1" unique_id=926035197]
 script = ExtResource("25_game_event")
-document_path = "res://code/events/isoish_grid_demo/event_1_greeting.event.json"
+document_path = "res://events/isoish_grid_demo/event_1_greeting.event.json"
 
 [node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Event_1" unique_id=73596369 node_paths=PackedStringArray("target")]
 script = ExtResource("26_debug_area")
@@ -281,7 +281,7 @@ modulate = Color(0, 0, 0, 0.55)
 
 [node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Event_2" unique_id=1247669565]
 script = ExtResource("25_game_event")
-document_path = "res://code/events/isoish_grid_demo/event_2_patrol.event.json"
+document_path = "res://events/isoish_grid_demo/event_2_patrol.event.json"
 
 [node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Event_2" unique_id=835807651 node_paths=PackedStringArray("target")]
 script = ExtResource("26_debug_area")
@@ -294,7 +294,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 8.5)
 
 [node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/MapTransfer" unique_id=900000202]
 script = ExtResource("25_game_event")
-document_path = "res://code/events/isoish_grid_demo/map_transfer.event.json"
+document_path = "res://events/isoish_grid_demo/map_transfer.event.json"
 
 [node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/MapTransfer" unique_id=900000203]
 script = ExtResource("26_debug_area")

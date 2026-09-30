@@ -33,16 +33,16 @@ func _test_stomp_is_a_near_certain_win() -> void:
 	var hero := PartyMember.new()
 	hero.id = &"sim_hero"
 	hero.base_stats = _stats(50, 0, 20, 5, 0, 20)
-	var attack := BattleAction.new()
-	attack.kind = BattleAction.Kind.ATTACK
-	attack.target = BattleAction.Target.SINGLE_ENEMY
+	var attack := Ability.new()
+	attack.kind = Ability.Kind.ATTACK
+	attack.target = Ability.Target.SINGLE_ENEMY
 	attack.power = 1.0
-	hero.actions = [attack]
+	hero.abilities = [attack]
 
 	var weak := EnemyDef.new()
 	weak.id = &"sim_weakling"
 	weak.stats = _stats(5, 0, 1, 0, 0, 1)
-	weak.actions = [attack]
+	weak.abilities = [attack]
 
 	var troop := Troop.new()
 	troop.enemies = [{"enemy": weak, "count": 1}]
@@ -59,16 +59,16 @@ func _test_hopeless_fight_is_a_near_certain_loss() -> void:
 	var weak_hero := PartyMember.new()
 	weak_hero.id = &"sim_weak_hero"
 	weak_hero.base_stats = _stats(5, 0, 1, 0, 0, 1)
-	var weak_attack := BattleAction.new()
-	weak_attack.kind = BattleAction.Kind.ATTACK
-	weak_attack.target = BattleAction.Target.SINGLE_ENEMY
+	var weak_attack := Ability.new()
+	weak_attack.kind = Ability.Kind.ATTACK
+	weak_attack.target = Ability.Target.SINGLE_ENEMY
 	weak_attack.power = 1.0
-	weak_hero.actions = [weak_attack]
+	weak_hero.abilities = [weak_attack]
 
 	var brute := EnemyDef.new()
 	brute.id = &"sim_brute"
 	brute.stats = _stats(60, 0, 20, 5, 0, 20)
-	brute.actions = [weak_attack]
+	brute.abilities = [weak_attack]
 
 	var troop := Troop.new()
 	troop.enemies = [{"enemy": brute, "count": 1}]
@@ -83,15 +83,15 @@ func _test_simulation_never_touches_real_party_data() -> void:
 	var hero := PartyMember.new()
 	hero.id = &"sim_untouched"
 	hero.base_stats = _stats(10, 0, 3, 0, 0, 5)
-	var attack := BattleAction.new()
-	attack.kind = BattleAction.Kind.ATTACK
-	attack.target = BattleAction.Target.SINGLE_ENEMY
+	var attack := Ability.new()
+	attack.kind = Ability.Kind.ATTACK
+	attack.target = Ability.Target.SINGLE_ENEMY
 	attack.power = 1.0
-	hero.actions = [attack]
+	hero.abilities = [attack]
 
 	var enemy := EnemyDef.new()
 	enemy.stats = _stats(30, 0, 5, 0, 0, 10)
-	enemy.actions = [attack]
+	enemy.abilities = [attack]
 	var troop := Troop.new()
 	troop.enemies = [{"enemy": enemy, "count": 1}]
 

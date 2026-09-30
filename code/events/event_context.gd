@@ -26,6 +26,10 @@ var map: MapContext = null
 ## @self - null for a bodiless region trigger.
 var self_actor: Actor = null
 
+## Set only for an enemy's AI graph run by [BattleAI]: the [BattleAI.Context] the battle
+## commands (events/commands/ai_execs.gd) read and write. Null for every ordinary event.
+var battle_ai: Object = null
+
 ## Optional predicate providers EventCondition asks for leaves whose systems don't exist
 ## yet (item, party_has) - forwarded verbatim into condition_ctx().
 var has_item: Callable
@@ -63,25 +67,32 @@ static func for_event(a_map: MapContext, a_map_id: StringName, a_event_id: Strin
 ## resolving one anyway would silently paper over an authoring mistake the validator
 ## already catches.
 func resolve(term: String) -> Actor:
+	return resolve_in(map, self_actor, term)
+
+
+## [method resolve] against an explicit [param a_map]/[param self_actor] - what a page's
+## own condition context uses, which has no [EventContext] yet.
+static func resolve_in(a_map: MapContext, a_self_actor: Actor, term: String) -> Actor:
 	if not EventCommand.is_term(term):
 		return null
 
 	var name := EventCommand.term_name(term)
 	if name == "self":
-		return self_actor
-	if map == null:
+		return a_self_actor
+	if a_map == null:
 		return null
 	if name == "player":
-		for a in map.actors():
+		for a in a_map.actors():
 			if a.is_player():
 				return a
 		return null
-	return map.actor(StringName(name))
+	return a_map.actor(StringName(name))
 
 
 ## The exact shape [method EventCondition.evaluate]/[method EventCondition.keys] expect.
+## [code]actor[/code] resolves the [code]@actor.[/code] shorthand's terms.
 func condition_ctx() -> Dictionary:
-	var out := {"map": map_id, "event": event_id}
+	var out := {"map": map_id, "event": event_id, "actor": resolve}
 	if has_item.is_valid():
 		out["has_item"] = has_item
 	if party_has.is_valid():

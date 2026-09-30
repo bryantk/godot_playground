@@ -69,11 +69,11 @@ static func _auto_player_commands(state: BattleState) -> Array[Dictionary]:
 	return commands
 
 
-static func _best_attack(ally: Battler) -> BattleAction:
-	for action in ally.actions:
-		if action.kind == BattleAction.Kind.ATTACK:
+static func _best_attack(ally: Battler) -> Ability:
+	for action in ally.abilities:
+		if action.kind == Ability.Kind.ATTACK:
 			return action
-	return ally.actions[0] if not ally.actions.is_empty() else BattleAction.new()
+	return ally.abilities[0] if not ally.abilities.is_empty() else Ability.new()
 
 
 static func _weakest(pool: Array[Battler]) -> Battler:

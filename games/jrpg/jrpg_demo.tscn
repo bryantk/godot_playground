@@ -152,7 +152,7 @@ modulate = Color(0.65, 0.8, 1, 1)
 
 [node name="GameEvent" type="Node" parent="Actors/Npc_17_9" unique_id=632867844]
 script = ExtResource("17_game_event")
-document_path = "res://code/events/jrpg_demo/npc_greeting.event.json"
+document_path = "res://events/jrpg_demo/npc_greeting.event.json"
 actor_id = &"npc_17_9"
 
 [node name="DebugArea" type="Node2D" parent="Actors/Npc_17_9" unique_id=686686382 node_paths=PackedStringArray("target")]
@@ -176,7 +176,7 @@ position = Vector2(4, 4)
 
 [node name="GameEvent" type="Node" parent="Actors/Npc_8_12" unique_id=1018433058]
 script = ExtResource("17_game_event")
-document_path = "res://code/events/jrpg_demo/nada.event.json"
+document_path = "res://events/jrpg_demo/nada.event.json"
 actor_id = &"npc_8_12"
 
 [node name="DebugArea" type="Node2D" parent="Actors/Npc_8_12" unique_id=507263382 node_paths=PackedStringArray("target")]
@@ -200,7 +200,7 @@ modulate = Color(0.65, 0.8, 1, 1)
 
 [node name="GameEvent" type="Node" parent="Actors/Npc_8_13" unique_id=125131200]
 script = ExtResource("17_game_event")
-document_path = "res://code/events/jrpg_demo/y_test.event.json"
+document_path = "res://events/jrpg_demo/y_test.event.json"
 actor_id = &"y_test"
 visible = false
 
@@ -223,7 +223,7 @@ frame = 1
 
 [node name="GameEvent" type="Node" parent="Actors/MapTransfer" unique_id=900000102]
 script = ExtResource("17_game_event")
-document_path = "res://code/events/jrpg_demo/map_transfer.event.json"
+document_path = "res://events/jrpg_demo/map_transfer.event.json"
 
 [node name="DebugArea" type="Node2D" parent="Actors/MapTransfer" unique_id=900000103 node_paths=PackedStringArray("target")]
 script = ExtResource("18_debug_area")
@@ -257,7 +257,7 @@ rate = 0.08333333333333333
 
 [node name="GameEvent" type="Node" parent="Actors/BattleTrigger" unique_id=900000202]
 script = ExtResource("17_game_event")
-document_path = "res://code/events/jrpg_demo/battle_trigger.event.json"
+document_path = "res://events/jrpg_demo/battle_trigger.event.json"
 
 [node name="DebugArea" type="Node2D" parent="Actors/BattleTrigger" unique_id=900000203 node_paths=PackedStringArray("target")]
 script = ExtResource("18_debug_area")
@@ -269,7 +269,7 @@ position = Vector2(216, 152)
 
 [node name="GameEvent" type="Node" parent="Actors/PartyMenuTrigger" unique_id=900000212]
 script = ExtResource("17_game_event")
-document_path = "res://code/events/jrpg_demo/party_menu_trigger.event.json"
+document_path = "res://events/jrpg_demo/party_menu_trigger.event.json"
 
 [node name="DebugArea" type="Node2D" parent="Actors/PartyMenuTrigger" unique_id=900000213]
 script = ExtResource("18_debug_area")
@@ -280,7 +280,7 @@ position = Vector2(200, 136)
 
 [node name="GameEvent" type="Node" parent="Actors/ShopTrigger" unique_id=900000222]
 script = ExtResource("17_game_event")
-document_path = "res://code/events/jrpg_demo/shop_trigger.event.json"
+document_path = "res://events/jrpg_demo/shop_trigger.event.json"
 
 [node name="DebugArea" type="Node2D" parent="Actors/ShopTrigger" unique_id=900000223]
 script = ExtResource("18_debug_area")
@@ -297,7 +297,7 @@ color = Color(0.65, 0.35, 0.85, 0.9)
 
 [node name="GameEvent" type="Node" parent="Actors/wander" unique_id=2138380605]
 script = ExtResource("17_game_event")
-document_path = "res://code/events/jrpg_demo/wander.event.json"
+document_path = "res://events/jrpg_demo/wander.event.json"
 
 [node name="Pushable" type="Node" parent="Actors/wander" unique_id=466691002]
 script = ExtResource("19_pw8xa")
@@ -318,7 +318,7 @@ color = Color(0.65, 0.35, 0.85, 0.9)
 
 [node name="GameEvent" type="Node" parent="Actors/debug-2" unique_id=394750894]
 script = ExtResource("17_game_event")
-document_path = "res://code/events/jrpg_demo/debug-2.event.json"
+document_path = "res://events/jrpg_demo/debug-2.event.json"
 
 [node name="Pushable" type="Node" parent="Actors/debug-2" unique_id=140344496]
 script = ExtResource("19_pw8xa")
@@ -334,7 +334,7 @@ color = Color(0.65, 0.35, 0.85, 0.9)
 
 [node name="GameEvent" type="Node" parent="Actors/debug-4" unique_id=464929358]
 script = ExtResource("17_game_event")
-document_path = "res://code/events/jrpg_demo/debug-4.event.json"
+document_path = "res://events/jrpg_demo/debug-4.event.json"
 
 [node name="Pushable" type="Node" parent="Actors/debug-4" unique_id=1789115772]
 script = ExtResource("19_pw8xa")
@@ -350,7 +350,7 @@ color = Color(0.65, 0.35, 0.85, 0.9)
 
 [node name="GameEvent" type="Node" parent="Actors/debug-3" unique_id=295683734]
 script = ExtResource("17_game_event")
-document_path = "res://code/events/jrpg_demo/debug-3.event.json"
+document_path = "res://events/jrpg_demo/debug-3.event.json"
 
 [node name="Pushable" type="Node" parent="Actors/debug-3" unique_id=159956180]
 script = ExtResource("19_pw8xa")

@@ -10,7 +10,7 @@ class_name BattleFormula
 ## or absorbing the element), in which case the clamp would silently paper over exactly
 ## the thing an author picked that multiplier to express. A negative result is
 ## intentional - [method BattleState._apply_damage] reads it as healing.
-static func damage(attacker: Stats, defender: Stats, action: BattleAction) -> int:
+static func damage(attacker: Stats, defender: Stats, action: Ability) -> int:
 	var offense := float(attacker.mag if action.uses_magic else attacker.atk)
 	var raw := action.power * offense - float(defender.def)
 	var multiplier := defender.element_multiplier(action.element)
