@@ -42,6 +42,7 @@ func _ready() -> void:
 	await _test_move_by_wander_can_stand_still_or_take_one_step()
 	_test_camera_move_by_blocked_by_bounds()
 	_test_actor_shorthand_in_conditions()
+	_test_event_id_is_the_placement_name()
 	_test_move_route_paths_around_obstacles_and_remembers()
 	await _test_shake_offsets_then_restores_camera()
 	_test_eval_var_substitutes_own_name_and_commits_the_result()
@@ -810,6 +811,31 @@ func _test_actor_shorthand_in_conditions() -> void:
 		+ "and actors[\"guard\"].near_event(actors[\"player\"], 2)", ["actors"])
 	_ok(expression.execute([proxy], null, true) == true and not expression.has_execute_failed(),
 		"terminal: actors[...] answers at / near / near_event through Expression")
+	GameState.clear()
+
+
+func _test_event_id_is_the_placement_name() -> void:
+	_section("GameEvent.event_id -- the placement's name, so two \"GameEvent\" nodes do not share flags")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var map: MapContext = rig["ctx"]
+	var guard: Actor = rig["guard"]
+	var other := _build_actor(rig["root"], &"Other_Guard", Vector3i(4, 0, 4), map)
+
+	var first := GameEvent.new()
+	first.name = "GameEvent"
+	guard.get_parent().add_child(first)
+	var second := GameEvent.new()
+	second.name = "GameEvent"
+	other.get_parent().add_child(second)
+
+	_eq(first.event_id(), &"guard", "the id is the parent's name, lower-cased")
+	_eq(second.event_id(), &"other_guard", "and differs per placement")
+
+	ActorQueries.set_flag(guard, &"talked", true)
+	_ok(ActorQueries.flag(guard, &"talked"), "a flag set on one actor reads back on it")
+	_ok(not ActorQueries.flag(other, &"talked"), "and is not set on the other")
 	GameState.clear()
 
 

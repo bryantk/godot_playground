@@ -58,7 +58,7 @@ The "event" in the name is historical - what it measures to is the other actor.
 
 ### `@actor.flag("name")` → true/false
 
-Reads the actor's **own** flag called `name`. This is the per-event, per-map "self flag" -
+Reads the actor's **own** flag called `name`. This is the per-placement, per-map "self flag" -
 the same storage as the `self.name` shorthand, `set_self_flag`, and the `self_flag`
 page condition - looked up on the event that sits with that actor. An actor with no event
 beside it has no flags, so it reads false.
@@ -125,10 +125,10 @@ page is chosen, not continuously. In an `if` command (evaluated when the graph r
 it always reads the current position. To react to movement, test it from a graph - a looping
 `if`, or an area trigger - rather than relying on a page condition.
 
-**Flags are shared more widely than they look.** A self flag is stored under the map and
-the *event's node name*. Placements here all call that node `GameEvent`, so two actors'
-`flag("talked")` can be the same flag. Give each placement's event a distinct name if you
-need them to be separate. (`self.talked` has always had this property.)
+**A flag belongs to one placement.** A self flag is stored under the map and the event's
+id, which is the placement root's name in lower-case - the same name its json file has
+(`Npc_Guard` → `npc_guard`). So two actors' `flag("talked")` are separate flags, and rename
+a placement and its flags start fresh under the new name.
 
 **The result is true/false.** `eval_var` therefore stores a boolean. It cannot store
 a number such as "how far away is the player".

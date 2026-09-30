@@ -346,8 +346,14 @@ func _release_control_if_locked() -> void:
 	_locked_player = false
 
 
+## What identifies this event - the key its self flags are stored under (with the map). It is
+## the placement root's name, lower-cased, exactly how an event's json file is named (see
+## [method GraphEditorPanel._placement_name]), so two placements never share flags just
+## because both call their own child node "GameEvent". A bodiless event with no parent falls
+## back to its own node name.
 func event_id() -> StringName:
-	return StringName(name)
+	var parent := get_parent()
+	return StringName((String(parent.name) if parent != null else String(name)).to_lower())
 
 
 ## The [Actor] this event drives, or [code]null[/code] for a bodiless region trigger -
