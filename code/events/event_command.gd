@@ -40,6 +40,7 @@ const T_FLOAT := "float"
 const T_INT := "int"
 const T_BOOL := "bool"
 const T_COLOR := "color"        ## An HTML colour string, "#rrggbb" or "#rrggbbaa" - kept as that string.
+const T_CHOICE := "choice"      ## One of a fixed list for this command and argument. See [method choices_for].
 const T_STRING := "string"
 const T_SECONDS := "seconds"    ## A duration in seconds. Never steps - question 18.
 const T_CONDITION := "condition" ## An expression string, parsed by EventCondition (segment 2).
@@ -47,6 +48,52 @@ const T_FLAG := "flag"          ## The name of a flag in GameState.
 const T_VAR := "var"            ## The name of a variable in GameState's manifest.
 const T_KEY := "key"            ## An author-chosen completion key, joined by `wait_for`.
 const T_CHOICES := "choices"    ## A list of menu labels. Each becomes a flow port.
+
+# -- Fixed-choice arguments ----------------------------------------------------------
+
+## The values a [constant T_CHOICE] argument may take, per command and argument name. The
+## graph editor shows each as a dropdown and [method validate_node] rejects anything else.
+## A list of "*abilities" / "*effects" is not fixed here - it is whatever is registered in
+## [BattleData] - see [method choices_for].
+const CHOICES := {
+	"set_self_flag": {"slot": ["A", "B", "C", "D"]},
+	"if_round": {"op": ["==", "!=", "<", "<=", ">", ">="]},
+	"if_stat": {
+		"who": ["self", "target"],
+		"stat": ["hp", "mp", "max_hp", "max_mp", "atk", "def", "mag", "spd"],
+		"op": ["==", "!=", "<", "<=", ">", ">="],
+	},
+	"if_status": {"who": ["self", "target"], "status": "*effects"},
+	"if_count": {"side": ["allies", "enemies"], "op": ["==", "!=", "<", "<=", ">", ">="]},
+	"choose_target": {
+		"rule": ["first", "random", "self", "lowest_hp", "most_hp", "lowest_hp_percent",
+			"highest_atk", "highest_def", "highest_mag", "highest_spd", "lowest_spd",
+			"lowest_def"],
+		"side": ["enemies", "allies"],
+	},
+	"use_ability": {"ability": "*abilities"},
+	"follow_regroup": {"mode": ["line", "player"]},
+}
+
+
+## The allowed values of [param command]'s [param key] argument, for a [constant T_CHOICE].
+## Empty for one that is not a choice. The two registry-backed lists ([code]ability[/code],
+## [code]status[/code]) read [BattleData], loading it first if nothing has yet.
+static func choices_for(command: String, key: String) -> PackedStringArray:
+	var listed: Variant = (CHOICES.get(command, {}) as Dictionary).get(key)
+	if listed is Array:
+		return PackedStringArray(listed)
+	if listed is String:
+		var kind := BattleData.ABILITIES if listed == "*abilities" else BattleData.EFFECTS
+		if BattleData.all(kind).is_empty():
+			BattleData.load_all()
+		var out := PackedStringArray()
+		for entry in BattleData.all(kind):
+			out.append(str(entry.get("id")))
+		out.sort()
+		return out
+	return PackedStringArray()
+
 
 # -- Flow ports -----------------------------------------------------------------
 #
@@ -438,7 +485,10 @@ const COMMANDS: Dictionary = {
 		"blurb": "Set a global flag.",
 	},
 	"set_self_flag": {
-		"args": {"flag": T_FLAG, "value": T_BOOL + "?"},
+		# "slot" is a dropdown of A-D: picked, the flag is called that; left unset, the
+		# "flag" name is used. See events/commands/state_execs.gd and
+		# EventCondition.self_flag_name.
+		"args": {"flag": T_FLAG + "?", "slot": T_CHOICE + "?", "value": T_BOOL + "?"},
 		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
 		"blurb": "Set a flag scoped to this event.",
@@ -679,7 +729,7 @@ const COMMANDS: Dictionary = {
 	"if_round": {
 		# "op" is one of == != < <= > >= (default >=); "every" replaces op/value with
 		# "every Nth round".
-		"args": {"op": T_STRING + "?", "value": T_INT + "?", "every": T_INT + "?"},
+		"args": {"op": T_CHOICE + "?", "value": T_INT + "?", "every": T_INT + "?"},
 		"flows": ["true", "false"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
 		"requires": [GameProfile.Capability.BATTLE_SCENE],
@@ -688,7 +738,7 @@ const COMMANDS: Dictionary = {
 	"if_stat": {
 		# "who" is self or target; "stat" is hp, mp, max_hp, max_mp, atk, def, mag or spd;
 		# "percent" makes hp/mp a percentage of their maximum.
-		"args": {"who": T_STRING + "?", "stat": T_STRING, "op": T_STRING, "value": T_FLOAT,
+		"args": {"who": T_CHOICE + "?", "stat": T_CHOICE, "op": T_CHOICE, "value": T_FLOAT,
 			"percent": T_BOOL + "?"},
 		"flows": ["true", "false"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
@@ -696,7 +746,7 @@ const COMMANDS: Dictionary = {
 		"blurb": "AI: branch on a stat of self or the chosen target (at/below/above a value).",
 	},
 	"if_status": {
-		"args": {"who": T_STRING + "?", "status": T_STRING},
+		"args": {"who": T_CHOICE + "?", "status": T_CHOICE},
 		"flows": ["true", "false"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
 		"requires": [GameProfile.Capability.BATTLE_SCENE],
@@ -704,7 +754,7 @@ const COMMANDS: Dictionary = {
 	},
 	"if_count": {
 		# "side" is allies (own side, self included) or enemies (the other side).
-		"args": {"side": T_STRING, "op": T_STRING, "value": T_INT},
+		"args": {"side": T_CHOICE, "op": T_CHOICE, "value": T_INT},
 		"flows": ["true", "false"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
 		"requires": [GameProfile.Capability.BATTLE_SCENE],
@@ -721,14 +771,14 @@ const COMMANDS: Dictionary = {
 		# "rule": first, random, self, lowest_hp, most_hp, lowest_hp_percent, highest_atk,
 		# highest_def, highest_mag, highest_spd, lowest_spd, lowest_def. "side": enemies
 		# (default) or allies.
-		"args": {"rule": T_STRING, "side": T_STRING + "?"},
+		"args": {"rule": T_CHOICE, "side": T_CHOICE + "?"},
 		"flows": ["next"], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
 		"requires": [GameProfile.Capability.BATTLE_SCENE],
 		"blurb": "AI: choose who the next ability will hit (most hp, lowest hp, first, random...).",
 	},
 	"use_ability": {
-		"args": {"ability": T_STRING},
+		"args": {"ability": T_CHOICE},
 		"flows": [], "blocking": false, "space": SPACE_ANY,
 		"resume": RESUME_RESTART,
 		"requires": [GameProfile.Capability.BATTLE_SCENE],
@@ -1244,6 +1294,15 @@ static func _normalise_args(node: Dictionary, problems: Array[String]) -> void:
 		if not args.has(key):
 			if not optional:
 				problems.append("\"%s\" needs \"%s\" (%s)." % [name, key, type])
+			continue
+
+		if type == T_CHOICE:
+			# A fixed list is checked here, where the command and argument name are known;
+			# a registry-backed one (an ability or status id) is not, since the registry may
+			# not be loaded when a document is parsed.
+			var listed: Variant = (CHOICES.get(name, {}) as Dictionary).get(key)
+			if listed is Array and not choices_for(name, str(key)).has(str(args[key])):
+				problems.append("\"%s\".%s must be one of: %s." % [name, key, ", ".join(choices_for(name, str(key)))])
 			continue
 
 		var coerced: Variant = _coerce(args[key], type, "\"%s\".%s" % [name, key], problems)

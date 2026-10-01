@@ -48,7 +48,7 @@ func _test_registry() -> void:
 		EventCommand.T_MOVE_DIR, EventCommand.T_ACTOR, EventCommand.T_FLOAT, EventCommand.T_INT,
 		EventCommand.T_BOOL, EventCommand.T_STRING, EventCommand.T_SECONDS,
 		EventCommand.T_CONDITION, EventCommand.T_FLAG, EventCommand.T_VAR,
-		EventCommand.T_KEY, EventCommand.T_CHOICES, EventCommand.T_COLOR,
+		EventCommand.T_KEY, EventCommand.T_CHOICES, EventCommand.T_COLOR, EventCommand.T_CHOICE,
 	]
 	var resumes := [EventCommand.RESUME_RESTART, EventCommand.RESUME_STATE]
 	var spaces := [EventCommand.SPACE_ANY, EventCommand.SPACE_GRID, EventCommand.SPACE_FREE]

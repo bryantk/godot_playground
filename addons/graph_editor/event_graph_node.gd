@@ -542,6 +542,17 @@ func _add_arg_row(command: String, key: String, type: String, optional: bool,
 		location_picker.tooltip_text = label.tooltip_text
 		_connect_location_control(location_picker, key)
 		row.add_child(location_picker)
+	elif type == EventCommand.T_CHOICE:
+		var choice_picker := _make_choice_control(EventCommand.choices_for(command, key), value)
+		choice_picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		choice_picker.tooltip_text = label.tooltip_text
+		choice_picker.item_selected.connect(func(index: int) -> void:
+			if index <= 0:
+				_clear_node_arg(key)
+			else:
+				var kept: Variant = choice_picker.get_item_metadata(index)
+				_set_node_arg(key, kept if kept != null else choice_picker.get_item_text(index)))
+		row.add_child(choice_picker)
 	else:
 		# An actor argument every actor command declares optional defaults to "@self"
 		# at runtime (event_command.gd's docstring on COMMANDS) - showing that instead
@@ -648,6 +659,27 @@ func _make_arg_control(type: String, value: Variant) -> Control:
 			var edit := LineEdit.new()
 			edit.text = str(value) if value != null else ""
 			return edit
+
+## An [OptionButton] for a [constant EventCommand.T_CHOICE]: a leading "(unset)" (selecting
+## it clears the argument), then each of [param options]. A value already on the node that
+## is not in the list - a typo, or an id since deleted - is kept as its own entry marked
+## "(not found)" rather than silently dropped.
+func _make_choice_control(options: PackedStringArray, current: Variant) -> OptionButton:
+	var picker := OptionButton.new()
+	picker.add_item("(unset)")
+	for option in options:
+		picker.add_item(option)
+
+	var wanted := str(current) if current != null else ""
+	var index := options.find(wanted)
+	if wanted != "" and index < 0:
+		picker.add_item(wanted)
+		picker.set_item_text(picker.item_count - 1, "%s (not found)" % wanted)
+		picker.set_item_metadata(picker.item_count - 1, wanted)
+		picker.select(picker.item_count - 1)
+	else:
+		picker.select(index + 1 if index >= 0 else 0)
+	return picker
 
 ## An [OptionButton] offering [param options] plus a leading "(unset)" for an argument
 ## an author has not given a value yet - selecting it clears the argument rather than

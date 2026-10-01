@@ -18,8 +18,15 @@ class SetFlag extends EventCommandExec:
 ## leave this pointed at whoever originally triggered the runner.
 class SetSelfFlag extends EventCommandExec:
 	func start() -> void:
-		GameState.set_self_flag(ctx.map_id, ctx.event_id,
-			StringName(str(args.get("flag", ""))), bool(args.get("value", true)))
+		# The A-D dropdown, when picked, is the flag's name; unset, the "flag" field is.
+		var flag_name := str(args.get("slot", ""))
+		if flag_name == "":
+			flag_name = str(args.get("flag", ""))
+		if flag_name == "":
+			push_warning("set_self_flag: pick a slot (A-D) or give a flag name.")
+			return
+		GameState.set_self_flag(ctx.map_id, ctx.event_id, StringName(flag_name),
+			bool(args.get("value", true)))
 
 
 ## Sets a declared variable to a value.

@@ -43,6 +43,7 @@ func _ready() -> void:
 	_test_camera_move_by_blocked_by_bounds()
 	_test_actor_shorthand_in_conditions()
 	_test_event_id_is_the_placement_name()
+	_test_self_flag_slots_and_choice_args()
 	_test_move_route_paths_around_obstacles_and_remembers()
 	await _test_shake_offsets_then_restores_camera()
 	_test_eval_var_substitutes_own_name_and_commits_the_result()
@@ -836,6 +837,43 @@ func _test_event_id_is_the_placement_name() -> void:
 	ActorQueries.set_flag(guard, &"talked", true)
 	_ok(ActorQueries.flag(guard, &"talked"), "a flag set on one actor reads back on it")
 	_ok(not ActorQueries.flag(other, &"talked"), "and is not set on the other")
+	GameState.clear()
+
+
+func _test_self_flag_slots_and_choice_args() -> void:
+	_section("self flags -- an A-D slot replaces the name when picked; choice args are checked")
+	GameState.clear()
+
+	var rig := _build_rig()
+	var guard: Actor = rig["guard"]
+	var ctx := EventContext.for_event(rig["ctx"], &"test_map", &"slot_test", guard)
+	var runner := EventRunner.new(ctx)
+
+	var by_name: EventCommandExec = EventCommandExec.create("set_self_flag")
+	by_name.setup({}, {"flag": "talked"}, ctx, runner)
+	by_name.start()
+	_ok(GameState.self_flag(&"test_map", &"slot_test", &"talked"), "unset slot: the name field is the flag")
+
+	var by_slot: EventCommandExec = EventCommandExec.create("set_self_flag")
+	by_slot.setup({}, {"flag": "ignored", "slot": "B"}, ctx, runner)
+	by_slot.start()
+	_ok(GameState.self_flag(&"test_map", &"slot_test", &"B"), "a picked slot is the flag")
+	_ok(not GameState.self_flag(&"test_map", &"slot_test", &"ignored"), "and the name is not used then")
+
+	var cctx := ctx.condition_ctx()
+	_ok(EventCondition.evaluate({"self_flag": "whatever", "slot": "B"}, cctx), "a condition reads the slot")
+	_ok(not EventCondition.evaluate({"self_flag": "talked", "slot": "C"}, cctx), "and ignores the name beside it")
+	_ok(EventCondition.evaluate({"self_flag": "talked"}, cctx), "with no slot it reads the name")
+	_ok(not (EventCondition.validate({"self_flag": "x", "slot": "Z"}) as Array).is_empty(), "a slot outside A-D is invalid")
+	_ok(EventCondition.parse_expression("self.B")["problems"].is_empty(), "self.B is the same flag in an expression")
+
+	var bad_problems: Array[String] = []
+	EventCommand.parse_command({"command": "if_stat", "args": {"who": "bogus", "stat": "hp", "op": "<", "value": 1}}, bad_problems)
+	_ok(not bad_problems.is_empty(), "an unlisted choice value is reported")
+	var fine_problems: Array[String] = []
+	EventCommand.parse_command({"command": "if_stat", "args": {"who": "self", "stat": "hp", "op": "<", "value": 1}}, fine_problems)
+	_ok(fine_problems.is_empty(), "a listed one is fine")
+	_eq(EventCommand.choices_for("set_self_flag", "slot").size(), 4, "the slot dropdown offers A, B, C, D")
 	GameState.clear()
 
 

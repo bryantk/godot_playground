@@ -27,6 +27,7 @@ func _ready() -> void:
 	_test_sprite_init_pushed_to_view()
 	_test_flags_fall_back_to_event_defaults_when_no_page_is_active()
 	_test_page_settings_still_override_event_defaults()
+	_test_position_condition_rechecks_when_an_actor_moves()
 
 	print("")
 	print("  %d passed, %d failed" % [_passed, _failed])
@@ -255,6 +256,38 @@ func _build_sibling_event(world: Dictionary, id: StringName, cell: Vector3i,
 	body.add_child(event)
 
 	return {"body": body, "actor": actor, "event": event}
+
+
+# -- a page that asks where an actor is re-checks when an actor moves ------------------
+
+func _test_position_condition_rechecks_when_an_actor_moves() -> void:
+	_section("conditions -- @player.near(...) flips the page as the player walks, no flag involved")
+
+	var world := _build_world()
+	var ctx: MapContext = world["ctx"]
+	var player := _build_actor(world, &"player", Vector3i(3, 0, 0))
+
+	var doc := {"format": 1, "id": "near", "pages": [
+		{"graph": []},
+		{"conditions": [{"actor_near": "@player", "cell": [0, 0, 0], "distance": 2}], "graph": []},
+	]}
+	var path := "user://position_condition_test.event.json"
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	file.store_string(JSON.stringify(doc))
+	file.close()
+
+	var rig := _build_sibling_event(world, &"watcher", Vector3i(0, 0, 0), path)
+	world["root"].add_child(rig["body"])
+	var event: GameEvent = rig["event"]
+
+	_eq(event.active_page(), 0, "far away, page 1 is the active one")
+	player.motion().step(Vector3i(-1, 0, 0))
+	_eq(event.active_page(), 1, "the player stepping to within 2 cells activates page 2")
+	player.motion().step(Vector3i(1, 0, 0))
+	_eq(event.active_page(), 0, "and stepping away again puts page 1 back")
+
+	DirAccess.remove_absolute(path)
+	world["root"].free()
 
 
 # -- Assertion helpers ---------------------------------------------------------------

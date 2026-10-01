@@ -140,7 +140,7 @@ static func _test_leaf(node: Dictionary, ctx: Dictionary) -> bool:
 	if node.has("self_flag"):
 		var map_id: StringName = ctx.get("map", &"")
 		var event_id: StringName = ctx.get("event", &"")
-		var held := GameState.self_flag(map_id, event_id, StringName(node["self_flag"]))
+		var held := GameState.self_flag(map_id, event_id, self_flag_name(node))
 		return held == _expected(node)
 
 	if node.has("var"):
@@ -194,6 +194,15 @@ static func _cell_of(value: Variant) -> Vector3i:
 		var a: Array = value
 		return Vector3i(int(a[0]), int(a[1]), int(a[2]))
 	return Vector3i.ZERO
+
+
+## The self flag a [code]self_flag[/code] leaf tests: its [code]slot[/code] (A, B, C or D -
+## the dropdown in the page form) when one is picked, otherwise its [code]self_flag[/code]
+## name. [code]set_self_flag[/code] resolves its own [code]slot[/code]/[code]flag[/code] the
+## same way, so the two meet on the same flag.
+static func self_flag_name(node: Dictionary) -> StringName:
+	var slot := str(node.get("slot", ""))
+	return StringName(slot if slot != "" else str(node.get("self_flag", "")))
 
 
 ## The [code]is[/code] field: a leaf may be negated in place rather than wrapped in a
@@ -257,6 +266,28 @@ static func _as_number(value: Variant) -> float:
 	return 0.0
 
 
+## Whether [param tree] asks anything about an actor - the [code]@actor.[/code] shorthand.
+## A page whose conditions do needs re-checking whenever an actor moves, not only when a
+## [GameState] key changes, which is what [GameEvent] does for it.
+static func mentions_actors(tree: Variant) -> bool:
+	if typeof(tree) != TYPE_DICTIONARY:
+		return false
+	var node: Dictionary = tree
+	for branch: Variant in BRANCHES:
+		if not node.has(branch):
+			continue
+		if BRANCHES[branch] == "list":
+			for child in _children(node[branch]):
+				if mentions_actors(child):
+					return true
+			return false
+		return mentions_actors(node[branch])
+	for key: Variant in node:
+		if str(key).begins_with("actor_"):
+			return true
+	return false
+
+
 # -- Keys ----------------------------------------------------------------------
 
 ## Every [code]GameState[/code] key [param tree] reads, as a set of names.
@@ -303,7 +334,7 @@ static func _gather_keys(tree: Variant, map_id: StringName, event_id: StringName
 	elif node.has("var"):
 		into[StringName(node["var"])] = true
 	elif node.has("self_flag"):
-		var name := StringName(node["self_flag"])
+		var name := self_flag_name(node)
 		if map_id != &"" or event_id != &"":
 			name = StringName(GameState.self_key(map_id, event_id, name))
 		into[name] = true
@@ -374,6 +405,8 @@ static func _validate_node(tree: Variant, manifest: Dictionary, where: String,
 			% [where, ", ".join(LEAVES.keys())])
 		return
 
+	if kind == "self_flag" and node.has("slot") and not ["A", "B", "C", "D"].has(str(node["slot"])):
+		problems.append("%s: \"slot\" must be A, B, C or D." % where)
 	if kind == "actor_at" or kind == "actor_near":
 		var cell: Variant = node.get("cell")
 		if not (cell is Array and (cell as Array).size() >= 3):

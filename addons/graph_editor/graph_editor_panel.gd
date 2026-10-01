@@ -1069,6 +1069,18 @@ func _build_condition_row(entry: Variant, index: int) -> Control:
 	name_field.text_changed.connect(_on_condition_name_changed.bind(index))
 	row.add_child(name_field)
 
+	if kind == "self_flag":
+		# A-D picks the flag by slot; left on (unset) the name typed beside it is used.
+		var slot_option := OptionButton.new()
+		slot_option.add_item("(unset)")
+		var slots := EventCommand.choices_for("set_self_flag", "slot")
+		for slot in slots:
+			slot_option.add_item(slot)
+		slot_option.select(slots.find(str(leaf.get("slot", ""))) + 1)
+		slot_option.tooltip_text = "Test flag A-D instead of the name. (unset) uses the name."
+		slot_option.item_selected.connect(_on_condition_slot_selected.bind(index))
+		row.add_child(slot_option)
+
 	if kind == "var":
 		var op_option := OptionButton.new()
 		for op in EventCondition.OPERATORS:
@@ -1141,6 +1153,21 @@ func _on_condition_name_changed(text: String, index: int) -> void:
 		return
 
 	leaf[kind] = text
+	_mark_dirty()
+
+func _on_condition_slot_selected(selected: int, index: int) -> void:
+	if not _live():
+		return
+
+	var conditions: Array = _current_page_dict().get("conditions", [])
+	if index < 0 or index >= conditions.size():
+		return
+
+	var leaf: Dictionary = conditions[index]
+	if selected <= 0:
+		leaf.erase("slot")
+	else:
+		leaf["slot"] = EventCommand.choices_for("set_self_flag", "slot")[selected - 1]
 	_mark_dirty()
 
 func _on_condition_op_selected(selected: int, index: int) -> void:

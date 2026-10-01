@@ -240,6 +240,10 @@ func _ready() -> void:
 	EventBus.actor_blocked.connect(_on_actor_blocked)
 	EventBus.player_interacted.connect(_on_player_interacted)
 	GameState.changed.connect(_on_state_changed)
+	if _pages_watch_actors():
+		# A condition about where an actor is changes when an actor lands somewhere, which
+		# is no GameState key - so the page is re-checked on every settle instead.
+		EventBus.actor_settled.connect(_on_actor_settled)
 
 	_refresh_active_page()
 	_register()
@@ -982,3 +986,17 @@ func _suspend_route_for_lease() -> void:
 	EventScheduler.release_lease(_actor.actor_id, _route_runner)
 	_route_runner.stop()
 	_route_runner = null
+
+
+## Whether any page's conditions use the [code]@actor.[/code] shorthand, so this event must
+## re-check its active page when an actor moves as well as when a [GameState] key changes.
+func _pages_watch_actors() -> bool:
+	for page: Variant in _pages():
+		if EventCondition.mentions_actors(
+				EventCondition.from_list((page as Dictionary).get("conditions", []))):
+			return true
+	return false
+
+
+func _on_actor_settled(_actor_id: StringName, _cell: Vector3i) -> void:
+	_refresh_active_page()
