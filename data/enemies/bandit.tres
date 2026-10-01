@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="1_ydf6u"]
+[ext_resource type="Resource" path="res://data/abilities/attack.tres" id="2_fcix8"]
+[ext_resource type="Resource" path="res://data/abilities/sunder_strike.tres" id="3_dsci4"]
+[ext_resource type="Script" path="res://code/party/stats.gd" id="4_pe7ws"]
+[ext_resource type="Script" path="res://code/party/drop_entry.gd" id="5_5seh4"]
+[ext_resource type="Resource" path="res://data/items/antidote.tres" id="6_8460v"]
+[ext_resource type="Script" path="res://code/battle/enemy_def.gd" id="7_tyhg5"]
+
+[sub_resource type="Resource" id="Resource_ew03u"]
+script = ExtResource("4_pe7ws")
+max_hp = 30
+max_mp = 0
+atk = 7
+def = 4
+mag = 2
+
+[sub_resource type="Resource" id="Resource_6f22v"]
+script = ExtResource("5_5seh4")
+item = ExtResource("6_8460v")
+chance = 0.25
+
+[resource]
+script = ExtResource("7_tyhg5")
+gold_reward = 25
+xp_reward = 16
+drops = Array[ExtResource("5_5seh4")]([SubResource("Resource_6f22v")])
+ai_path = "res://events/ai/bandit.event.json"
+id = &"bandit"
+display_name = "Bandit"
+base_stats = SubResource("Resource_ew03u")
+abilities = Array[ExtResource("1_ydf6u")]([ExtResource("2_fcix8"), ExtResource("3_dsci4")])

@@ -1,0 +1,103 @@
+{
+	"format": 1,
+	"id": "bandit",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {},
+			"art": {},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
+			"step_in_place": false,
+			"lock_animation": false,
+			"lock_player": false,
+			"route": [],
+			"graph": [
+				{
+					"id": "s",
+					"title": "start",
+					"position": {
+						"x": 0,
+						"y": 0
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "pick"
+						}
+					]
+				},
+				{
+					"id": "pick",
+					"title": "choose_target",
+					"position": {
+						"x": 300,
+						"y": 0
+					},
+					"command": "choose_target",
+					"args": {
+						"rule": "highest_def"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "check"
+						}
+					]
+				},
+				{
+					"id": "check",
+					"title": "if_status",
+					"position": {
+						"x": 600,
+						"y": 0
+					},
+					"command": "if_status",
+					"args": {
+						"status": "sunder",
+						"who": "target"
+					},
+					"outputs": [
+						{
+							"flow": "true",
+							"target": "hit"
+						},
+						{
+							"flow": "false",
+							"target": "sunder"
+						}
+					]
+				},
+				{
+					"id": "hit",
+					"title": "use_ability",
+					"position": {
+						"x": 900,
+						"y": -180
+					},
+					"command": "use_ability",
+					"args": {
+						"ability": "attack"
+					},
+					"outputs": []
+				},
+				{
+					"id": "sunder",
+					"title": "use_ability",
+					"position": {
+						"x": 900,
+						"y": 180
+					},
+					"command": "use_ability",
+					"args": {
+						"ability": "sunder_strike"
+					},
+					"outputs": []
+				}
+			]
+		}
+	]
+}

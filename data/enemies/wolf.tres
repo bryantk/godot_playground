@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="1_kdfox"]
+[ext_resource type="Resource" path="res://data/abilities/attack.tres" id="2_2b6o2"]
+[ext_resource type="Resource" path="res://data/abilities/poison_bite.tres" id="3_cbmln"]
+[ext_resource type="Resource" path="res://data/abilities/howl.tres" id="4_xs001"]
+[ext_resource type="Script" path="res://code/party/stats.gd" id="5_r1ixo"]
+[ext_resource type="Script" path="res://code/party/drop_entry.gd" id="6_15fh4"]
+[ext_resource type="Script" path="res://code/battle/enemy_def.gd" id="7_oax46"]
+
+[sub_resource type="Resource" id="Resource_wnkrw"]
+script = ExtResource("5_r1ixo")
+max_hp = 24
+max_mp = 6
+atk = 6
+def = 2
+mag = 2
+spd = 7
+
+[resource]
+script = ExtResource("7_oax46")
+gold_reward = 12
+xp_reward = 10
+ai_path = "res://events/ai/wolf.event.json"
+id = &"wolf"
+display_name = "Wolf"
+base_stats = SubResource("Resource_wnkrw")
+abilities = Array[ExtResource("1_kdfox")]([ExtResource("2_2b6o2"), ExtResource("3_cbmln"), ExtResource("4_xs001")])

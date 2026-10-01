@@ -62,7 +62,7 @@ static func for_member(a_member: PartyMember) -> Battler:
 	b.side = Side.PLAYER
 	b.member = a_member
 	b.display_name = a_member.display_name
-	b.abilities = a_member.abilities
+	b.abilities = a_member.all_abilities()
 	for active in a_member.effects:
 		var copy := ActiveEffect.new(active.effect)
 		copy.stacks = active.stacks
@@ -128,6 +128,37 @@ func tick_round() -> Array[StatusEffect]:
 	var expired := EffectList.tick(effects, StatusEffect.Unit.ROUNDS)
 	refresh_stats()
 	return expired
+
+
+## Removes the effects [param mode] ([enum Ability.Dispel]) names - buffs, debuffs or both -
+## and returns what came off. See [member StatusEffect.beneficial].
+func remove_effects(mode: int) -> Array[StatusEffect]:
+	var removed: Array[StatusEffect] = []
+	if mode == Ability.Dispel.NONE:
+		return removed
+	for active in effects.duplicate():
+		var is_buff: bool = active.effect.beneficial
+		if mode == Ability.Dispel.ALL or (mode == Ability.Dispel.BUFFS and is_buff) \
+				or (mode == Ability.Dispel.DEBUFFS and not is_buff):
+			effects.erase(active)
+			removed.append(active.effect)
+	refresh_stats()
+	return removed
+
+
+## What is on this battler, for a label: "Haste 2, Poison" - each effect's name, with its
+## remaining rounds when it is a ROUNDS effect that will run out. Empty with nothing on it.
+func effect_summary() -> String:
+	var parts: PackedStringArray = []
+	for active in effects:
+		var label := active.effect.display_name if active.effect.display_name != "" \
+			else str(active.effect.id)
+		if active.stacks > 1:
+			label += " x%d" % active.stacks
+		if active.effect.duration > 0 and active.effect.unit == StatusEffect.Unit.ROUNDS:
+			label += " %d" % active.remaining
+		parts.append(label)
+	return ", ".join(parts)
 
 
 ## Rebuilds [member stats] from the base and the running effects, keeping hp/mp inside the

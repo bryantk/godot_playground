@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://code/party/status_effect.gd" id="1_ygk1j"]
+
+[resource]
+script = ExtResource("1_ygk1j")
+id = &"fortify"
+display_name = "Fortified"
+flat = {
+"def": 4
+}
+duration = 40
+unit = 1

@@ -10,6 +10,13 @@ class_name EnemyDef extends Combatant
 ## enemy rather than per troop, so a troop that mixes enemy types adds up naturally.
 @export var gold_reward: int = 0
 
+## Experience handed to the party for defeating this enemy, shared between the members still
+## standing when the fight is won.
+@export var xp_reward: int = 0
+
+## What it may drop. Each entry is rolled once.
+@export var drops: Array[DropEntry] = []
+
 ## An AI graph - an ordinary event graph file, built in the graph editor from the battle
 ## commands ([code]if_round[/code], [code]if_stat[/code], [code]choose_target[/code],
 ## [code]use_ability[/code], ...). Empty means the old behaviour: a random ability on a

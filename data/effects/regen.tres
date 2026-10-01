@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://code/party/status_effect.gd" id="1_xhe3e"]
+
+[resource]
+script = ExtResource("1_xhe3e")
+id = &"regen"
+display_name = "Regen"
+duration = 4
+hp_per_round = 4

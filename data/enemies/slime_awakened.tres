@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="1_14qx4"]
+[ext_resource type="Resource" path="res://data/abilities/tackle.tres" id="2_gcn36"]
+[ext_resource type="Script" path="res://code/party/stats.gd" id="3_28m1k"]
+[ext_resource type="Script" path="res://code/party/drop_entry.gd" id="4_tr13v"]
+[ext_resource type="Resource" path="res://data/items/potion.tres" id="5_cn3e4"]
+[ext_resource type="Script" path="res://code/battle/enemy_def.gd" id="6_hher6"]
+
+[sub_resource type="Resource" id="Resource_ghdoi"]
+script = ExtResource("3_28m1k")
+max_hp = 22
+max_mp = 0
+def = 3
+mag = 2
+spd = 4
+elements = {
+&"fire": 2.0
+}
+
+[sub_resource type="Resource" id="Resource_2koao"]
+script = ExtResource("4_tr13v")
+item = ExtResource("5_cn3e4")
+chance = 0.5
+
+[resource]
+script = ExtResource("6_hher6")
+gold_reward = 20
+xp_reward = 14
+drops = Array[ExtResource("4_tr13v")]([SubResource("Resource_2koao")])
+id = &"slime_awakened"
+display_name = "Awakened Slime"
+base_stats = SubResource("Resource_ghdoi")
+abilities = Array[ExtResource("1_14qx4")]([ExtResource("2_gcn36")])

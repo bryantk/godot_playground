@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Ability" format=3]
+
+[ext_resource type="Script" path="res://code/party/status_effect.gd" id="1_bq6m5"]
+[ext_resource type="Resource" path="res://data/effects/poison.tres" id="2_ustdf"]
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="3_yti8q"]
+
+[resource]
+script = ExtResource("3_yti8q")
+id = &"poison_bite"
+display_name = "Poison Bite"
+kind = 1
+power = 0.7
+effects = Array[ExtResource("1_bq6m5")]([ExtResource("2_ustdf")])
+effect_chance = 0.8

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Ability" format=3]
+
+[ext_resource type="Script" path="res://code/party/status_effect.gd" id="1_eol71"]
+[ext_resource type="Resource" path="res://data/effects/regen.tres" id="2_ksw25"]
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="3_n0nav"]
+
+[resource]
+script = ExtResource("3_n0nav")
+id = &"regen_spell"
+display_name = "Regen"
+kind = 1
+target = 2
+power = 0.0
+mp_cost = 4
+effects = Array[ExtResource("1_eol71")]([ExtResource("2_ksw25")])

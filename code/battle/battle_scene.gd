@@ -127,6 +127,10 @@ func _show_item_menu(actor: Battler) -> void:
 ## here: honing in on real per-item potency is picking numbers per [member
 ## Ability.item_id], once there is more than one kind of item to tell apart.
 func _item_action(item_id: StringName) -> Ability:
+	# An authored Item (data/items) supplies its own action - healing, effects, cleanse.
+	var authored := BattleData.item(item_id)
+	if authored != null and authored.action != null:
+		return authored.action
 	var action := Ability.new()
 	action.display_name = str(item_id)
 	action.kind = Ability.Kind.ITEM
@@ -189,9 +193,8 @@ func _finish() -> void:
 		b.sync_to_member()
 
 	if _state.is_victory():
-		var reward := _state.gold_reward()
-		Party.add_gold(reward)
-		_log.append_text("Victory! %d gold earned.\n" % reward)
+		for line in _state.grant_rewards():
+			_log.append_text(line + "\n")
 		BattleTransfer.outcome = &"victory"
 	elif BattleTransfer.allow_defeat:
 		_log.append_text("The party has fallen, but lives to try again...\n")
@@ -206,12 +209,20 @@ func _finish() -> void:
 func _refresh_rows() -> void:
 	_clear(_enemy_row)
 	for b in _state.enemy_side:
-		_add_label(_enemy_row, "%s\nHP %d/%d" % [b.display_name, b.hp, b.stats.max_hp])
+		_add_label(_enemy_row, "%s\nHP %d/%d%s" % [
+			b.display_name, b.hp, b.stats.max_hp, _effects_line(b)])
 
 	_clear(_party_row)
 	for b in _state.player_side:
-		_add_label(_party_row, "%s\nHP %d/%d  MP %d/%d" % [
-			b.display_name, b.hp, b.stats.max_hp, b.mp, b.stats.max_mp])
+		_add_label(_party_row, "%s\nHP %d/%d  MP %d/%d%s" % [
+			b.display_name, b.hp, b.stats.max_hp, b.mp, b.stats.max_mp, _effects_line(b)])
+
+
+## A second line under a battler's numbers naming what is on it ("Haste 2, Poison"), or
+## nothing when it has no status effects.
+func _effects_line(b: Battler) -> String:
+	var summary := b.effect_summary()
+	return "" if summary == "" else "\n[%s]" % summary
 
 
 func _clear(container: Container) -> void:

@@ -75,6 +75,8 @@ func use_item_in_field(item_id: StringName, member: PartyMember) -> String:
 		var current := member.current_hp if member.current_hp >= 0 else stats.max_hp
 		member.current_hp = mini(current + heal, stats.max_hp)
 		text += " %s recovers %d HP." % [member.display_name, member.current_hp - current]
+	for effect in member.remove_effects(item.action.dispel):
+		text += " %s's %s is removed." % [member.display_name, effect.display_name]
 	for effect in item.action.effects:
 		if effect != null and member.add_effect(effect):
 			text += " %s gains %s." % [member.display_name, effect.display_name]

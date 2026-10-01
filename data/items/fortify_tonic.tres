@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="Item" format=3]
+
+[ext_resource type="Script" path="res://code/party/status_effect.gd" id="1_2tvw8"]
+[ext_resource type="Resource" path="res://data/effects/fortify.tres" id="2_hl3ol"]
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="3_5gxij"]
+[ext_resource type="Script" path="res://code/party/item.gd" id="4_gfchi"]
+
+[sub_resource type="Resource" id="Resource_qgn5t"]
+script = ExtResource("3_5gxij")
+id = &"fortify_tonic"
+display_name = "Fortify Tonic"
+kind = 2
+target = 2
+power = 0.0
+item_id = &"fortify_tonic"
+effects = Array[ExtResource("1_2tvw8")]([ExtResource("2_hl3ol")])
+
+[resource]
+script = ExtResource("4_gfchi")
+id = &"fortify_tonic"
+display_name = "Fortify Tonic"
+description = "+4 defence for 40 steps (or the rest of a fight)."
+price = 25
+action = SubResource("Resource_qgn5t")

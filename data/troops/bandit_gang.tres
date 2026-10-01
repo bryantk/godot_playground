@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="Troop" format=3]
+
+[ext_resource type="Resource" path="res://data/enemies/bandit.tres" id="1_nhfis"]
+[ext_resource type="Resource" path="res://data/enemies/wolf.tres" id="2_r7qht"]
+[ext_resource type="Script" path="res://code/battle/troop.gd" id="3_ky2p8"]
+
+[resource]
+script = ExtResource("3_ky2p8")
+id = &"bandit_gang"
+enemies = Array[Dictionary]([{
+"count": 1,
+"enemy": ExtResource("1_nhfis")
+}, {
+"count": 1,
+"enemy": ExtResource("2_r7qht")
+}])

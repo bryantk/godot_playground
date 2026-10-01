@@ -59,6 +59,40 @@ func gold_reward() -> int:
 	return total
 
 
+## What winning pays out, applied to [Party] and returned as log lines: the enemies' gold,
+## their experience shared between the party members still standing (each may level up and
+## learn abilities - see [method PartyMember.grant_xp]), and whatever each defeated enemy's
+## [member EnemyDef.drops] rolled.
+func grant_rewards() -> Array[String]:
+	var log: Array[String] = []
+
+	var gold := gold_reward()
+	Party.add_gold(gold)
+	log.append("Victory! %d gold earned." % gold)
+
+	var xp := 0
+	for b in enemy_side:
+		if b.enemy != null:
+			xp += b.enemy.xp_reward
+	var survivors: Array[Battler] = alive_allies().filter(
+		func(b: Battler) -> bool: return b.member != null)
+	if xp > 0 and not survivors.is_empty():
+		var share := ceili(float(xp) / survivors.size())
+		log.append("Each survivor gains %d XP." % share)
+		for b in survivors:
+			log.append_array(b.member.grant_xp(share))
+
+	for b in enemy_side:
+		if b.enemy == null:
+			continue
+		for drop in b.enemy.drops:
+			if drop != null and drop.item != null and randf() <= drop.chance:
+				Party.add_item(drop.item.id, drop.count)
+				log.append("Found %s%s." % [drop.item.display_name,
+					"" if drop.count == 1 else " x%d" % drop.count])
+	return log
+
+
 ## Runs one whole round: [param player_commands] (one entry per still-living player
 ## [Battler], [code]{"battler": Battler, "action": Ability, "target": Battler}[/code]
 ## - a target of null means "resolve at execution time", for an
@@ -95,6 +129,20 @@ func resolve_turn(player_commands: Array[Dictionary]) -> Array[String]:
 func _end_round() -> Array[String]:
 	var log: Array[String] = []
 	for b in player_side + enemy_side:
+		if not b.is_alive():
+			continue
+		# Regeneration and poison first, so an effect that kills does not also "wear off".
+		for active in b.effects:
+			var change := active.effect.hp_per_round * active.stacks
+			if change == 0:
+				continue
+			b.hp = clampi(b.hp + change, 0, b.stats.max_hp)
+			log.append("%s %s %d HP from %s.%s" % [
+				b.display_name, "recovers" if change > 0 else "loses", absi(change),
+				active.effect.display_name,
+				"" if b.is_alive() else " %s falls!" % b.display_name])
+			if not b.is_alive():
+				break
 		if not b.is_alive():
 			continue
 		for expired in b.tick_round():
@@ -162,23 +210,45 @@ func _resolve_action(actor: Battler, action: Ability, target: Battler) -> Array[
 
 
 func _apply_action(actor: Battler, action: Ability, target: Battler) -> String:
-	var effects_text := _apply_effects(action, target)
+	var extras := _apply_dispel(action, target) + _apply_effects(action, target)
+
+	var healed_text := ""
+	if action.restores_hp():
+		var amount := action.heal_amount + roundi(action.heal_mag_scale * actor.stats.mag)
+		var restored := -target.apply_damage(-amount)
+		healed_text = " %s recovers %d HP." % [target.display_name, restored]
+
 	if not action.deals_damage():
+		if action.restores_hp():
+			return "%s's %s heals %s.%s%s" % [
+				actor.display_name, action.display_name, target.display_name, healed_text, extras]
 		return "%s uses %s on %s.%s" % [
-			actor.display_name, action.display_name, target.display_name, effects_text]
+			actor.display_name, action.display_name, target.display_name, extras]
 
 	var raw := BattleFormula.damage(actor.stats, target.stats, action)
 	var applied := target.apply_damage(raw)
 
 	if applied < 0:
-		return "%s's %s heals %s for %d HP.%s" % [
-			actor.display_name, action.display_name, target.display_name, -applied, effects_text]
+		return "%s's %s heals %s for %d HP.%s%s" % [
+			actor.display_name, action.display_name, target.display_name, -applied,
+			healed_text, extras]
 	if applied == 0:
-		return "%s's %s has no effect on %s.%s" % [actor.display_name, action.display_name, target.display_name, effects_text]
+		return "%s's %s has no effect on %s.%s%s" % [
+			actor.display_name, action.display_name, target.display_name, healed_text, extras]
 
 	var fallen := "" if target.is_alive() else " %s falls!" % target.display_name
-	return "%s's %s hits %s for %d damage.%s%s" % [
-		actor.display_name, action.display_name, target.display_name, applied, fallen, effects_text]
+	return "%s's %s hits %s for %d damage.%s%s%s" % [
+		actor.display_name, action.display_name, target.display_name, applied, fallen,
+		healed_text, extras]
+
+
+## Strips the effects [param action] dispels from [param target], returning the text to add
+## to the log (empty if it dispels nothing or nothing was on the target).
+func _apply_dispel(action: Ability, target: Battler) -> String:
+	var text := ""
+	for effect in target.remove_effects(action.dispel):
+		text += " %s's %s is removed." % [target.display_name, effect.display_name]
+	return text
 
 
 func _resolve_item(actor: Battler, action: Ability, target: Battler) -> Array[String]:
@@ -189,9 +259,10 @@ func _resolve_item(actor: Battler, action: Ability, target: Battler) -> Array[St
 	# A potion-shaped item heals by [member Ability.power] flat HP - negative
 	# damage is [method Battler.apply_damage]'s own healing convention.
 	var healed := -t.apply_damage(-roundi(action.power))
-	return ["%s uses %s on %s, restoring %d HP.%s" % [
-		actor.display_name, action.display_name, t.display_name, healed,
-		_apply_effects(action, t)]]
+	var restored := "" if healed == 0 else " Restoring %d HP." % healed
+	return ["%s uses %s on %s.%s%s%s" % [
+		actor.display_name, action.display_name, t.display_name, restored,
+		_apply_dispel(action, t), _apply_effects(action, t)]]
 
 
 ## Puts each of [param action]'s status effects on [param target], each subject to its

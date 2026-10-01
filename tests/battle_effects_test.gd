@@ -20,6 +20,7 @@ func _ready() -> void:
 	_test_effect_maths_and_stacking()
 	_test_expiry()
 	_test_battler_and_battle_state()
+	_test_battle_depth()
 	_test_field_use_and_save()
 
 	print("")
@@ -155,6 +156,115 @@ func _test_battler_and_battle_state() -> void:
 	debuffed.add_effect(_effect(&"frail", {"max_hp": -100}, {}, 3))
 	_eq(debuffed.stats.max_hp, 1, "max hp has a floor of 1")
 	_eq(debuffed.hp, 1, "and hp is kept inside the new maximum")
+
+
+func _test_battle_depth() -> void:
+	_section("battle depth -- heal, dispel, poison, xp, levels, learned abilities, drops")
+
+	var poison := _effect(&"depth_poison", {}, {}, 3)
+	poison.beneficial = false
+	poison.hp_per_round = -3
+	var regen := _effect(&"depth_regen", {}, {}, 3)
+	regen.hp_per_round = 2
+
+	var heal := Ability.new()
+	heal.id = &"depth_heal"
+	heal.display_name = "Heal"
+	heal.kind = Ability.Kind.SKILL
+	heal.target = Ability.Target.SINGLE_ALLY
+	heal.power = 0.0
+	heal.heal_amount = 5
+	heal.heal_mag_scale = 2.0
+	var cure := Ability.new()
+	cure.id = &"depth_cure"
+	cure.display_name = "Cure"
+	cure.kind = Ability.Kind.SKILL
+	cure.target = Ability.Target.SINGLE_ALLY
+	cure.power = 0.0
+	cure.dispel = Ability.Dispel.DEBUFFS
+
+	var hero := PartyMember.new()
+	hero.id = &"depth_hero"
+	hero.display_name = "Healer"
+	hero.base_stats = _stats(30, 6, 2, 10)
+	hero.base_stats.mag = 4
+	hero.growth = {"atk": 2, "max_hp": 5}
+	var late := Ability.new()
+	late.id = &"depth_late"
+	late.display_name = "Late Bloomer"
+	hero.learnset = {2: late}
+	hero.abilities = [heal, cure]
+
+	var foe := EnemyDef.new()
+	foe.id = &"depth_foe"
+	foe.display_name = "Foe"
+	foe.stats = _stats(40, 1, 0, 1)
+	foe.gold_reward = 5
+	foe.xp_reward = 25
+	var potion_item := Item.new()
+	potion_item.id = &"depth_potion"
+	potion_item.display_name = "Potion"
+	var drop := DropEntry.new()
+	drop.item = potion_item
+	drop.chance = 1.0
+	foe.drops = [drop]
+	var troop := Troop.new()
+	troop.enemies = [{"enemy": foe, "count": 1}]
+
+	var state := BattleState.new()
+	var members: Array[PartyMember] = [hero]
+	state.begin(members, troop)
+	var me: Battler = state.player_side[0]
+	me.hp = 10
+
+	var log := state.resolve_turn([{"battler": me, "action": heal, "target": me}])
+	_ok(log.any(func(l: String) -> bool: return l.contains("recovers 13 HP")), "heal: 5 flat + 2 x 4 magic = 13: %s" % str(log))
+	_ok(me.hp >= 20, "and hp went up by that (less the foe's own hit this round): %d" % me.hp)
+
+	me.add_effect(poison)
+	me.add_effect(regen)
+	var before := me.hp
+	log = state.resolve_turn([{"battler": me, "action": cure, "target": me}])
+	_ok(not me.has_effect(&"depth_poison"), "cure dispels the poison")
+	_ok(me.has_effect(&"depth_regen"), "but leaves the buff")
+	_ok(me.hp >= before, "regen ran at round end")
+
+	me.add_effect(poison)
+	var hp_now := me.hp
+	state.resolve_turn([])
+	_ok(me.hp < hp_now + 2, "poison takes hp at round end")
+	_ok(me.effect_summary().contains("Poison") or me.effect_summary().contains("Depth"), "the label lists what is on it")
+
+	# Rewards: win the fight, check gold, xp and drops land on the party.
+	for b in state.enemy_side:
+		b.hp = 0
+	_ok(state.is_victory(), "the fight is won")
+	Party.items.clear()
+	var gold_before := Party.gold
+	var rewards := state.grant_rewards()
+	_eq(Party.gold, gold_before + 5, "gold was paid")
+	_eq(Party.items.get(&"depth_potion", 0), 1, "the drop was added")
+	_ok(rewards.any(func(l: String) -> bool: return l.contains("reaches level")), "xp levelled the hero")
+	_eq(hero.level, 2, "25 xp: level 1 needs 10, level 2 needs 40, so level 2 with 15 over")
+	_eq(hero.xp, 15, "and the remainder is kept")
+	_ok(hero.all_abilities().has(late), "the ability learned at level 2 is now available")
+	_eq(hero.gear_stats().atk, 8, "growth adds atk 2 per level above 1 (6 + 2)")
+	_eq(hero.gear_stats().max_hp, 35, "and max hp 5 per level (30 + 5)")
+
+	var saved := hero.to_save()
+	var restored := PartyMember.new()
+	restored.base_stats = hero.base_stats
+	restored.from_save(saved, func(_id: String) -> Equipment: return null)
+	_eq(restored.level, 2, "level survives save and load")
+	_eq(restored.xp, 15, "and so does xp")
+
+	var cleanse := PartyMember.new()
+	cleanse.base_stats = _stats(20, 1, 1, 1)
+	cleanse.add_effect(poison)
+	cleanse.add_effect(regen)
+	_eq(cleanse.remove_effects(Ability.Dispel.DEBUFFS).size(), 1, "a member's debuffs can be removed in the field")
+	_eq(cleanse.effects.size(), 1, "leaving the buff")
+	Party.items.clear()
 
 
 func _test_field_use_and_save() -> void:

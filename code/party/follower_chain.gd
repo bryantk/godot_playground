@@ -52,9 +52,19 @@ var _has_last := false
 var _hidden_all := false
 var _hidden: Dictionary[StringName, bool] = {}
 
-## True while [method gather] has sent everyone to their slots and is waiting for them to
-## arrive - ordinary following is suspended so the two do not pull against each other.
-var _grouping := false
+## Followers that have been told to stop following ([method break_follow]) - they stay in
+## the chain but nothing moves them except the events that address them, until [method
+## regroup] brings them back.
+var _broken: Dictionary[StringName, bool] = {}
+
+## Followers [method regroup] has sent somewhere and that are still on their way. Ordinary
+## following skips them so the two do not pull against each other; once they have all
+## stopped, they are no longer broken and follow again.
+var _regrouping: Dictionary[StringName, bool] = {}
+
+## Followers [method regroup] put on the player's cell: they stay there until the player
+## walks away, instead of stepping back to their place behind it at once.
+var _holding: Dictionary[StringName, bool] = {}
 
 
 func _ready() -> void:
@@ -79,11 +89,13 @@ func _physics_process(_delta: float) -> void:
 		_sync_membership()
 	_record_trail()
 
-	if _grouping:
-		if _all_idle():
-			_grouping = false
-	else:
-		_drive()
+	if not _regrouping.is_empty() and _regroup_done():
+		for id: StringName in _regrouping:
+			_broken.erase(id)
+			if _regrouping[id]:
+				_holding[id] = true
+		_regrouping.clear()
+	_drive()
 
 
 # -- Membership ---------------------------------------------------------------------
@@ -249,7 +261,9 @@ func _on_map_changed(found: MapContext) -> void:
 	_party_followers.clear()
 	_trail.clear()
 	_has_last = false
-	_grouping = false
+	_broken.clear()
+	_regrouping.clear()
+	_holding.clear()
 	_player = null
 	_map = found
 	_dirty = true
@@ -275,6 +289,7 @@ func _record_trail() -> void:
 			_place(f, cell)
 		return
 
+	_holding.clear()
 	_trail.push_front(_last_leader_cell)
 	_last_leader_cell = cell
 	var limit := followers().size() + _TRAIL_SLACK
@@ -303,6 +318,8 @@ func _drive() -> void:
 		var slot := slot_for(index)
 		index += 1
 
+		if _broken.has(f.actor_id) or _regrouping.has(f.actor_id) or _holding.has(f.actor_id):
+			continue
 		var motion := f.motion() as GridMotion
 		if motion == null or motion.is_busy() or f.cell() == slot:
 			continue
@@ -316,33 +333,61 @@ func _drive() -> void:
 			motion.move_to(slot)
 
 
-## Sends every follower to its slot behind the leader now, and suspends ordinary following
-## until they have all stopped moving - what [code]follow_group[/code] waits on. A follower
-## that cannot get there (something in the way) simply stops short; it does not hold the
-## others up.
-func gather() -> void:
+## The follower at chain position [param n], counting from 1 - what [code]@follower_1[/code],
+## [code]@follower_2[/code] ... resolve to ([method EventContext.resolve]), so an event can
+## move or face any of them whether or not it is following. Null past the end of the chain.
+func follower_at(n: int) -> Actor:
+	var all := followers()
+	return all[n - 1] if n >= 1 and n <= all.size() else null
+
+
+## Stops [param actor] following - or every follower if null. They stay where they are and
+## in the chain (so [code]@follower_N[/code] still names them), free for move commands, until
+## [method regroup] brings them back.
+func break_follow(actor: Actor = null) -> void:
+	if actor != null:
+		_broken[actor.actor_id] = true
+		return
+	for f in followers():
+		_broken[f.actor_id] = true
+
+
+## Whether [param actor] is currently not following ([method break_follow]).
+func is_broken(actor: Actor) -> bool:
+	return actor != null and _broken.has(actor.actor_id)
+
+
+## Brings followers back: [param mode] "line" walks each to its place behind the leader,
+## "player" walks each onto the leader's own cell (they pass through it). [param actor] null
+## means every follower. Each then follows normally again. A follower that cannot get there
+## (something in the way) stops short; it does not hold the others up.
+func regroup(mode: String = "line", actor: Actor = null) -> void:
 	if _map == null or not is_instance_valid(_player):
 		return
-	_grouping = true
 	var index := 0
 	for f in followers():
-		var slot := slot_for(index)
+		var slot := slot_for(index) if mode != "player" else _player.cell()
 		index += 1
+		if actor != null and f != actor:
+			continue
+		_regrouping[f.actor_id] = mode == "player"
 		var motion := f.motion() as GridMotion
 		if motion != null and f.cell() != slot:
 			motion.cancel()
 			motion.move_to(slot)
 
 
-func is_grouping() -> bool:
-	return _grouping
+## True while a [method regroup] is still bringing anyone back.
+func is_regrouping() -> bool:
+	return not _regrouping.is_empty()
 
 
-func _all_idle() -> bool:
+func _regroup_done() -> bool:
 	for f in followers():
-		var motion := f.motion()
-		if motion != null and motion.is_busy():
-			return false
+		if _regrouping.has(f.actor_id):
+			var motion := f.motion()
+			if motion != null and motion.is_busy():
+				return false
 	return true
 
 
@@ -381,7 +426,11 @@ func to_save() -> Dictionary:
 	var hidden: Array = []
 	for id: StringName in _hidden:
 		hidden.append(str(id))
-	return {"excluded": excluded, "extras": extras, "hidden_all": _hidden_all, "hidden": hidden}
+	var broken: Array = []
+	for id: StringName in _broken:
+		broken.append(str(id))
+	return {"excluded": excluded, "extras": extras, "hidden_all": _hidden_all, "hidden": hidden,
+		"broken": broken}
 
 
 func from_save(state: Dictionary) -> void:
@@ -395,6 +444,11 @@ func from_save(state: Dictionary) -> void:
 	_hidden.clear()
 	for id: Variant in state.get("hidden", []):
 		_hidden[StringName(str(id))] = true
+	_broken.clear()
+	for id: Variant in state.get("broken", []):
+		_broken[StringName(str(id))] = true
+	_regrouping.clear()
+	_holding.clear()
 	_trail.clear()
 	_has_last = false
 	_dirty = true

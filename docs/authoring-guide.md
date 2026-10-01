@@ -63,20 +63,34 @@ or too far: `no_path_found` fires at once and the actor doesn't move. Grid actor
 - `shake` (`strength` px, `seconds`; `reached`/`immediate`) - camera shake.
 - `set_color` (`actor`, `color`) - tint an actor; white restores it. `camera_move_by` takes
   the same `cells` tokens as `move_by`.
+- **Self flags A-D**: `set_self_flag` has a **slot** dropdown (unset, A, B, C, D), and so does a
+  `self_flag` row in the page form. A picked slot *is* the flag's name; (unset) uses the `name`
+  field beside it. In a typed expression `self.A` is the same flag. A flag belongs to one
+  placement (the placement's name, as its json is named).
+- **Dropdown arguments**: arguments with a fixed set of values (the AI commands' `who`, `stat`,
+  `op`, `rule`, `side`, `use_ability`'s ability, `if_status`'s effect, `follow_regroup`'s mode) are
+  dropdowns in the node and are checked when a file is validated.
+- **Position-aware pages**: a page condition using `@actor.at/near/near_event/flag` is re-checked
+  whenever any actor settles on a cell, so a page can switch as the player walks up to it.
 - **Conditions** (`if`, page conditions, `eval_var`) accept `@actor.at/near/near_event/flag` -
   see [eval-shorthand.md](eval-shorthand.md).
 
 ### The party caterpillar
 
 The active party members who have a `follower_sheet` walk in a line behind the player,
-automatically. Followers pass the player and each other but block (and are blocked by) other
-actors, hide during battle, and rebuild on the new map.
+automatically - there is nothing to author for them to follow. Followers pass the player and
+each other but block (and are blocked by) other actors, hide during battle, and rebuild on
+the new map. Name them in any command by position: `@follower_1`, `@follower_2`... (or by
+member id, `@mage`).
 
 | Command | Use |
 | --- | --- |
 | `follow_add` / `follow_remove` | `member: "mage"` to put a party member back in / take one out; or `actor: "@npc"` to make any actor trail the party. |
 | `follow_show` | `visible` true/false, for everyone or one `actor`. |
-| `follow_group` | Walk everyone to their place behind the player. `reached` when settled; wire `immediate` to not wait. |
+| `follow_break` | Stop following (everyone, or one `actor`). They stay put, so ordinary `move_to`/`move_by`/`face_*` commands addressed to `@follower_1` etc. can walk them wherever the scene needs. |
+| `follow_regroup` | `mode`: **line** (each walks to its place behind the player) or **player** (each walks onto the player's cell). They follow again afterwards; they stay on the player until it moves. `reached` when settled; wire `immediate` to not wait. |
+
+A cutscene is usually: `follow_break` → move `@follower_1` / `@follower_2` → `follow_regroup`.
 
 Give each member a `follower_sheet` (same layout as the player's art) in their resource.
 
@@ -90,20 +104,37 @@ broken references (missing stats, empty troops, an AI file that isn't there, dup
 
 - **Ability** (`data/abilities`): what a combatant can do - kind (attack/skill/item/guard),
   target, `power`, element, MP cost, and `effects` to apply (with a chance). Power 0 = no
-  damage, effects only. `attack` and `guard` already exist and are shared.
+  damage, effects only. **Healing**: `heal_amount` + `heal_mag_scale` x the user's magic.
+  **Dispel**: `dispel` removes the target's buffs, debuffs or both. `attack` and `guard`
+  already exist and are shared.
 - **Hero** (`data/heroes`) / **Enemy** (`data/enemies`): both are a `Combatant`: id, name,
   base stats, `abilities`. New heroes start with Attack + Guard, new enemies with Attack.
-  Heroes add equipment, `follower_sheet`; enemies add `gold_reward` and `ai_path`.
+  - Heroes add equipment, `follower_sheet`, and **growth**: `level`/`xp`, `growth` (stat gain
+    per level above 1, e.g. `{"atk": 2, "max_hp": 6}`) and a `learnset` (level → ability gained).
+    Level and xp are saved; the rest follows from them.
+  - Enemies add `gold_reward`, `xp_reward`, `drops` (items with a chance and count), `ai_path`.
 - **Troop** (`data/troops`): groups of `{enemy, count}`. `start_battle` names a troop by id.
 - **Status effect** (`data/effects`): per-stack `flat` and `percent` changes to
   `max_hp/max_mp/atk/def/mag/spd`; a duration in **rounds** (battle) or **steps** (field);
-  optional `until_flag`; stacking = refresh / stack / ignore. Apply from an ability, an item,
-  or `Party` code; they expire and are saved.
+  optional `until_flag`; stacking = refresh / stack / ignore; `beneficial` (what a dispel
+  targets) and `hp_per_round` (regeneration +, poison -). Apply from an ability, an item,
+  or `Party` code; they expire and are saved. The battle scene lists what is on a battler.
 - **Item** (`data/items`): name, price, and an `action` (an Ability: `power` = HP restored,
-  plus effects), usable in battle and/or the field. Bag counts live in the party setup.
+  plus `effects` and `dispel`), usable in battle and/or the field. Bag counts live in the
+  party setup.
 - **Equipment** (`data/equipment`): slot + a stat bonus.
 - **Party setup** (`data/party.tres`): active members, reserve, gold, bag items, equipment
   catalogue, owned gear. Edited in the inspector; the game copies it on start and on a new game.
+
+**After a win** the party gets the enemies' gold, their xp split between the survivors (with
+level-ups and learned abilities in the log), and each defeated enemy's drops.
+
+**Example data** ships under `data/`: heroes Hero, Mage, Cleric; enemies Slime, Awakened Slime,
+Wolf, Bandit; troops `slime_pair`, `slime_awakened`, `wolf_pack`, `bandit_gang`; buffs/debuffs
+(Haste, Rage, Regen, Sunder, Slow, Poison, Fortify); abilities (Heal, Cure, Haste, Rally, Sunder,
+Poison Bite, Howl...); items (Potion, Antidote, Fortify Tonic). The Wolf and Bandit use the AI
+graphs in `events/ai/` - open them in the Graph panel to see how they are built.
+`tools/make_party_data.tscn` regenerates all of it.
 
 ### Enemy AI
 
@@ -123,6 +154,11 @@ its path in the enemy's `ai_path`. It runs at the start of the enemy's turn; the
 
 Example: *if hp under 30% → `use_ability heal` on self; else `choose_target lowest_hp` → `use_ability attack`.*
 
+**Test it**: in the Battle Data dock select an enemy and press **Test enemy AI** - it lists what
+the graph would choose for five rounds, healthy and wounded, against your current party, without
+fighting. **Check data** also flags AI graphs with broken nodes or a `use_ability` the enemy
+doesn't have.
+
 ---
 
 ## Debug tools
@@ -135,5 +171,5 @@ Backtick (`` ` ``) opens the debug menu (debug builds).
 ## Running the tests
 
 `godot --headless --path . res://tests/<name>.tscn` (see `tests/`). New this round:
-`route_tracer_test`, `follower_chain_test`, `battle_effects_test`, `battle_ai_test`,
+`route_tracer_test`, `follower_chain_test`, `battle_effects_test` (effects, levels, rewards), `battle_ai_test`,
 `battle_data_test`, `debug_terminal_test`. `tools/make_party_data.tscn` regenerates the demo party files.

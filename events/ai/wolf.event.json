@@ -1,0 +1,160 @@
+{
+	"format": 1,
+	"id": "wolf",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {},
+			"art": {},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
+			"step_in_place": false,
+			"lock_animation": false,
+			"lock_player": false,
+			"route": [],
+			"graph": [
+				{
+					"id": "s",
+					"title": "start",
+					"position": {
+						"x": 0,
+						"y": 0
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "r1"
+						}
+					]
+				},
+				{
+					"id": "r1",
+					"title": "if_round",
+					"position": {
+						"x": 300,
+						"y": 0
+					},
+					"command": "if_round",
+					"args": {
+						"op": "==",
+						"value": 1.0
+					},
+					"outputs": [
+						{
+							"flow": "true",
+							"target": "pick_any"
+						},
+						{
+							"flow": "false",
+							"target": "hurt"
+						}
+					]
+				},
+				{
+					"id": "pick_any",
+					"title": "choose_target",
+					"position": {
+						"x": 600,
+						"y": -180
+					},
+					"command": "choose_target",
+					"args": {
+						"rule": "random"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "bite"
+						}
+					]
+				},
+				{
+					"id": "bite",
+					"title": "use_ability",
+					"position": {
+						"x": 900,
+						"y": -180
+					},
+					"command": "use_ability",
+					"args": {
+						"ability": "poison_bite"
+					},
+					"outputs": []
+				},
+				{
+					"id": "hurt",
+					"title": "if_stat",
+					"position": {
+						"x": 600,
+						"y": 180
+					},
+					"command": "if_stat",
+					"args": {
+						"op": "<",
+						"percent": true,
+						"stat": "hp",
+						"value": 35.0,
+						"who": "self"
+					},
+					"outputs": [
+						{
+							"flow": "true",
+							"target": "howl"
+						},
+						{
+							"flow": "false",
+							"target": "pick_low"
+						}
+					]
+				},
+				{
+					"id": "howl",
+					"title": "use_ability",
+					"position": {
+						"x": 900,
+						"y": 0
+					},
+					"command": "use_ability",
+					"args": {
+						"ability": "howl"
+					},
+					"outputs": []
+				},
+				{
+					"id": "pick_low",
+					"title": "choose_target",
+					"position": {
+						"x": 900,
+						"y": 360
+					},
+					"command": "choose_target",
+					"args": {
+						"rule": "lowest_hp"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "hit"
+						}
+					]
+				},
+				{
+					"id": "hit",
+					"title": "use_ability",
+					"position": {
+						"x": 1200,
+						"y": 360
+					},
+					"command": "use_ability",
+					"args": {
+						"ability": "attack"
+					},
+					"outputs": []
+				}
+			]
+		}
+	]
+}

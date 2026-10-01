@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://code/party/stats.gd" id="1_moxu7"]
 [ext_resource type="Script" path="res://code/party/equipment.gd" id="2_335bf"]
 
-[sub_resource type="Resource" id="Resource_sveih"]
+[sub_resource type="Resource" id="Resource_moxu7"]
 script = ExtResource("1_moxu7")
 max_hp = 0
 max_mp = 0
@@ -16,5 +16,5 @@ spd = 0
 script = ExtResource("2_335bf")
 id = &"rusty_sword"
 display_name = "Rusty Sword"
-bonus = SubResource("Resource_sveih")
+bonus = SubResource("Resource_moxu7")
 price = 20

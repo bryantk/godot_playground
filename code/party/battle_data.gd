@@ -187,6 +187,8 @@ static func validate() -> Array[String]:
 						var ai_path := (entry as EnemyDef).ai_path
 						if ai_path != "" and not FileAccess.file_exists(ai_path):
 							problems.append("%s names an AI file that does not exist: %s." % [path, ai_path])
+						elif ai_path != "":
+							problems.append_array(_ai_problems(entry as EnemyDef, path))
 				TROOPS:
 					var troop := entry as Troop
 					if troop.enemies.is_empty():
@@ -198,3 +200,28 @@ static func validate() -> Array[String]:
 					if (entry as Item).action == null:
 						problems.append("%s has no action, so using it does nothing." % path)
 	return problems
+
+
+## What is wrong inside [param enemy]'s AI graph: a node the editor would flag, and a
+## [code]use_ability[/code] naming an ability the enemy neither has nor that exists at all.
+static func _ai_problems(enemy: EnemyDef, enemy_path: String) -> Array[String]:
+	var out: Array[String] = []
+	BattleAI.clear_cache()
+	var nodes := BattleAI.graph_for(enemy.ai_path)
+	if nodes.is_empty():
+		out.append("%s's AI graph %s is empty." % [enemy_path, enemy.ai_path])
+		return out
+	for message in EventCommand.validate_graph(nodes):
+		out.append("%s AI: %s" % [enemy_path, message])
+
+	var owned := {}
+	for ability in enemy.abilities:
+		if ability != null:
+			owned[ability.id] = true
+	for node in nodes:
+		if str(node.get("command", "")) != "use_ability":
+			continue
+		var wanted := StringName(str((node.get("args", {}) as Dictionary).get("ability", "")))
+		if wanted != &"" and not owned.has(wanted) and ability(wanted) == null:
+			out.append("%s AI uses ability \"%s\", which the enemy does not have." % [enemy_path, wanted])
+	return out

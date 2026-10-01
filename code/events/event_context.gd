@@ -79,6 +79,9 @@ static func resolve_in(a_map: MapContext, a_self_actor: Actor, term: String) -> 
 	var name := EventCommand.term_name(term)
 	if name == "self":
 		return a_self_actor
+	# @follower_1, @follower_2 ... - the party followers by chain position (FollowerChain).
+	if name.begins_with("follower_") and name.substr(9).is_valid_int():
+		return FollowerChain.follower_at(int(name.substr(9)))
 	if a_map == null:
 		return null
 	if name == "player":

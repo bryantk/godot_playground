@@ -40,6 +40,14 @@ const STATS: PackedStringArray = ["max_hp", "max_mp", "atk", "def", "mag", "spd"
 @export var stacking: Stack = Stack.REFRESH
 @export var max_stacks: int = 3
 
+## Whether this is a buff. A dispel ([member Ability.dispel]) removes only the kind it names:
+## DEBUFFS clears the harmful ones (poison, a defence drop), BUFFS strips the helpful ones.
+@export var beneficial: bool = true
+
+## Hp gained (positive) or lost (negative) at the end of every battle round, per stack -
+## regeneration, poison. Not reduced by guarding.
+@export var hp_per_round: int = 0
+
 
 ## [param base] with this effect at [param stacks] stacks applied - a new [Stats], the
 ## original untouched. Elements come across unchanged.

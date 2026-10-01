@@ -366,11 +366,21 @@ const COMMANDS: Dictionary = {
 		"resume": RESUME_RESTART,
 		"blurb": "Show or hide the followers (all of them, or just \"actor\").",
 	},
-	"follow_group": {
-		"args": {},
+	"follow_break": {
+		# Followers stop following and stay put, free for ordinary move commands addressed
+		# to @follower_1, @follower_2 ... (or their member ids). "actor" left out = all.
+		"args": {"actor": T_ACTOR + "?"},
+		"flows": ["next"], "blocking": false, "space": SPACE_GRID,
+		"resume": RESUME_RESTART,
+		"blurb": "Stop the followers following (all, or one) so events can move them.",
+	},
+	"follow_regroup": {
+		# "mode": line = each walks to its place behind the player; player = each walks onto
+		# the player's cell. Each follows normally again afterwards. "actor" left out = all.
+		"args": {"mode": T_CHOICE, "actor": T_ACTOR + "?"},
 		"flows": [FLOW_REACHED, FLOW_IMMEDIATE], "blocking": true, "space": SPACE_GRID,
 		"resume": RESUME_RESTART,
-		"blurb": "Walk every follower to its place right behind the player.",
+		"blurb": "Bring followers back to the player - into a line behind, or onto the player.",
 	},
 	"follow": {
 		"args": {"actor": T_ACTOR + "?", "target": T_ACTOR, "distance": T_INT + "?"},

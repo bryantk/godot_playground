@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Ability" format=3]
+
+[ext_resource type="Script" path="res://code/party/status_effect.gd" id="1_wyx72"]
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="2_38y7e"]
+
+[resource]
+script = ExtResource("2_38y7e")
+id = &"heal"
+display_name = "Heal"
+kind = 1
+target = 2
+power = 0.0
+mp_cost = 3
+heal_amount = 10
+heal_mag_scale = 1.5

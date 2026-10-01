@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://code/party/stats.gd" id="1_v0rvi"]
 [ext_resource type="Script" path="res://code/party/equipment.gd" id="2_pvq5c"]
 
-[sub_resource type="Resource" id="Resource_vwtpt"]
+[sub_resource type="Resource" id="Resource_v0rvi"]
 script = ExtResource("1_v0rvi")
 max_hp = 0
 max_mp = 0
@@ -17,5 +17,5 @@ script = ExtResource("2_pvq5c")
 id = &"cloth_robe"
 display_name = "Cloth Robe"
 slot = 1
-bonus = SubResource("Resource_vwtpt")
+bonus = SubResource("Resource_v0rvi")
 price = 15

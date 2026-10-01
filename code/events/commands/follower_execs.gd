@@ -1,5 +1,5 @@
-## The party caterpillar's four commands - [code]follow_add[/code], [code]follow_remove[/code],
-## [code]follow_show[/code], [code]follow_group[/code] (event_command.gd) - all thin calls into
+## The party caterpillar's five commands - [code]follow_add[/code], [code]follow_remove[/code],
+## [code]follow_show[/code], [code]follow_break[/code], [code]follow_regroup[/code] (event_command.gd) - all thin calls into
 ## [FollowerChain], which owns the followers themselves.
 ##
 ## [code]follow_add[/code]/[code]follow_remove[/code] name either a party member
@@ -37,16 +37,26 @@ class FollowShow extends EventCommandExec:
 		FollowerChain.show_followers(bool(args.get("visible", true)), who)
 
 
-## Walks every follower to its place behind the leader. "reached" once they have all
-## stopped moving; wired "immediate", the graph does not wait for them.
-class FollowGroup extends EventCommandExec:
+## Stops the followers following (all, or the one named by "actor") and leaves them where
+## they stand, free for ordinary move commands addressed to @follower_1, @follower_2 ...
+class FollowBreak extends EventCommandExec:
 	func start() -> void:
-		FollowerChain.gather()
+		var who: Actor = ctx.resolve(str(args["actor"])) if args.has("actor") else null
+		FollowerChain.break_follow(who)
+
+
+## Brings followers back: "line" walks each to its place behind the player, "player" onto the
+## player's cell. "reached" once they have all stopped; wired "immediate", the graph does
+## not wait. "actor" left out means every follower.
+class FollowRegroup extends EventCommandExec:
+	func start() -> void:
+		var who: Actor = ctx.resolve(str(args["actor"])) if args.has("actor") else null
+		FollowerChain.regroup(str(args.get("mode", "line")), who)
 
 	func tick(_delta: float) -> int:
 		if immediate_wired():
 			return Status.DONE
-		return Status.RUNNING if FollowerChain.is_grouping() else Status.DONE
+		return Status.RUNNING if FollowerChain.is_regrouping() else Status.DONE
 
 	func flow_port() -> String:
 		return reached_immediate_flow_port()
@@ -61,5 +71,6 @@ static func table() -> Dictionary:
 		"follow_add": FollowAdd,
 		"follow_remove": FollowRemove,
 		"follow_show": FollowShow,
-		"follow_group": FollowGroup,
+		"follow_break": FollowBreak,
+		"follow_regroup": FollowRegroup,
 	}

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Ability" format=3]
+
+[ext_resource type="Script" path="res://code/party/status_effect.gd" id="1_1qibs"]
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="2_u4dys"]
+
+[resource]
+script = ExtResource("2_u4dys")
+id = &"tackle"
+display_name = "Tackle"
+power = 0.8

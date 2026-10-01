@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Ability" format=3]
+
+[ext_resource type="Script" path="res://code/party/status_effect.gd" id="1_m4opc"]
+[ext_resource type="Resource" path="res://data/effects/slow.tres" id="2_wrre2"]
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="3_2fqg7"]
+
+[resource]
+script = ExtResource("3_2fqg7")
+id = &"slow_spell"
+display_name = "Slow"
+kind = 1
+power = 0.0
+mp_cost = 2
+effects = Array[ExtResource("1_m4opc")]([ExtResource("2_wrre2")])

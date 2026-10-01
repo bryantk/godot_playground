@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Ability" format=3]
+
+[ext_resource type="Script" path="res://code/party/status_effect.gd" id="1_h3ny1"]
+[ext_resource type="Resource" path="res://data/effects/rage.tres" id="2_4jm81"]
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="3_vpwpl"]
+
+[resource]
+script = ExtResource("3_vpwpl")
+id = &"howl"
+display_name = "Howl"
+kind = 1
+target = 4
+power = 0.0
+effects = Array[ExtResource("1_h3ny1")]([ExtResource("2_4jm81")])

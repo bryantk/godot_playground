@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="PartyMember" format=3]
+
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="1_cj410"]
+[ext_resource type="Resource" path="res://data/abilities/attack.tres" id="2_r1w0a"]
+[ext_resource type="Resource" path="res://data/abilities/guard.tres" id="3_qffdq"]
+[ext_resource type="Resource" path="res://data/abilities/heal.tres" id="4_msbuf"]
+[ext_resource type="Resource" path="res://data/abilities/cure.tres" id="5_ybcvv"]
+[ext_resource type="Script" path="res://code/party/stats.gd" id="6_e88dh"]
+[ext_resource type="Resource" path="res://data/abilities/regen_spell.tres" id="7_e1ply"]
+[ext_resource type="Script" path="res://code/party/party_member.gd" id="8_wywou"]
+
+[sub_resource type="Resource" id="Resource_yr35r"]
+script = ExtResource("6_e88dh")
+max_hp = 22
+max_mp = 14
+atk = 4
+def = 4
+mag = 6
+
+[resource]
+script = ExtResource("8_wywou")
+growth = {
+"def": 1,
+"mag": 2,
+"max_hp": 4,
+"max_mp": 2
+}
+learnset = Dictionary[int, ExtResource("1_cj410")]({
+2: ExtResource("7_e1ply")
+})
+id = &"cleric"
+display_name = "Cleric"
+base_stats = SubResource("Resource_yr35r")
+abilities = Array[ExtResource("1_cj410")]([ExtResource("2_r1w0a"), ExtResource("3_qffdq"), ExtResource("4_msbuf"), ExtResource("5_ybcvv")])

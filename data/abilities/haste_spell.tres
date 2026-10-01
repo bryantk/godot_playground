@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Ability" format=3]
+
+[ext_resource type="Script" path="res://code/party/status_effect.gd" id="1_7isxn"]
+[ext_resource type="Resource" path="res://data/effects/haste.tres" id="2_m43f6"]
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="3_1oxdl"]
+
+[resource]
+script = ExtResource("3_1oxdl")
+id = &"haste_spell"
+display_name = "Haste"
+kind = 1
+target = 2
+power = 0.0
+mp_cost = 3
+effects = Array[ExtResource("1_7isxn")]([ExtResource("2_m43f6")])

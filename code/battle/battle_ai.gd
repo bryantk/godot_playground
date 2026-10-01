@@ -73,3 +73,41 @@ static func graph_for(path: String) -> Array[Dictionary]:
 ## tests that write the same path twice.
 static func clear_cache() -> void:
 	_graphs.clear()
+
+
+## A dry run of [param enemy]'s AI for the editor: the same fight against [param heroes]
+## (the current party if none are given) for [param rounds] rounds, once with the enemy
+## healthy and once wounded to a quarter of its hp, and what it would choose each time.
+## Nothing is resolved - only decisions are listed, one line each, e.g.
+## [code]healthy, round 2: Howl on Wolf[/code]. Says so when there is no AI, or when the
+## graph reaches no [code]use_ability[/code] (and the enemy would fall back to random).
+static func simulate(enemy: EnemyDef, rounds: int = 5, heroes: Array[PartyMember] = []) -> Array[String]:
+	var lines: Array[String] = []
+	if enemy.ai_path == "":
+		lines.append("%s has no AI graph - it picks a random ability and target." % enemy.display_name)
+		return lines
+	if graph_for(enemy.ai_path).is_empty():
+		lines.append("%s's AI file is missing or empty: %s" % [enemy.display_name, enemy.ai_path])
+		return lines
+
+	var members: Array[PartyMember] = heroes if not heroes.is_empty() else Party.active
+	var troop := Troop.new()
+	troop.enemies = [{"enemy": enemy, "count": 1}]
+
+	for condition in ["healthy", "wounded"]:
+		var state := BattleState.new()
+		state.begin(members, troop)
+		var foe: Battler = state.enemy_side[0]
+		if condition == "wounded":
+			foe.hp = maxi(1, foe.stats.max_hp / 4)
+		for r in range(1, rounds + 1):
+			state.round_number = r
+			var decision := decide(state, foe)
+			if decision.is_empty():
+				lines.append("%s, round %d: nothing chosen (falls back to random)" % [condition, r])
+				continue
+			var picked: Battler = decision.get("target")
+			lines.append("%s, round %d: %s%s" % [condition, r,
+				(decision["action"] as Ability).display_name,
+				" on %s" % picked.display_name if picked != null else " on everyone"])
+	return lines

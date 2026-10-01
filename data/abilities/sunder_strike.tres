@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Ability" format=3]
+
+[ext_resource type="Script" path="res://code/party/status_effect.gd" id="1_p5c3d"]
+[ext_resource type="Resource" path="res://data/effects/sunder.tres" id="2_dtpu5"]
+[ext_resource type="Script" path="res://code/battle/ability.gd" id="3_8fxxr"]
+
+[resource]
+script = ExtResource("3_8fxxr")
+id = &"sunder_strike"
+display_name = "Sunder"
+kind = 1
+power = 0.8
+mp_cost = 2
+effects = Array[ExtResource("1_p5c3d")]([ExtResource("2_dtpu5")])
+effect_chance = 0.9

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Troop" format=3]
+
+[ext_resource type="Resource" path="res://data/enemies/slime.tres" id="1_0s1vg"]
+[ext_resource type="Script" path="res://code/battle/troop.gd" id="2_xdfsc"]
+
+[resource]
+script = ExtResource("2_xdfsc")
+id = &"slime_pair"
+enemies = Array[Dictionary]([{
+"count": 2,
+"enemy": ExtResource("1_0s1vg")
+}])

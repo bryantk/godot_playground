@@ -158,12 +158,13 @@ func _test_default_abilities() -> void:
 func _test_party_setup() -> void:
 	_section("Party is populated from res://data/party.tres, as copies of its members")
 	Party.load_setup()
-	_eq(Party.active.size(), 2, "two members are in the party")
+	_eq(Party.active.size(), 3, "three members are in the party")
 	_eq(Party.active[0].id, &"hero", "starting with the hero")
 	_eq(Party.active[1].id, &"mage", "then the mage")
+	_eq(Party.active[2].id, &"cleric", "and the cleric")
 	_eq(Party.gold, 50, "with the gold the file says")
 	_eq(Party.items.get(&"potion", 0), 3, "and the potions")
-	_eq(Party.active[0].abilities.size(), 3, "the hero has attack, guard and fireball")
+	_eq(Party.active[0].abilities.size(), 3, "the hero has attack, guard and sunder")
 
 	Party.active[0].current_hp = 1
 	var template := Party.member_catalogue().filter(
@@ -181,7 +182,7 @@ func _test_party_setup() -> void:
 	_eq(Party.reserve.size(), 1, "a setup's reserve fills the reserve")
 	_eq(Party.gold, 9, "and its gold replaces the old")
 	Party.clear()
-	_eq(Party.active.size(), 2, "clear() loads the file again")
+	_eq(Party.active.size(), 3, "clear() loads the file again")
 
 
 func _test_dock_list() -> void:

@@ -35,9 +35,8 @@ var _enemy_catalogue: Dictionary = {}
 
 
 func _ready() -> void:
-	_seed_demo_troops()
-	# Authored data under res://data/ (heroes, enemies, troops, items) joins the catalogues
-	# the demo data above already filled - Party is loaded before this, so its half is ready.
+	# Authored data under res://data/ (heroes, enemies, troops, items) fills the catalogues -
+	# Party is loaded before this, so its half is ready. tools/make_party_data writes examples.
 	BattleData.apply_to_game()
 
 
@@ -56,7 +55,7 @@ func troop_catalogue() -> Array[Troop]:
 	return out
 
 
-## Registered alongside every troop that names it (see [method _seed_demo_troops]) so
+## Registered alongside every troop that names it (see [method BattleData.apply_to_game]) so
 ## an individual enemy can also be picked on its own - what the battle sandbox tool
 ## (tools/battle_sandbox.gd) builds an ad hoc [Troop] from, rather than only ever
 ## fighting a whole pre-authored one.
@@ -71,53 +70,3 @@ func enemy_catalogue() -> Array[EnemyDef]:
 	return out
 
 
-## A small default bestiary, matching the troop ids docs/events/slime_a.event.json's
-## own worked example already calls [code]start_battle[/code] with. A loose system seeds
-## something playable by
-## default rather than starting empty.
-func _seed_demo_troops() -> void:
-	_troop_catalogue.clear()
-	_enemy_catalogue.clear()
-
-	var slime := EnemyDef.new()
-	slime.id = &"slime"
-	slime.display_name = "Slime"
-	slime.stats = _stats(10, 0, 3, 2, 1, 3)
-	slime.stats.elements = {&"fire": 2.0}
-	var slime_attack := Ability.new()
-	slime_attack.id = &"tackle"
-	slime_attack.display_name = "Tackle"
-	slime_attack.power = 0.8
-	slime.abilities = [slime_attack]
-	slime.gold_reward = 8
-	register_enemy(slime)
-
-	var slime_pair := Troop.new()
-	slime_pair.id = &"slime_pair"
-	slime_pair.enemies = [{"enemy": slime, "count": 2}]
-	register_troop(slime_pair)
-
-	var awakened := EnemyDef.new()
-	awakened.id = &"slime_awakened"
-	awakened.display_name = "Awakened Slime"
-	awakened.stats = _stats(22, 0, 5, 3, 2, 4)
-	awakened.stats.elements = {&"fire": 2.0}
-	awakened.abilities = [slime_attack]
-	awakened.gold_reward = 20
-	register_enemy(awakened)
-
-	var slime_awakened := Troop.new()
-	slime_awakened.id = &"slime_awakened"
-	slime_awakened.enemies = [{"enemy": awakened, "count": 1}]
-	register_troop(slime_awakened)
-
-
-static func _stats(hp: int, mp: int, atk: int, def: int, mag: int, spd: int) -> Stats:
-	var s := Stats.new()
-	s.max_hp = hp
-	s.max_mp = mp
-	s.atk = atk
-	s.def = def
-	s.mag = mag
-	s.spd = spd
-	return s

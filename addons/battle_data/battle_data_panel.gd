@@ -56,6 +56,12 @@ func _init() -> void:
 		button.pressed.connect(entry[1])
 		buttons.add_child(button)
 
+	var ai_button := Button.new()
+	ai_button.text = "Test enemy AI"
+	ai_button.tooltip_text = "Dry-run the selected enemy's AI graph against the current party."
+	ai_button.pressed.connect(_on_test_ai)
+	add_child(ai_button)
+
 	var check := Button.new()
 	check.text = "Check data"
 	check.pressed.connect(_on_check)
@@ -193,3 +199,20 @@ func _on_party_setup() -> void:
 		ResourceSaver.save(PartySetup.new(), Party.SETUP_PATH)
 		EditorInterface.get_resource_filesystem().update_file(Party.SETUP_PATH)
 	EditorInterface.edit_resource(load(Party.SETUP_PATH))
+
+
+## Dry-runs the selected enemy's AI graph and lists what it would do ([method
+## BattleAI.simulate]) in the results list.
+func _on_test_ai() -> void:
+	_problems.clear()
+	if _kind() != BattleData.ENEMIES:
+		_problems.add_item("Select an enemy (Enemies tab) first.")
+		return
+	var path := _selected_path()
+	var enemy := load(path) as EnemyDef if path != "" else null
+	if enemy == null:
+		_problems.add_item("Select an enemy first.")
+		return
+	BattleAI.clear_cache()
+	for line in BattleAI.simulate(enemy):
+		_problems.add_item(line)

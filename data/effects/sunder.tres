@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="StatusEffect" format=3]
+
+[ext_resource type="Script" path="res://code/party/status_effect.gd" id="1_4ah01"]
+
+[resource]
+script = ExtResource("1_4ah01")
+id = &"sunder"
+display_name = "Sundered"
+percent = {
+"def": -50
+}
+beneficial = false

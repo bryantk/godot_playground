@@ -179,7 +179,7 @@ const _COMMAND_CATEGORIES: Dictionary = {
 
 	"world": ["change_map", "change_map_marker", "fade", "fade_in", "fade_out", "shake",
 		"camera_to", "camera_follow", "play_anim", "play_sound", "play_music",
-		"set_visible", "set_color", "follow_add", "follow_remove", "follow_show", "follow_group", "open_menu"],
+		"set_visible", "set_color", "follow_add", "follow_remove", "follow_show", "follow_break", "follow_regroup", "open_menu"],
 }
 
 ## Generated, or blank for the start node (question 47 follow-up) - what other nodes'

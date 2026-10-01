@@ -34,6 +34,17 @@ enum Target { SINGLE_ENEMY, ALL_ENEMIES, SINGLE_ALLY, ALL_ALLIES, SELF }
 @export var effects: Array[StatusEffect] = []
 @export_range(0.0, 1.0, 0.01) var effect_chance: float = 1.0
 
+## Hp this restores to each target: [member heal_amount] flat plus [member heal_mag_scale]
+## times the user's magic. Both zero = no healing. Independent of [member power], so one
+## ability can hurt and heal, but the usual healing spell is power 0 and a heal.
+@export var heal_amount: int = 0
+@export var heal_mag_scale: float = 0.0
+
+## Which status effects this removes from each target - a cleanse (DEBUFFS), or stripping an
+## enemy's buffs (BUFFS). See [member StatusEffect.beneficial].
+enum Dispel { NONE, BUFFS, DEBUFFS, ALL }
+@export var dispel: Dispel = Dispel.NONE
+
 
 ## Whether resolving this deals (or, negative, heals) hp damage. A guard, or a skill with
 ## [member power] 0 that only applies [member effects], does not.
@@ -79,3 +90,8 @@ static func guard() -> Ability:
 	built.target = Target.SELF
 	built.power = 0.0
 	return built
+
+
+## Whether this heals its targets.
+func restores_hp() -> bool:
+	return heal_amount > 0 or heal_mag_scale > 0.0

@@ -19,6 +19,7 @@ func _ready() -> void:
 
 	_test_round_and_target_rules()
 	_test_stat_branch_and_fallbacks()
+	_test_dry_run()
 
 	print("")
 	print("  %d passed, %d failed" % [_passed, _failed])
@@ -170,6 +171,30 @@ func _test_stat_branch_and_fallbacks() -> void:
 	var plain := _fight([], [30])
 	_ok(BattleAI.decide(plain["state"], plain["wolf"]).is_empty(), "no ai_path decides nothing")
 
+	DirAccess.remove_absolute(AI_PATH)
+
+
+func _test_dry_run() -> void:
+	_section("AI dry run -- BattleAI.simulate lists decisions without resolving anything")
+	var nodes := [
+		_node("s", "start", {}, [{"flow": "next", "target": "r"}]),
+		_node("r", "if_round", {"op": "==", "value": 1},
+			[{"flow": "true", "target": "roar"}, {"flow": "false", "target": "bite"}]),
+		_node("bite", "use_ability", {"ability": "bite"}, []),
+		_node("roar", "use_ability", {"ability": "roar"}, []),
+	]
+	var fight := _fight(nodes, [30])
+	var enemy: EnemyDef = (fight["wolf"] as Battler).enemy
+	var members: Array[PartyMember] = []
+	for b in (fight["state"] as BattleState).player_side:
+		members.append(b.member)
+	var lines := BattleAI.simulate(enemy, 3, members)
+	_eq(lines.size(), 6, "three rounds, healthy and wounded")
+	_ok(lines[0].begins_with("healthy, round 1: Roar"), "round 1 roars: %s" % lines[0])
+	_ok(lines[1].begins_with("healthy, round 2: Bite on Hero0"), "round 2 bites the hero: %s" % lines[1])
+	_ok(lines[3].begins_with("wounded, round 1"), "and the wounded run follows")
+	enemy.ai_path = ""
+	_ok(BattleAI.simulate(enemy)[0].contains("no AI graph"), "an enemy with no AI says so")
 	DirAccess.remove_absolute(AI_PATH)
 
 

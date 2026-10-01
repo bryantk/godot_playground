@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="Troop" format=3]
+
+[ext_resource type="Resource" path="res://data/enemies/wolf.tres" id="1_jmeyl"]
+[ext_resource type="Resource" path="res://data/enemies/slime.tres" id="2_3yet6"]
+[ext_resource type="Script" path="res://code/battle/troop.gd" id="3_es6fl"]
+
+[resource]
+script = ExtResource("3_es6fl")
+id = &"wolf_pack"
+enemies = Array[Dictionary]([{
+"count": 1,
+"enemy": ExtResource("1_jmeyl")
+}, {
+"count": 1,
+"enemy": ExtResource("2_3yet6")
+}])
