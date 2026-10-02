@@ -550,7 +550,7 @@ subset of the same moment's payload or a different subset of the same moment's l
     definition can be shared by many monsters instead of copied into each.
 
     **Shared routes, and the one thing that makes them hard.** A route is referenced by name
-    from a library — `res://events/routes/<name>.route.json`, one file per route so it diffs
+    from a library — `res://data/events/routes/<name>.route.json`, one file per route so it diffs
     and the editor can list it — and the reference site may override the scalar fields:
 
     ```json
@@ -853,7 +853,7 @@ deferred to — both answers are cheap to revisit and neither changes what stage
     The old `ActorStepped` trigger is gone with the pulse (42); `"trigger": "touch"` in the
     examples normalises to `player_touch`.
 45. ~~Where are routes edited?~~ ✅ **A Routes panel plus a viewport gizmo.** The panel lists
-    every `res://events/routes/*.route.json` with its **user count** — dragging one guard's
+    every `res://data/events/routes/*.route.json` with its **user count** — dragging one guard's
     handle moves all six, and the author has to know that before the drag, not after — and
     edits the selected route as a step list or a waypoint table. The gizmo drags whichever
     route the selected `GameEvent` is using, inline or shared. One place to browse, one place

@@ -2791,20 +2791,14 @@ static func _first_game_event_under(node: Node) -> GameEvent:
 	return null
 
 ## The folder a map's event files live in: one per map, named for the edited scene's
-## own file - stage-c-plan.md's [code]res://events/<map_id>/<event_id>.event.json[/code]
+## own file - stage-c-plan.md's [code]res://data/events/<map_id>/<event_id>.event.json[/code]
 ## layout. Falls back to "map" for a scene with no file yet, so the helpers built on
 ## this still have somewhere to point rather than failing outright.
 func _map_event_dir(map_root: Node) -> String:
 	var scene_path := map_root.scene_file_path if map_root != null else ""
 	var map_id := scene_path.get_file().get_basename() if scene_path != "" else "map"
-	return "res://events/%s" % map_id
+	return "res://data/events/%s" % map_id
 
-## Where a newly-linked actor's or event's file goes, under [method _map_event_dir].
-## [param event_id] names the file - [member Actor.actor_id] (falling back to the node
-## name) for an actor, [method GameEvent.event_id] for an event.
-func _default_event_path(event_id: String) -> String:
-	var map_root := EditorInterface.get_edited_scene_root()
-	return "%s/%s.event.json" % [_map_event_dir(map_root), event_id]
 
 ## Loads the selected actor's (or bodiless event's) file into the graph - the toolbar's
 ## own "Load Actor Event" menu item, which reads the editor's current selection rather
@@ -3064,8 +3058,7 @@ func _on_delete_actor() -> void:
 	var note := " Archived event to %s." % archived_path if archived_path != "" else ""
 	_set_status("Deleted %s.%s" % [node_name, note], _status_color(true))
 
-## Moves [param path] into a "removed" folder beside it - within the same map folder
-## [method _default_event_path] would have written it under - named with the moment it
+## Moves [param path] into a "removed" folder beside it - named with the moment it
 ## was moved so a second deletion of a same-named actor never collides with the first.
 ## Returns where the file ended up, or "" if the move failed.
 func _archive_event_file(path: String) -> String:

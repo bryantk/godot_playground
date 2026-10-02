@@ -1,7 +1,7 @@
 extends Node
 
 ## Writes the example game data under res://data/ (and the two example AI graphs under
-## res://events/ai/): status effects, abilities, items, equipment, three heroes, four
+## res://data/events/ai/): status effects, abilities, items, equipment, three heroes, four
 ## enemies, four troops, and the [PartySetup] that starts the party (res://data/party.tres).
 ## Run rather than hand-authored, so Godot writes the typed arrays and dictionaries exactly
 ## as it reads them back:
@@ -217,12 +217,12 @@ func _make_enemies(items: Dictionary) -> Dictionary:
 
 	var wolf := _enemy(&"wolf", "Wolf", _stats(24, 6, 6, 2, 2, 7),
 		[&"poison_bite", &"howl"], 12, 10)
-	wolf.ai_path = "res://events/ai/wolf.event.json"
+	wolf.ai_path = "res://data/events/ai/wolf.event.json"
 	_save(wolf, BattleData.ENEMIES, "wolf")
 	enemies["wolf"] = wolf
 
 	var bandit := _enemy(&"bandit", "Bandit", _stats(30, 0, 7, 4, 2, 5), [&"sunder_strike"], 25, 16)
-	bandit.ai_path = "res://events/ai/bandit.event.json"
+	bandit.ai_path = "res://data/events/ai/bandit.event.json"
 	bandit.drops = [_drop(items["antidote"], 0.25)]
 	_save(bandit, BattleData.ENEMIES, "bandit")
 	enemies["bandit"] = bandit
@@ -310,7 +310,7 @@ func _node(id: String, command: String, args: Dictionary, wires: Dictionary, col
 func _graph(file_id: String, nodes: Array) -> void:
 	var raw := {"format": 1, "id": file_id, "pages": [{"graph": nodes}]}
 	var parsed := EventDocument.parse(JSON.stringify(raw))
-	var path := "res://events/ai/%s.event.json" % file_id
+	var path := "res://data/events/ai/%s.event.json" % file_id
 	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	file.store_string(EventDocument.stringify(parsed))

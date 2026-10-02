@@ -68,7 +68,7 @@ static func is_stationary(route: Dictionary) -> bool:
 
 
 ## Resolves a [code]{"use": "<name>"}[/code] reference against
-## [code]res://events/routes/<name>.route.json[/code] (event-pages.md §3.2).
+## [code]res://data/events/routes/<name>.route.json[/code] (event-pages.md §3.2).
 ## [code]mode[/code]/[code]loop[/code]/[code]on_blocked[/code]/[code]speed[/code] may be
 ## overridden at the reference site; [code]waypoints[/code]/[code]steps[/code] may not -
 ## a page either uses the template's list whole or authors its own inline, never a
@@ -79,7 +79,7 @@ static func resolve(route: Dictionary) -> Dictionary:
 		return route
 
 	var route_name := str(route["use"])
-	var path := "res://events/routes/%s.route.json" % route_name
+	var path := "res://data/events/routes/%s.route.json" % route_name
 	if not FileAccess.file_exists(path):
 		push_error("EventRoute: shared route '%s' not found at %s." % [route_name, path])
 		return {"mode": "fixed"}

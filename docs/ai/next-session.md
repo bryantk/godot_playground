@@ -48,7 +48,7 @@ logic. `wait`'s retry and `toward`/`away`/`random`'s own self-loop are paced thr
 small `RETRY_DELAY` wait node rather than retrying same-tick, since an unpaced retry
 against a permanent block is indistinguishable from a `goto` cycle to `EventRunner`'s
 node budget. `EventRoute.resolve()` handles a shared `{"use": "name"}` reference against
-`res://events/routes/<name>.route.json`. 70 assertions in `tests/event_route_test.gd`.
+`res://data/events/routes/<name>.route.json`. 70 assertions in `tests/event_route_test.gd`.
 
 `GameEvent` now starts an active page's route as its own background runner, leased the
 same way a triggered graph is - the two never run at once. The moment a triggered graph
@@ -356,7 +356,7 @@ hook finally has a caller.
 
 **Wired into both demo scenes, confirmed by hand**: an NPC with no brain (`Npc_17_9` in
 `jrpg_demo`, `Event__1` in `isoish_grid_demo`) gets a `GameEvent` with an action-triggered
-`face_to`/`say` graph and reconciled sheet art, at `res://events/<map_id>/<event_id>.event.json`
+`face_to`/`say` graph and reconciled sheet art, at `res://data/events/<map_id>/<event_id>.event.json`
 — the real-event layout the plan calls for, distinct from `docs/events/`, which stays
 documentation-only.
 
@@ -750,7 +750,7 @@ publishes **four** unconditional actor moments and their `player_*` shorthands:
   `StepResponder` bullet below rather than being treated as already covered.
 - `pulse: true` on move commands, and the responder-side hook it needs to reach — stage C,
   when `EventCommand` exists.
-- **Shared routes** — stage C. `res://events/routes/<name>.route.json`, referenced as
+- **Shared routes** — stage C. `res://data/events/routes/<name>.route.json`, referenced as
   `{"use": "patrol_ns"}`. **Two route modes now, not one**: `steps` is a list of relative
   moves (`step_n`/`step_s`/`step_e`/`step_w`, plus `wait`/`face`) and is expected to be the
   common case, since a patrol is naturally authored that way and a `steps` route needs no

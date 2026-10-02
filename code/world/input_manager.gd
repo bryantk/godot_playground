@@ -14,20 +14,19 @@ extends Node
 var _is_down := {}
 var _stack: Array[Node] = []
 
-func attach(node: Node) -> void:
-	target = node
-
 ## Take input until [method pop_target]. Pushing null is deliberate and useful: it is
 ## how a cutscene swallows input without needing a handler for it.
 func push_target(node: Node) -> void:
 	_stack.append(target)
-	target = node
+	_attach(node)
+	print("Input Target: %s" % target.name)
 	EventBus.input_lock_changed.emit(true)
 
 func pop_target() -> void:
 	if _stack.is_empty():
 		return
-	target = _stack.pop_back()
+	_attach(_stack.pop_back())
+	print("Input Target: %s" % target.name)
 	_is_down.clear()
 	EventBus.input_lock_changed.emit(not _stack.is_empty())
 
@@ -36,6 +35,10 @@ func is_locked() -> bool:
 
 func is_down(action: String) -> bool:
 	return _is_down.get(action, false)
+
+func _attach(node: Node) -> void:
+	target = node
+	print("Input Target: %s" % target.name)
 
 func _ready() -> void:
 	self.process_mode = Node.PROCESS_MODE_ALWAYS

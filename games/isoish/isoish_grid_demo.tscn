@@ -5,7 +5,6 @@
 [ext_resource type="MeshLibrary" uid="uid://bj0n18m532mb0" path="res://games/isoish/pixel_blocks.tres" id="3_4q3m1"]
 [ext_resource type="PackedScene" path="res://games/isoish/actor_isoish_grid.tscn" id="4_4yn8y"]
 [ext_resource type="Script" uid="uid://pa3vwqvjw77f" path="res://code/actors/player_controller.gd" id="5_ubx1w"]
-[ext_resource type="Script" uid="uid://cfvh6ga4k8rgs" path="res://games/jrpg/debug_only.gd" id="6_12pxd"]
 [ext_resource type="Script" uid="uid://bywa73wc0217k" path="res://code/world/camera/ortho_pixel_rig.gd" id="13_oh435"]
 [ext_resource type="Resource" uid="uid://c3xxi7lq37mk2" path="res://games/isoish/isoish_grid_input.tres" id="15_nu3qy"]
 [ext_resource type="Script" uid="uid://dfyo0bfp6lnmf" path="res://code/world/areas/area_zone.gd" id="16_zone"]
@@ -29,15 +28,17 @@ ambient_light_energy = 0.85
 [sub_resource type="BoxShape3D" id="BoxShape3D_slow"]
 size = Vector3(3.98, 1, 2)
 
-[sub_resource type="BoxMesh" id="BoxMesh_slow"]
-size = Vector3(4, 0.02, 1)
+[sub_resource type="Image" id="Image_4q3m1"]
+data = {
+"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+"format": "RGBA8",
+"height": 11,
+"mipmaps": false,
+"width": 11
+}
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_slow"]
-transparency = 1
-albedo_color = Color(0.35, 0.55, 0.95, 0.35)
-
-[sub_resource type="BoxMesh" id="BoxMesh_12pxd"]
-size = Vector3(4, 0.02, 2)
+[sub_resource type="ImageTexture" id="ImageTexture_y7j2v"]
+image = SubResource("Image_4q3m1")
 
 [sub_resource type="Image" id="Image_4yn8y"]
 data = {
@@ -48,7 +49,7 @@ data = {
 "width": 11
 }
 
-[sub_resource type="ImageTexture" id="ImageTexture_y7j2v"]
+[sub_resource type="ImageTexture" id="ImageTexture_12pxd"]
 image = SubResource("Image_4yn8y")
 
 [sub_resource type="Image" id="Image_ubx1w"]
@@ -60,20 +61,8 @@ data = {
 "width": 11
 }
 
-[sub_resource type="ImageTexture" id="ImageTexture_12pxd"]
-image = SubResource("Image_ubx1w")
-
-[sub_resource type="Image" id="Image_q5ub7"]
-data = {
-"data": PackedByteArray(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
-"format": "RGBA8",
-"height": 11,
-"mipmaps": false,
-"width": 11
-}
-
 [sub_resource type="ImageTexture" id="ImageTexture_yqpgd"]
-image = SubResource("Image_q5ub7")
+image = SubResource("Image_ubx1w")
 
 [node name="IsoishGridDemo" type="Node" unique_id=1935666997]
 script = ExtResource("1_nbbrd")
@@ -141,10 +130,17 @@ metadata/_editor_floor_ = Vector3(0, 0, 0)
 [node name="Areas" type="Node3D" parent="Upscale/World/Map" unique_id=1597586323]
 
 [node name="SlowStrip" type="Area3D" parent="Upscale/World/Map/Areas" unique_id=237379716]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 7.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 8)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Upscale/World/Map/Areas/SlowStrip" unique_id=460247739]
 shape = SubResource("BoxShape3D_slow")
+
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Areas/SlowStrip" unique_id=759366839 node_paths=PackedStringArray("target")]
+script = ExtResource("26_debug_area")
+target = NodePath("../CollisionShape3D")
+type = 2
+area_size = Vector3(3.98, 1, 2)
+color = Color(0.3, 0.85, 0.35, 0.9)
 
 [node name="AreaZone" type="Node" parent="Upscale/World/Map/Areas/SlowStrip" unique_id=605937230]
 script = ExtResource("16_zone")
@@ -155,19 +151,18 @@ scale = 0.5
 east = true
 west = true
 
-[node name="Marker" type="MeshInstance3D" parent="Upscale/World/Map/Areas/SlowStrip" unique_id=1193233072]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.01, 0)
-mesh = SubResource("BoxMesh_slow")
-surface_material_override/0 = SubResource("StandardMaterial3D_slow")
-
-[node name="DebugOnly" type="Node" parent="Upscale/World/Map/Areas/SlowStrip/Marker" unique_id=323036143]
-script = ExtResource("6_12pxd")
-
 [node name="SlowStrip_2" type="Area3D" parent="Upscale/World/Map/Areas" unique_id=1228386802]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 3)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Upscale/World/Map/Areas/SlowStrip_2" unique_id=967771963]
 shape = SubResource("BoxShape3D_slow")
+
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Areas/SlowStrip_2" unique_id=611840179 node_paths=PackedStringArray("target")]
+script = ExtResource("26_debug_area")
+target = NodePath("../CollisionShape3D")
+type = 2
+area_size = Vector3(3.98, 1, 2)
+color = Color(0.3, 0.85, 0.35, 0.9)
 
 [node name="AreaZone" type="Node" parent="Upscale/World/Map/Areas/SlowStrip_2" unique_id=335818393]
 script = ExtResource("16_zone")
@@ -184,14 +179,6 @@ scale = 0.5
 north = true
 south = true
 applies_on = 2
-
-[node name="Marker" type="MeshInstance3D" parent="Upscale/World/Map/Areas/SlowStrip_2" unique_id=667938829]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.01, 0)
-mesh = SubResource("BoxMesh_12pxd")
-surface_material_override/0 = SubResource("StandardMaterial3D_slow")
-
-[node name="DebugOnly" type="Node" parent="Upscale/World/Map/Areas/SlowStrip_2/Marker" unique_id=425351914]
-script = ExtResource("6_12pxd")
 
 [node name="Props" type="Node3D" parent="Upscale/World/Map" unique_id=1856897312]
 
@@ -242,6 +229,7 @@ script = ExtResource("26_debug_area")
 target = NodePath("../Collision")
 type = 4
 area_size = Vector3(0.6, 1.2, 0.6)
+color = Color(0.65, 0.35, 0.85, 0.9)
 
 [node name="Event_1" parent="Upscale/World/Map/Actors" unique_id=926035196 instance=ExtResource("4_4yn8y")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.5, 0, 7.5)
@@ -258,13 +246,14 @@ modulate = Color(0, 0, 0, 0.55)
 
 [node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Event_1" unique_id=926035197]
 script = ExtResource("25_game_event")
-document_path = "res://events/isoish_grid_demo/event_1_greeting.event.json"
+document_path = "res://data/events/isoish_grid_demo/event_1_greeting.event.json"
 
 [node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Event_1" unique_id=73596369 node_paths=PackedStringArray("target")]
 script = ExtResource("26_debug_area")
 target = NodePath("../Collision")
 type = 1
 area_size = Vector3(0.6, 1.2, 0.6)
+color = Color(0.35, 0.55, 1, 0.9)
 
 [node name="Event_2" parent="Upscale/World/Map/Actors" unique_id=784194929 instance=ExtResource("4_4yn8y")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 4.5)
@@ -281,24 +270,26 @@ modulate = Color(0, 0, 0, 0.55)
 
 [node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Event_2" unique_id=1247669565]
 script = ExtResource("25_game_event")
-document_path = "res://events/isoish_grid_demo/event_2_patrol.event.json"
+document_path = "res://data/events/isoish_grid_demo/event_2_patrol.event.json"
 
 [node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Event_2" unique_id=835807651 node_paths=PackedStringArray("target")]
 script = ExtResource("26_debug_area")
 target = NodePath("../Collision")
 type = 1
 area_size = Vector3(0.6, 1.2, 0.6)
+color = Color(0.35, 0.55, 1, 0.9)
 
 [node name="MapTransfer" type="Node3D" parent="Upscale/World/Map/Actors" unique_id=900000201]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 8.5)
 
 [node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/MapTransfer" unique_id=900000202]
 script = ExtResource("25_game_event")
-document_path = "res://events/isoish_grid_demo/map_transfer.event.json"
+document_path = "res://data/events/isoish_grid_demo/map_transfer.event.json"
 
 [node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/MapTransfer" unique_id=900000203]
 script = ExtResource("26_debug_area")
 type = 3
+color = Color(0.95, 0.55, 0.15, 0.9)
 
 [node name="Markers" type="Node3D" parent="Upscale/World/Map" unique_id=900000204]
 

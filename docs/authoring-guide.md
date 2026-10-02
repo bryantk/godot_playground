@@ -8,14 +8,14 @@ you author*, and *how to try it*. Deeper notes are in the code comments and in
 
 | You author | Where | Edited with |
 | --- | --- | --- |
-| Event graphs (what an actor or trigger does) | `events/<map_name>/<actor>.event.json` | **Graph** bottom panel |
-| Shared patrol routes | `events/routes/<name>.route.json` | Graph panel |
+| Event graphs (what an actor or trigger does) | `data/events/<map_name>/<actor>.event.json` | **Graph** bottom panel |
+| Shared patrol routes | `data/events/routes/<name>.route.json` | Graph panel |
 | Heroes, enemies, troops, items, abilities, effects, equipment | `data/<kind>/*.tres` | **Battle Data** dock + inspector |
 | The starting party | `data/party.tres` | Battle Data dock → *Party setup* |
 | Enemy AI | an ordinary `.event.json` (anywhere), named by the enemy's `ai_path` | Graph panel |
 
 A map's events live in a folder named for the map scene (`jrpg_demo.tscn` →
-`events/jrpg_demo/`). An actor's event file is named after its placement: rename the node in
+`data/events/jrpg_demo/`). An actor's event file is named after its placement: rename the node in
 the Scene dock and the file follows it (a duplicate gets its own copy). *Move Orphaned* is
 gone; *Find Orphaned Events* in the actor menu archives unused files to `removed/`.
 
@@ -133,7 +133,7 @@ level-ups and learned abilities in the log), and each defeated enemy's drops.
 Wolf, Bandit; troops `slime_pair`, `slime_awakened`, `wolf_pack`, `bandit_gang`; buffs/debuffs
 (Haste, Rage, Regen, Sunder, Slow, Poison, Fortify); abilities (Heal, Cure, Haste, Rally, Sunder,
 Poison Bite, Howl...); items (Potion, Antidote, Fortify Tonic). The Wolf and Bandit use the AI
-graphs in `events/ai/` - open them in the Graph panel to see how they are built.
+graphs in `data/events/ai/` - open them in the Graph panel to see how they are built.
 `tools/make_party_data.tscn` regenerates all of it.
 
 ### Enemy AI

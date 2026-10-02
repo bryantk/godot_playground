@@ -367,7 +367,7 @@ func _test_toward_walks_the_actor_at_the_target() -> void:
 # -- shared routes ----------------------------------------------------------------------
 
 func _test_shared_route_resolves() -> void:
-	_section("resolve -- a {use: name} reference reads res://events/routes/<name>.route.json")
+	_section("resolve -- a {use: name} reference reads res://data/events/routes/<name>.route.json")
 	var route := EventRoute.resolve({"use": "patrol_ns"})
 	_eq(str(route.get("mode", "")), "steps", "the template's mode carries over")
 	_eq((route.get("steps", []) as Array), ["n", "n"], "and its steps")

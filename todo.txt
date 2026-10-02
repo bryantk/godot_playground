@@ -1,13 +1,53 @@
+#Broken
+- battle does not start
+- map transfer crashes
+- party follow
+	footprint/follow distance
+	often get grouped / stuck
+	teleporting
+- input manager not used
 
+Debug is too big/dark
+	double resoulution of game window
+debug3d drawing extra box?
+debug3d
+	button to recalculate/match target size
 
+#TODO:
+Ladder climbing
+	climbing up - move up to cell above top ladder, then forward to ground mount
+	climbing down - forward to cell above ladder, then down next step
 
+Party follow:
+	give a generic footprint / follow distance
+	generic event/sprite offset
+	allow events to hit trailing party?
 
-a* route compute + step towards (next, success, blocked)
+event tags:
+	slides
+areas:
+	slippery
+
+remove route json:
+	"loop": "cycle",
+  "on_blocked": "wait",
+
+get debug terminal working
+
+add real tile sets
+
 option to 'collapse' nodes to an in-name-out stub?
 ?? Permit editing 'sub node' groups of anything?
 
+recording does not work
+	recording should be tied to starting (load) and saving
+
+hold to skip cutsceens
+	fade to black then fast forward until event 'end cutsceen'
 
 DONE:
+
+a* route compute + step towards (next, success, blocked)
 
 eval shorthand helpers
 	@actor.

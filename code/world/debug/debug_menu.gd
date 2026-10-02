@@ -16,6 +16,8 @@ const _LABELS := ["Event", "Area", "Transfer Marker", "Actor", "Passability", "I
 
 var _lines: Array[Label] = []
 
+var font_size := 10
+
 ## The seventh line, key 0 - [member DebugFlags.force_fast_forward] is a continuous
 ## hold state, not a press-to-flip category, so this is repainted every frame in
 ## [method _process] instead of off a signal the way [member _lines] are.
@@ -32,17 +34,19 @@ func _ready() -> void:
 	var box := VBoxContainer.new()
 	panel.add_child(box)
 
-	var title := Label.new()
-	title.text = "Debug menu (~ to close)"
-	box.add_child(title)
+	var grid := GridContainer.new()
+	grid.set_columns(2)
+	box.add_child(grid)
 
 	for i in DebugFlags.CATEGORIES.size():
 		var line := Label.new()
-		box.add_child(line)
+		line.add_theme_font_size_override("font_size", font_size)
+		grid.add_child(line)
 		_lines.append(line)
 
 	_fast_forward_line = Label.new()
-	box.add_child(_fast_forward_line)
+	_fast_forward_line.add_theme_font_size_override("font_size", font_size)
+	grid.add_child(_fast_forward_line)
 
 	_build_replay_controls(box)
 	_build_terminal(box)
@@ -81,6 +85,7 @@ func _build_replay_controls(box: VBoxContainer) -> void:
 
 	var heading := Label.new()
 	heading.text = "Input replay"
+	heading.add_theme_font_size_override("font_size", font_size - 4)
 	box.add_child(heading)
 
 	var row := HBoxContainer.new()
@@ -104,6 +109,7 @@ func _build_replay_controls(box: VBoxContainer) -> void:
 
 	_replay_status = Label.new()
 	box.add_child(_replay_status)
+	box.add_theme_font_size_override("font_size", font_size)
 	_repaint_replay()
 
 
@@ -187,7 +193,7 @@ func _set_line(i: int, shown: bool) -> void:
 # -- Terminal -----------------------------------------------------------------
 
 ## How many output lines and prior submissions the terminal keeps.
-const _TERMINAL_LINES := 40
+const _TERMINAL_LINES := 4
 const _HISTORY_LIMIT := 100
 
 var _terminal_output: RichTextLabel = null
@@ -209,10 +215,11 @@ func _build_terminal(box: VBoxContainer) -> void:
 
 	var heading := Label.new()
 	heading.text = "Terminal (GDScript expression on GameState - Up/Down history, Tab completes, Esc leaves)"
+	heading.add_theme_font_size_override("font_size", font_size)
 	box.add_child(heading)
 
 	_terminal_output = RichTextLabel.new()
-	_terminal_output.custom_minimum_size = Vector2(420, 120)
+	_terminal_output.custom_minimum_size = Vector2(420, 60)
 	_terminal_output.scroll_following = true
 	_terminal_output.fit_content = false
 	box.add_child(_terminal_output)

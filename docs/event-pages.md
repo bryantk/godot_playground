@@ -246,7 +246,7 @@ Decided 2026-09-14 alongside open-questions 11: **a route can live in a library 
 by many monsters**, rather than being copied into each one's page. Six guards patrolling the
 same shape is the ordinary case, and six copies is six places to edit when the shape changes.
 
-A route lives at `res://events/routes/<name>.route.json` — one file per route, so it diffs
+A route lives at `res://data/events/routes/<name>.route.json` — one file per route, so it diffs
 cleanly and the editor can list what exists — and a page references it by name:
 
 ```json

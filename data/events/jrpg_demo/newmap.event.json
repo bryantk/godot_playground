@@ -1,0 +1,93 @@
+{
+	"format": 1,
+	"id": "map_transfer",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {},
+			"art": {
+				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
+				"frame_row": 1.0,
+				"frame_col": 1.0,
+				"facing": "n"
+			},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
+			"step_in_place": false,
+			"lock_animation": false,
+			"lock_player": false,
+			"route": [],
+			"graph": [
+				{
+					"id": "start",
+					"title": "start",
+					"position": {
+						"x": -180,
+						"y": 0
+					},
+					"command": "start",
+					"args": {
+						"page_entry": true
+					},
+					"outputs": [
+						{
+							"flow": "player_touch",
+							"target": ""
+						},
+						{
+							"flow": "event_touch",
+							"target": ""
+						},
+						{
+							"flow": "action",
+							"target": "n1"
+						},
+						{
+							"flow": "auto",
+							"target": ""
+						},
+						{
+							"flow": "on_load",
+							"target": ""
+						},
+						{
+							"flow": "leave_cell",
+							"target": ""
+						},
+						{
+							"flow": "on_flag",
+							"target": ""
+						},
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				},
+				{
+					"id": "n1",
+					"title": "change_map_marker",
+					"position": {
+						"x": 100,
+						"y": 0
+					},
+					"command": "change_map_marker",
+					"args": {
+						"map": "res://games/isoish/isoish_grid_demo.tscn",
+						"marker": "arrival",
+						"fade_out": 0.4,
+						"fade_in": 0.4,
+						"facing": "n"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": ""
+						}
+					]
+				}
+			]
+		}
+	]
+}

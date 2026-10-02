@@ -12,10 +12,10 @@ class_name ActorQueries
 ## @guard.flag("alerted", true)    ... and write (terminal only; a condition cannot write)
 ## [/codeblock]
 ##
-## Distance is Manhattan over cells, [code]|dx| + |dy| + |dz|[/code]. A flag is the same
-## per-event, per-map self flag [code]self.talked[/code] and [code]set_self_flag[/code]
-## use, read off the [GameEvent] that sits with the actor - so its key is that event's
-## [method GameEvent.event_id] and the actor's map.
+## Distance is Manhattan over cells, [code]|dx| + |dy| + |dz|[/code].
+## A flag is the same per-event, per-map self flag [code]self.talked[/code] and
+## [code]set_self_flag[/code] use, read off the [GameEvent] that sits with the
+##actor - so its key is that event's [method GameEvent.event_id] and the actor's map.
 
 
 static func at(actor: Actor, cell: Vector3i) -> bool:

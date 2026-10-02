@@ -47,7 +47,7 @@ Recorded in [solved-questions.md](solved-questions.md) as questions 39–45.
 | 42 | **The round and the step pulse are struck from the design.** Speed classes and `credit` go with them, so `speed` has exactly one meaning everywhere: world units per second. |
 | 43 | **`//` keys are comments** — preserved verbatim through a parse/stringify round trip, ignored semantically. |
 | 44 | **Seven triggers:** `player_touch`, `event_touch`, `action`, `auto` (exclusive or parallel), `on_load`, `leave_cell`, `on_flag`. |
-| 45 | **Routes are edited in a Routes panel plus a viewport gizmo** — the panel lists every `res://events/routes/*.route.json` with its user count and edits the selected one; the gizmo drags whichever route the selected `GameEvent` uses. |
+| 45 | **Routes are edited in a Routes panel plus a viewport gizmo** — the panel lists every `res://data/events/routes/*.route.json` with its user count and edits the selected one; the gizmo drags whichever route the selected `GameEvent` uses. |
 
 **Consequence of 40:** `"actor": "npc_scout"` in the example documents is wrong and becomes
 `"@npc_scout"`. All five files in [docs/events/](events/) get updated, and a bare string in an
@@ -472,7 +472,7 @@ command stream the runner already executes, and runs as a background runner.
   everything else, including the save envelope, already treats as authoritative — whatever
   later drives that actor, a fresh `RouteBrain` or a reload from disk, finds its resume point
   by reading the actor rather than needing a back-channel to whatever used to own the route.
-- Shared routes at `res://events/routes/<name>.route.json`, referenced `{"use": "patrol_ns"}`,
+- Shared routes at `res://data/events/routes/<name>.route.json`, referenced `{"use": "patrol_ns"}`,
   **resolved at parse** so the in-memory page never holds a `use` string. A missing target is a
   validator error — otherwise it reads in-game as a monster that simply stands still, the
   hardest class of bug to attribute because nothing failed.
@@ -490,7 +490,7 @@ across a lease and across a save.
 ## File layout
 
 ```
-res://events/
+res://data/events/
   event_command.gd  event_condition.gd  event_document.gd
   event_runner.gd   event_command_exec.gd  key_latch.gd  event_context.gd
   game_event.gd     event_route.gd

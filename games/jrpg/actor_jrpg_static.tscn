@@ -1,4 +1,4 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://dyv0u00wcmsqh"]
 
 [ext_resource type="Script" uid="uid://c1bru16ajlsdu" path="res://code/actors/actor.gd" id="1_actor"]
 [ext_resource type="Script" uid="uid://cljpl00rh1er7" path="res://code/world/space_2d.gd" id="2_space"]
@@ -6,23 +6,23 @@
 [ext_resource type="Texture2D" uid="uid://baru88pr1ckdy" path="res://resources/Test_SpriteSheet_D_U_Side.png" id="5_sheet"]
 [ext_resource type="Script" uid="uid://b5nee1s0fk5wl" path="res://code/code/SpriteSheet.gd" id="6_sprite"]
 
-[node name="ActorJrpgStatic" type="Node2D"]
+[node name="ActorJrpgStatic" type="Node2D" unique_id=1126951568]
 
-[node name="Actor" type="Node" parent="."]
+[node name="Actor" type="Node" parent="." unique_id=874979167]
 script = ExtResource("1_actor")
 
-[node name="Space" type="Node" parent="Actor"]
+[node name="Space" type="Node" parent="Actor" unique_id=500119404]
 script = ExtResource("2_space")
 
-[node name="View" type="Node" parent="Actor"]
+[node name="View" type="Node" parent="Actor" unique_id=1581728018]
 script = ExtResource("4_view")
 visual_path = NodePath("../../Sprite")
 
-[node name="Sprite" type="Sprite2D" parent="."]
+[node name="Sprite" type="Sprite2D" parent="." unique_id=854404098]
 texture_filter = 1
 texture = ExtResource("5_sheet")
-offset = Vector2(0, -4)
 hframes = 3
 vframes = 3
+frame = 1
 script = ExtResource("6_sprite")
 rate = 0.08333333333333333

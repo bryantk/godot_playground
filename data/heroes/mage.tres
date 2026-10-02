@@ -1,12 +1,13 @@
-[gd_resource type="Resource" script_class="PartyMember" format=3]
+[gd_resource type="Resource" script_class="PartyMember" format=3 uid="uid://d3qtjrgv35ad"]
 
-[ext_resource type="Script" path="res://code/battle/ability.gd" id="1_pgojp"]
+[ext_resource type="Script" uid="uid://csw4bqm5y1jbg" path="res://code/battle/ability.gd" id="1_pgojp"]
 [ext_resource type="Resource" path="res://data/abilities/attack.tres" id="2_t2s1d"]
 [ext_resource type="Resource" path="res://data/abilities/guard.tres" id="3_65wfw"]
 [ext_resource type="Resource" path="res://data/abilities/fireball.tres" id="4_oi40l"]
 [ext_resource type="Resource" path="res://data/abilities/slow_spell.tres" id="5_65wfw"]
-[ext_resource type="Script" path="res://code/party/stats.gd" id="5_ij7mj"]
-[ext_resource type="Script" path="res://code/party/party_member.gd" id="6_duldw"]
+[ext_resource type="Script" uid="uid://benb467otohfh" path="res://code/party/stats.gd" id="5_ij7mj"]
+[ext_resource type="Script" uid="uid://xgqmn25b2h4t" path="res://code/party/party_member.gd" id="6_duldw"]
+[ext_resource type="Texture2D" uid="uid://baru88pr1ckdy" path="res://resources/Test_SpriteSheet_D_U_Side.png" id="7_ij7mj"]
 [ext_resource type="Resource" path="res://data/abilities/haste_spell.tres" id="7_oi40l"]
 
 [sub_resource type="Resource" id="Resource_ij7mj"]
@@ -19,6 +20,7 @@ mag = 8
 
 [resource]
 script = ExtResource("6_duldw")
+follower_sheet = ExtResource("7_ij7mj")
 growth = {
 "def": 1,
 "mag": 2,

@@ -4,7 +4,6 @@
 [ext_resource type="Script" uid="uid://c6bwsrlf14puk" path="res://code/world/map_context.gd" id="2_xw8l6"]
 [ext_resource type="MeshLibrary" uid="uid://bj0n18m532mb0" path="res://games/isoish/pixel_blocks.tres" id="3_dyp7w"]
 [ext_resource type="PackedScene" uid="uid://dvgv7b755fsko" path="res://games/isoish/actor_isoish.tscn" id="4_xyfnl"]
-[ext_resource type="Script" uid="uid://cfvh6ga4k8rgs" path="res://games/jrpg/debug_only.gd" id="6_occ0q"]
 [ext_resource type="Script" uid="uid://bywa73wc0217k" path="res://code/world/camera/ortho_pixel_rig.gd" id="12_2n526"]
 [ext_resource type="Script" uid="uid://pa3vwqvjw77f" path="res://code/actors/player_controller.gd" id="13_4c63s"]
 [ext_resource type="Resource" path="res://games/isoish/isoish_input.tres" id="14_tvm3s"]
@@ -24,13 +23,6 @@ ambient_light_energy = 0.85
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_slow"]
 size = Vector3(4, 2, 1)
-
-[sub_resource type="BoxMesh" id="BoxMesh_slow"]
-size = Vector3(4, 0.02, 1)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_slow"]
-transparency = 1
-albedo_color = Color(0.35, 0.55, 0.95, 0.35)
 
 [sub_resource type="Image" id="Image_6ruuy"]
 data = {
@@ -109,10 +101,20 @@ data = {
 [node name="Areas" type="Node3D" parent="Upscale/World/Map" unique_id=1483249190]
 
 [node name="SlowStrip" type="Area3D" parent="Upscale/World/Map/Areas" unique_id=356809075]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.5, 7.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 7.5)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Upscale/World/Map/Areas/SlowStrip" unique_id=1195820387]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 shape = SubResource("BoxShape3D_slow")
+
+[node name="DebugArea3D" type="Node3D" parent="Upscale/World/Map/Areas/SlowStrip" unique_id=1292141856 node_paths=PackedStringArray("target")]
+script = ExtResource("21_debug_area")
+target = NodePath("../CollisionShape3D")
+type = 2
+area_size = Vector3(4, 2, 1)
+color = Color(0.3, 0.85, 0.35, 0.9)
+fill = true
+metadata/_custom_type_script = "uid://brxsy083hd4wd"
 
 [node name="AreaZone" type="Node" parent="Upscale/World/Map/Areas/SlowStrip" unique_id=1611650029]
 script = ExtResource("15_zone")
@@ -122,14 +124,6 @@ script = ExtResource("16_speed")
 scale = 0.5
 east = true
 west = true
-
-[node name="Marker" type="MeshInstance3D" parent="Upscale/World/Map/Areas/SlowStrip" unique_id=183052973]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.49, 0)
-mesh = SubResource("BoxMesh_slow")
-surface_material_override/0 = SubResource("StandardMaterial3D_slow")
-
-[node name="DebugOnly" type="Node" parent="Upscale/World/Map/Areas/SlowStrip/Marker" unique_id=1651634654]
-script = ExtResource("6_occ0q")
 
 [node name="Actors" type="Node3D" parent="Upscale/World/Map" unique_id=1217300364]
 
@@ -150,9 +144,12 @@ cast_shadow = 0
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 7.5)
 texture_albedo = SubResource("ImageTexture_oxuky")
 
-[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Player" unique_id=1594013517]
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Player" unique_id=1594013517 node_paths=PackedStringArray("target")]
 script = ExtResource("21_debug_area")
-type = 4
+target = NodePath("../Collision")
+type = 1
+area_size = Vector3(0.6, 1.2, 0.6)
+color = Color(0.35, 0.55, 1, 0.9)
 
 [node name="Wanderer" parent="Upscale/World/Map/Actors" unique_id=1104263624 instance=ExtResource("18_grid")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.5, 0, 7.5)
@@ -173,33 +170,40 @@ modulate = Color(0, 0, 0, 0.55)
 
 [node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Wanderer" unique_id=1614060532]
 script = ExtResource("20_game_event")
-document_path = "res://events/isoish_demo/wanderer.event.json"
+document_path = "res://data/events/isoish_demo/wanderer.event.json"
 
-[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Wanderer" unique_id=2135462045]
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Wanderer" unique_id=2135462045 node_paths=PackedStringArray("target")]
 script = ExtResource("21_debug_area")
-type = 4
+target = NodePath("../Collision")
+type = 1
+area_size = Vector3(0.6, 1.2, 0.6)
+color = Color(0.35, 0.55, 1, 0.9)
 
 [node name="Spinner" parent="Upscale/World/Map/Actors" unique_id=1279026774 instance=ExtResource("4_xyfnl")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 10.5)
 
 [node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Spinner" unique_id=923602880]
 script = ExtResource("20_game_event")
-document_path = "res://events/isoish_demo/spinner.event.json"
+document_path = "res://data/events/isoish_demo/spinner.event.json"
 
-[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Spinner" unique_id=2023037893]
+[node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Spinner" unique_id=2023037893 node_paths=PackedStringArray("target")]
 script = ExtResource("21_debug_area")
-type = 4
+target = NodePath("../Collision")
+type = 1
+area_size = Vector3(0.6, 1.2, 0.6)
+color = Color(0.35, 0.55, 1, 0.9)
 
 [node name="MapTransfer" type="Node3D" parent="Upscale/World/Map/Actors" unique_id=1098854572]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 0, 7.5)
 
 [node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/MapTransfer" unique_id=1713695554]
 script = ExtResource("20_game_event")
-document_path = "res://events/isoish_demo/map_transfer.event.json"
+document_path = "res://data/events/isoish_demo/map_transfer.event.json"
 
 [node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/MapTransfer" unique_id=1949719031]
 script = ExtResource("21_debug_area")
-type = 3
+type = 1
+color = Color(0.35, 0.55, 1, 0.9)
 
 [node name="Markers" type="Node3D" parent="Upscale/World/Map" unique_id=1341055121]
 
@@ -207,6 +211,13 @@ type = 3
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7.5, 0, 7.5)
 script = ExtResource("22_map_marker")
 marker_name = &"arrival"
+
+[node name="DebugArea3D" type="Node3D" parent="Upscale/World/Map/Markers/Arrival" unique_id=1812413120 node_paths=PackedStringArray("target")]
+script = ExtResource("21_debug_area")
+target = NodePath("..")
+type = 3
+color = Color(0.95, 0.55, 0.15, 0.9)
+metadata/_custom_type_script = "uid://brxsy083hd4wd"
 
 [node name="Camera" type="Camera3D" parent="Upscale/World/Map" unique_id=2109221331]
 

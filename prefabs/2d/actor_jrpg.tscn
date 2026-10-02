@@ -7,8 +7,13 @@
 [ext_resource type="Script" uid="uid://n5vs863cahl4" path="res://code/world/debug_area_2d.gd" id="5_1itf5"]
 [ext_resource type="Texture2D" uid="uid://baru88pr1ckdy" path="res://resources/Test_SpriteSheet_D_U_Side.png" id="5_sheet"]
 [ext_resource type="Script" uid="uid://b5nee1s0fk5wl" path="res://code/code/SpriteSheet.gd" id="6_sprite"]
+[ext_resource type="Script" uid="uid://djiw6eurhp8ym" path="res://code/events/game_event.gd" id="8_kkd0y"]
 
 [node name="ActorJrpg" type="Node2D" unique_id=211123574]
+
+[node name="GameEvent" type="Node" parent="." unique_id=128753155]
+script = ExtResource("8_kkd0y")
+document_path = "res://data/events/jrpg_demo/map_transfer.event.json"
 
 [node name="Actor" type="Node" parent="." unique_id=39714522]
 script = ExtResource("1_actor")
@@ -23,12 +28,6 @@ script = ExtResource("3_motion")
 script = ExtResource("4_view")
 visual_path = NodePath("../../Sprite")
 
-[node name="DebugArea2D" type="Node2D" parent="." unique_id=1907705465 node_paths=PackedStringArray("target")]
-script = ExtResource("5_1itf5")
-target = NodePath("../Actor")
-type = 4
-metadata/_custom_type_script = "uid://n5vs863cahl4"
-
 [node name="Sprite" type="Sprite2D" parent="." unique_id=277189655]
 texture_filter = 1
 position = Vector2(0, -4)
@@ -38,3 +37,10 @@ vframes = 3
 frame = 1
 script = ExtResource("6_sprite")
 rate = 0.08333333333333333
+
+[node name="DebugArea2D" type="Node2D" parent="." unique_id=1907705465 node_paths=PackedStringArray("target")]
+script = ExtResource("5_1itf5")
+target = NodePath("../Actor")
+type = 4
+color = Color(0.65, 0.35, 0.85, 0.9)
+metadata/_custom_type_script = "uid://n5vs863cahl4"
