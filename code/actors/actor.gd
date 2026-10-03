@@ -496,6 +496,10 @@ func set_facing(dir: Vector3i) -> void:
 	if v != null:
 		v.set_facing(_facing)
 	facing_changed.emit(_facing)
+	# Actor is @tool but EventBus is not, so in the editor the autoload is a bare Node
+	# with none of these signals.
+	if Engine.is_editor_hint():
+		return
 	EventBus.actor_turned.emit(actor_id, was, _facing)
 	if is_player():
 		EventBus.player_turned.emit(was, _facing)

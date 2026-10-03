@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://mkr312amy7w7"
-path="res://.godot/imported/Pathing.png-ea7609f6b7c32715b56399eeb9f3720e.ctex"
+uid="uid://dw5ea6yulmu3j"
+path="res://.godot/imported/Inside_A2.png-f73f7a019b107b89fdbd4fee27c4416d.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/Pathing.png"
-dest_files=["res://.godot/imported/Pathing.png-ea7609f6b7c32715b56399eeb9f3720e.ctex"]
+source_file="res://resources/art/Inside_A2.png"
+dest_files=["res://.godot/imported/Inside_A2.png-f73f7a019b107b89fdbd4fee27c4416d.ctex"]
 
 [params]
 

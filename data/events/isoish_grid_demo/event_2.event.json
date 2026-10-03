@@ -1,0 +1,104 @@
+{
+	"format": 1,
+	"id": "event_2_patrol",
+	"pages": [
+		{
+			"conditions": [],
+			"settings": {
+				"speed": 2.0
+			},
+			"art": {
+				"sheet": "res://resources/Test_SpriteSheet_D_U_Side.png",
+				"frame_row": 1.0,
+				"frame_col": 1.0,
+				"facing": "n"
+			},
+			"lock_facing": false,
+			"through": false,
+			"through_terrain": false,
+			"step_in_place": false,
+			"lock_animation": false,
+			"lock_player": false,
+			"route": [
+				{
+					"id": "",
+					"title": "start",
+					"position": {
+						"x": -160,
+						"y": 80
+					},
+					"command": "start",
+					"args": {},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n1"
+						}
+					]
+				},
+				{
+					"id": "n1",
+					"title": "move_by",
+					"position": {
+						"x": 20,
+						"y": 20
+					},
+					"command": "move_by",
+					"args": {
+						"cells": [
+							0.0,
+							0.0,
+							-3.0
+						]
+					},
+					"outputs": [
+						{
+							"flow": "reached",
+							"target": "n2"
+						},
+						{
+							"flow": "blocked",
+							"target": ""
+						},
+						{
+							"flow": "immediate",
+							"target": ""
+						}
+					]
+				},
+				{
+					"id": "n2",
+					"title": "move_by",
+					"position": {
+						"x": 520,
+						"y": 20
+					},
+					"command": "move_by",
+					"args": {
+						"cells": [
+							0.0,
+							0.0,
+							3.0
+						]
+					},
+					"outputs": [
+						{
+							"flow": "reached",
+							"target": "n1"
+						},
+						{
+							"flow": "blocked",
+							"target": ""
+						},
+						{
+							"flow": "immediate",
+							"target": ""
+						}
+					]
+				}
+			],
+			"graph": [],
+			"animation_speed": 0.7
+		}
+	]
+}

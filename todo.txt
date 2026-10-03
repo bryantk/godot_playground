@@ -7,6 +7,14 @@
 	teleporting
 - input manager not used
 
+right click on flow arrow -> menu to delete it
+ctrl+s should save graph json
+clicking gameEvent should load its json
+Dialoug say -> add flow 'append'
+	keeps window up between lines
+	skips open/close between different locations
+	3rd flow? keep open -> keep other location on when opening other?
+
 Debug is too big/dark
 	double resoulution of game window
 debug3d drawing extra box?

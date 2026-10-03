@@ -816,7 +816,9 @@ func _maybe_fire(trigger_name: StringName) -> void:
 		return
 
 	var page: Dictionary = _pages()[_active_page]
-	var graph: Array[Dictionary] = page.get("graph", [])
+	# Parsed JSON arrays are untyped, so a typed Array[Dictionary] can't take one directly.
+	var graph: Array[Dictionary] = []
+	graph.assign(page.get("graph", []))
 	if graph.is_empty() or not EventCommand.start_wired(graph, str(trigger_name)):
 		return
 
@@ -903,7 +905,10 @@ func _route_nodes_of_page(page: Dictionary) -> Array[Dictionary]:
 	var raw: Variant = page.get("route", [])
 	if raw is Dictionary:
 		var route := EventRoute.resolve(raw as Dictionary)
-		return [] if EventRoute.is_stationary(route) else EventRoute.compile(route)
+		var compiled: Array[Dictionary] = []
+		if not EventRoute.is_stationary(route):
+			compiled = EventRoute.compile(route)
+		return compiled
 	if raw is Array:
 		var nodes: Array[Dictionary] = []
 		for node: Variant in raw as Array:
@@ -975,8 +980,9 @@ func _suspend_route_for_lease() -> void:
 	if _route_runner == null:
 		return
 
-	var nodes: Array[Dictionary] = \
-		_route_nodes_of_page(_pages()[_active_page]) if _active_page >= 0 else []
+	var nodes: Array[Dictionary] = []
+	if _active_page >= 0:
+		nodes = _route_nodes_of_page(_pages()[_active_page])
 	var saved := _route_runner.to_save()
 	_actor.suspended_route = {
 		"hash": EventCommand.doc_hash(nodes),

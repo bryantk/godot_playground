@@ -39,6 +39,9 @@ func _ready() -> void:
 
 
 func _on_yaw_changed(yaw: float) -> void:
+	var ctx := _player.context()
+	if ctx == null:
+		return
 	# Every sprite in the map re-picks its frame; nothing else about the world cares
 	# that the view rotated, and in particular no cell changes.
 	for who: Actor in _ctx.actors():
@@ -67,8 +70,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		_rig.subtexel_smoothing = not _rig.subtexel_smoothing
 	elif event.is_action("toggle_c"):
 		_cycle_terrain_data()
-	elif event.is_action("back"):
-		DemoLauncher.back_to_menu(self)
 
 
 ## 4-way is game 1's rule; 8-way is what a grid game in an iso view can afford, since a

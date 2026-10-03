@@ -58,5 +58,3 @@ func _unhandled_input(event: InputEvent) -> void:
 		_rig.quantise_camera = not _rig.quantise_camera
 	elif event.is_action("toggle_b"):
 		_rig.subtexel_smoothing = not _rig.subtexel_smoothing
-	elif event.is_action("back"):
-		DemoLauncher.back_to_menu(self)

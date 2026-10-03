@@ -12,7 +12,6 @@ config_version=5
 
 config/name="2026_dev"
 config/version="0.1"
-run/main_scene="res://demos/demo_launcher.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 boot_splash/use_filter=false
 config/icon="res://icon.svg"
@@ -50,6 +49,16 @@ naming/node_name_num_separator=2
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/event_editor/plugin.cfg", "res://addons/graph_editor/plugin.cfg", "res://addons/battle_data/plugin.cfg")
+
+[file_customization]
+
+folder_colors={
+"res://data/": "green",
+"res://prefabs/": "green",
+"res://resources/": "green",
+"res://tests/": "orange",
+"res://tools/": "red"
+}
 
 [input]
 

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://4x6dubucyh3e"]
 
-[ext_resource type="Script" uid="uid://c3okvne0qk1yd" path="res://games/isoish/isoish_demo.gd" id="1_6ruuy"]
+[ext_resource type="Script" uid="uid://c3okvne0qk1yd" path="res://games/isoish/isoish_demo.gd" id="1_q4r4o"]
 [ext_resource type="Script" uid="uid://c6bwsrlf14puk" path="res://code/world/map_context.gd" id="2_xw8l6"]
 [ext_resource type="MeshLibrary" uid="uid://bj0n18m532mb0" path="res://games/isoish/pixel_blocks.tres" id="3_dyp7w"]
 [ext_resource type="PackedScene" uid="uid://dvgv7b755fsko" path="res://games/isoish/actor_isoish.tscn" id="4_xyfnl"]
@@ -49,7 +49,7 @@ data = {
 image = SubResource("Image_xw8l6")
 
 [node name="IsoishDemo" type="Node" unique_id=725759159]
-script = ExtResource("1_6ruuy")
+script = ExtResource("1_q4r4o")
 
 [node name="Upscale" type="SubViewportContainer" parent="." unique_id=1303519769]
 texture_filter = 1

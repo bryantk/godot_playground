@@ -75,9 +75,15 @@ static func _draw_placement(overlay: Control, anchor: Node, start: Vector3i,
 	var page: Dictionary = pages[0]
 
 	for entry in [["route", ROUTE_COLOR], ["graph", GRAPH_COLOR]]:
-		var nodes: Array = page.get(entry[0], [])
-		if nodes.is_empty():
+		var raw: Variant = page.get(entry[0], [])
+		# "route" is a waypoint Dictionary on some pages; compile it to the node graph
+		# the tracer reads, as GameEvent does at runtime.
+		if raw is Dictionary:
+			var route := EventRoute.resolve(raw as Dictionary)
+			raw = [] if EventRoute.is_stationary(route) else EventRoute.compile(route)
+		if not raw is Array or (raw as Array).is_empty():
 			continue
+		var nodes: Array = raw
 		var facing := Vector3i(0, 0, 1)
 		_draw_segments(overlay, RouteTracer.trace(nodes, start, facing), project, entry[1])
 

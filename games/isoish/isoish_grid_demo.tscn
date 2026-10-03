@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://il6eoemdabl0"]
 
-[ext_resource type="Script" uid="uid://mngosoq638vn" path="res://games/isoish/isoish_grid_demo.gd" id="1_nbbrd"]
+[ext_resource type="Script" uid="uid://mngosoq638vn" path="res://games/isoish/isoish_grid_demo.gd" id="1_4q3m1"]
 [ext_resource type="Script" uid="uid://c6bwsrlf14puk" path="res://code/world/map_context.gd" id="2_jiamt"]
 [ext_resource type="MeshLibrary" uid="uid://bj0n18m532mb0" path="res://games/isoish/pixel_blocks.tres" id="3_4q3m1"]
 [ext_resource type="PackedScene" path="res://games/isoish/actor_isoish_grid.tscn" id="4_4yn8y"]
@@ -65,7 +65,7 @@ data = {
 image = SubResource("Image_ubx1w")
 
 [node name="IsoishGridDemo" type="Node" unique_id=1935666997]
-script = ExtResource("1_nbbrd")
+script = ExtResource("1_4q3m1")
 
 [node name="Upscale" type="SubViewportContainer" parent="." unique_id=989201560]
 texture_filter = 1
@@ -175,8 +175,7 @@ applies_on = 1
 
 [node name="SpeedModifier_2" type="Node" parent="Upscale/World/Map/Areas/SlowStrip_2/AreaZone" unique_id=1563082832]
 script = ExtResource("17_speed")
-scale = 0.5
-north = true
+scale = 0.25
 south = true
 applies_on = 2
 
@@ -270,7 +269,7 @@ modulate = Color(0, 0, 0, 0.55)
 
 [node name="GameEvent" type="Node" parent="Upscale/World/Map/Actors/Event_2" unique_id=1247669565]
 script = ExtResource("25_game_event")
-document_path = "res://data/events/isoish_grid_demo/event_2_patrol.event.json"
+document_path = "res://data/events/isoish_grid_demo/event_2.event.json"
 
 [node name="DebugArea" type="Node3D" parent="Upscale/World/Map/Actors/Event_2" unique_id=835807651 node_paths=PackedStringArray("target")]
 script = ExtResource("26_debug_area")

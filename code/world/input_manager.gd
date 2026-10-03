@@ -19,14 +19,12 @@ var _stack: Array[Node] = []
 func push_target(node: Node) -> void:
 	_stack.append(target)
 	_attach(node)
-	print("Input Target: %s" % target.name)
 	EventBus.input_lock_changed.emit(true)
 
 func pop_target() -> void:
 	if _stack.is_empty():
 		return
 	_attach(_stack.pop_back())
-	print("Input Target: %s" % target.name)
 	_is_down.clear()
 	EventBus.input_lock_changed.emit(not _stack.is_empty())
 
@@ -38,7 +36,7 @@ func is_down(action: String) -> bool:
 
 func _attach(node: Node) -> void:
 	target = node
-	print("Input Target: %s" % target.name)
+	print("Input Target: %s" % target.name if target else "nil")
 
 func _ready() -> void:
 	self.process_mode = Node.PROCESS_MODE_ALWAYS

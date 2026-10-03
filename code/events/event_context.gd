@@ -67,7 +67,9 @@ static func for_event(a_map: MapContext, a_map_id: StringName, a_event_id: Strin
 ## resolving one anyway would silently paper over an authoring mistake the validator
 ## already catches.
 func resolve(term: String) -> Actor:
-	return resolve_in(map, self_actor, term)
+	# TODO: Moving maps could drop the 'self_actor', don't crash
+	var a_self_actor = self_actor if is_instance_valid(self_actor) else null
+	return resolve_in(map, a_self_actor, term)
 
 
 ## [method resolve] against an explicit [param a_map]/[param self_actor] - what a page's

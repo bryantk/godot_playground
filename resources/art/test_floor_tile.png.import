@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bcouygpqccpyu"
-path.s3tc="res://.godot/imported/test_wall_tile.png-3e5dc9f41278cec41f2cbc54b82c52d6.s3tc.ctex"
+uid="uid://cc7q1su60ctr6"
+path.s3tc="res://.godot/imported/test_floor_tile.png-9e3826ec08e501047ada2a1c8211abda.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://art/test_wall_tile.png"
-dest_files=["res://.godot/imported/test_wall_tile.png-3e5dc9f41278cec41f2cbc54b82c52d6.s3tc.ctex"]
+source_file="res://resources/art/test_floor_tile.png"
+dest_files=["res://.godot/imported/test_floor_tile.png-9e3826ec08e501047ada2a1c8211abda.s3tc.ctex"]
 
 [params]
 

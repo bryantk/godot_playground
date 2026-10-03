@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dw5ea6yulmu3j"
-path="res://.godot/imported/Inside_A2.png-154e6d0547ce1b3f255af4f892078104.ctex"
+uid="uid://oyw0jcq0vxs4"
+path="res://.godot/imported/Terra_spriteSheet.png-c8ab3398c559c064677307ff50038703.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://art/Inside_A2.png"
-dest_files=["res://.godot/imported/Inside_A2.png-154e6d0547ce1b3f255af4f892078104.ctex"]
+source_file="res://resources/art/Terra_spriteSheet.png"
+dest_files=["res://.godot/imported/Terra_spriteSheet.png-c8ab3398c559c064677307ff50038703.ctex"]
 
 [params]
 

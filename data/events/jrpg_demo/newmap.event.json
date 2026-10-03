@@ -83,6 +83,42 @@
 					"outputs": [
 						{
 							"flow": "next",
+							"target": "n2"
+						}
+					]
+				},
+				{
+					"id": "n2",
+					"title": "say",
+					"position": {
+						"x": 400,
+						"y": 0
+					},
+					"command": "say",
+					"args": {
+						"text": "You made it to map 2"
+					},
+					"outputs": [
+						{
+							"flow": "next",
+							"target": "n3"
+						}
+					]
+				},
+				{
+					"id": "n3",
+					"title": "say",
+					"position": {
+						"x": 660,
+						"y": 0
+					},
+					"command": "say",
+					"args": {
+						"text": "Nice"
+					},
+					"outputs": [
+						{
+							"flow": "next",
 							"target": ""
 						}
 					]

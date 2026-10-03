@@ -149,6 +149,7 @@ class ChangeMap extends ChangeMapBase:
 ## exactly as it was.
 class ChangeMapMarker extends ChangeMapBase:
 	func _place(map_ctx: MapContext) -> void:
+		# TODO: Player should be a global level - how to do cross 2d/3d/grid?
 		var player := ctx.resolve("@player")
 		if player == null:
 			return
